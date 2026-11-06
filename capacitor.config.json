@@ -1,0 +1,8 @@
+{
+  "appId": "io.github.svatal.tiltmaze",
+  "appName": "Sklopený labyrint",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

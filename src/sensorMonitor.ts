@@ -34,6 +34,8 @@ function fin(n: unknown): n is number {
   return typeof n === "number" && Number.isFinite(n);
 }
 
+export type SensorIssueKind = "ok" | "no_sensors_desktop" | "sensor_blocked_or_invalid";
+
 export class SensorMonitor {
   startedAt = 0;
 
@@ -48,6 +50,9 @@ export class SensorMonitor {
   gravityConstructorFailed = false;
   lastGravityError: string | null = null;
 
+  /** Byla někdy přijata použitelná data ze skutečného senzoru (ne klávesnicí). */
+  hadRealSensorValid = false;
+
   lastGamma: number | null = null;
   lastBeta: number | null = null;
   lastGrav: { x: number; y: number; z: number | null } | null = null;
@@ -60,7 +65,6 @@ export class SensorMonitor {
   lastOrientEventAt = 0;
 
   private motionMagHistory: number[] = [];
-  private orientMagHistory: number[] = [];
 
   permAccel: PermissionState | "unsupported" = "unsupported";
   permGyro: PermissionState | "unsupported" = "unsupported";
@@ -73,7 +77,7 @@ export class SensorMonitor {
     this.lastMotionEventAt = 0;
     this.lastOrientEventAt = 0;
     this.motionMagHistory = [];
-    this.orientMagHistory = [];
+    this.hadRealSensorValid = false;
   }
 
   markKeyboardOverride(at: number): void {
@@ -93,9 +97,17 @@ export class SensorMonitor {
 
   setGravityConstructorResult(ok: boolean, err?: unknown): void {
     this.gsConstructorOk = ok;
-    if (!ok) {
-      this.gravityConstructorFailed = true;
+    if (ok) {
+      this.gravityConstructorFailed = false;
+      this.lastGravityError = null;
+      return;
+    }
+    /** Bez `err` = API v prohlížeči chybí (typ. desktop), nikoli uživatelská chyba. */
+    this.gravityConstructorFailed = err !== undefined;
+    if (this.gravityConstructorFailed) {
       this.lastGravityError = err instanceof Error ? err.message : err != null ? String(err) : "constructor failed";
+    } else {
+      this.lastGravityError = null;
     }
   }
 
@@ -116,12 +128,8 @@ export class SensorMonitor {
       this.orientValid += 1;
       if (fin(g)) this.lastGamma = g;
       if (fin(b)) this.lastBeta = b;
-      const mag = Math.hypot(fin(g) ? g! : 0, fin(b) ? b! : 0);
-      this.pushOrientMag(mag);
       this.lastValidSampleAt = at;
-    } else if (fin(g) || fin(b)) {
-      const mag = Math.hypot(fin(g) ? g! : 0, fin(b) ? b! : 0);
-      this.pushOrientMag(mag);
+      this.hadRealSensorValid = true;
     }
   }
 
@@ -149,6 +157,7 @@ export class SensorMonitor {
     if (farFromEarth || mag > 0.5) {
       this.motionValid += 1;
       this.lastValidSampleAt = at;
+      this.hadRealSensorValid = true;
     }
   }
 
@@ -159,6 +168,7 @@ export class SensorMonitor {
     const mag = Math.hypot(x, y, z);
     if (mag > 0.35) {
       this.lastValidSampleAt = at;
+      this.hadRealSensorValid = true;
     }
   }
 
@@ -184,48 +194,58 @@ export class SensorMonitor {
     };
   }
 
-  shouldWarnNoValidData(now: number, keyboardActive: boolean): boolean {
-    if (keyboardActive) return false;
-
-    const elapsed = now - this.startedAt;
-
-    if (this.permissionDenied) return true;
-    if (this.gravityConstructorFailed) return true;
-    if (this.gsErrors > 0 && this.gsReadings === 0) return true;
-
-    if (elapsed < 450) return false;
-
-    if (elapsed < NO_VALID_DATA_MS) return false;
+  /**
+   * Rozdělí případy: desktop bez jakýchkoli senzorů (krátká nápověda) vs. blokace / neplatná data (Brave, oprávnění, …).
+   */
+  classifySensorIssue(now: number): SensorIssueKind {
+    if (this.permissionDenied) return "sensor_blocked_or_invalid";
+    if (this.gravityConstructorFailed) return "sensor_blocked_or_invalid";
+    if (this.gsErrors > 0 && this.gsReadings === 0) return "sensor_blocked_or_invalid";
 
     if (this.lastValidSampleAt > 0) {
-      return now - this.lastValidSampleAt >= NO_VALID_DATA_MS;
+      if (now - this.lastValidSampleAt < NO_VALID_DATA_MS) return "ok";
+      return "sensor_blocked_or_invalid";
+    }
+
+    const elapsed = now - this.startedAt;
+    if (elapsed < 450) return "ok";
+    if (elapsed < NO_VALID_DATA_MS) return "ok";
+
+    const noDomEvents =
+      this.motionEvents === 0 &&
+      this.orientEvents === 0 &&
+      this.gsReadings === 0 &&
+      this.gsErrors === 0;
+
+    if (noDomEvents && this.gsConstructorOk !== true && !this.gravityConstructorFailed) {
+      return "no_sensors_desktop";
     }
 
     if (this.motionEvents >= 2 && this.motionValid === 0) {
-      if (this.motionStuckNear9_81()) return true;
-      if (this.allMotionRecentNearZero()) return true;
+      if (this.motionStuckNear9_81() || this.allMotionRecentNearZero()) {
+        return "sensor_blocked_or_invalid";
+      }
     }
 
     if (this.orientEvents >= 3 && this.orientValid === 0) {
-      if (this.orientStuckNearZero()) return true;
-      return true;
+      return "sensor_blocked_or_invalid";
     }
 
     if (this.motionEvents > 0 || this.orientEvents > 0 || this.gsReadings > 0 || this.gsErrors > 0) {
-      return true;
+      return "sensor_blocked_or_invalid";
     }
 
-    return false;
+    return "no_sensors_desktop";
+  }
+
+  shouldWarnNoValidData(now: number, keyboardActive: boolean): boolean {
+    if (keyboardActive) return false;
+    return this.classifySensorIssue(now) !== "ok";
   }
 
   private pushMotionMag(mag: number): void {
     this.motionMagHistory.push(mag);
     if (this.motionMagHistory.length > 14) this.motionMagHistory.shift();
-  }
-
-  private pushOrientMag(mag: number): void {
-    this.orientMagHistory.push(mag);
-    if (this.orientMagHistory.length > 14) this.orientMagHistory.shift();
   }
 
   private variance(a: number[]): number {
@@ -239,13 +259,6 @@ export class SensorMonitor {
     const v = this.variance(this.motionMagHistory);
     const mean = this.motionMagHistory.reduce((s, x) => s + x, 0) / this.motionMagHistory.length;
     return v < 0.05 && Math.abs(mean - 9.81) < 0.35;
-  }
-
-  private orientStuckNearZero(): boolean {
-    if (this.orientMagHistory.length < 6) return false;
-    const v = this.variance(this.orientMagHistory);
-    const mean = this.orientMagHistory.reduce((s, x) => s + x, 0) / this.orientMagHistory.length;
-    return v < 0.08 && mean < 0.2;
   }
 
   private allMotionRecentNearZero(): boolean {

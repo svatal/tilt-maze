@@ -8,7 +8,6 @@ import { computeRawTiltAxes } from "./tiltMapping";
 
 const SMOOTH = 0.18;
 const KEY_FORCE = 1.2;
-const WARN_THROTTLE_MS = 8000;
 const HEALTH_INTERVAL_MS = 350;
 
 type GravitySensorCtor = new (opts?: { frequency?: number }) => {
@@ -24,8 +23,12 @@ type GravitySensorCtor = new (opts?: { frequency?: number }) => {
 export type TiltOutput = { ax: number; ay: number };
 
 export type TiltControllerOptions = {
-  /** Voláno když nelze získat použitelná data ze senzorů (viz SensorMonitor) */
+  /** Desktop / žádné DOM senzory — krátká nápověda (jednou v relaci řeší UI) */
+  onSensorDesktopHint?: () => void;
+  /** Blokace (Brave), null data, zamítnutí oprávnění, … — plné upozornění */
   onSensorDataStale?: () => void;
+  /** Přišla platná data ze senzoru — skrýt banner a už nezobrazovat */
+  onSensorDataRecovered?: () => void;
 }
 
 export async function requestIOSMotionPermission(): Promise<boolean> {
@@ -78,7 +81,7 @@ export class TiltController {
   private listening = false;
   private stopGravitySensor: (() => void) | null = null;
   private healthTimer: ReturnType<typeof setInterval> | null = null;
-  private lastStaleWarn = 0;
+  private recoveryNotified = false;
 
   readonly monitor = new SensorMonitor();
 
@@ -130,18 +133,30 @@ export class TiltController {
   }
 
   private checkSensorHealth(): void {
-    if (!this.options.onSensorDataStale) return;
+    const { onSensorDesktopHint, onSensorDataStale, onSensorDataRecovered } = this.options;
+    if (!onSensorDesktopHint && !onSensorDataStale && !onSensorDataRecovered) return;
     const keyboard = this.keyTilt.x !== 0 || this.keyTilt.y !== 0;
     if (keyboard) {
       this.markActivityFromKeyboard();
       return;
     }
     const t = performance.now();
-    if (this.monitor.shouldWarnNoValidData(t, false)) {
-      if (t - this.lastStaleWarn < WARN_THROTTLE_MS) return;
-      this.lastStaleWarn = t;
-      this.options.onSensorDataStale();
+    const issue = this.monitor.classifySensorIssue(t);
+
+    if (issue === "ok") {
+      if (this.monitor.hadRealSensorValid && !this.recoveryNotified) {
+        this.recoveryNotified = true;
+        onSensorDataRecovered?.();
+      }
+      return;
     }
+
+    if (issue === "no_sensors_desktop") {
+      onSensorDesktopHint?.();
+      return;
+    }
+
+    onSensorDataStale?.();
   }
 
   calibrate(): void {

@@ -3,10 +3,19 @@ import { BUILD_INFO_LABEL } from "../buildInfo.generated";
 import { BALL_RADIUS, DESIGN_HEIGHT, DESIGN_WIDTH } from "../constants";
 import { LEVELS, type LevelDef } from "../levels";
 import { requestIOSMotionPermission, TiltController } from "../tilt";
+import {
+  markUserDismissedSensorBanner,
+  markValidSensorRecovery,
+  recordSensorBannerShown,
+  shouldShowSensorBannerKind,
+  type StorageLike
+} from "../sensorBannerSession";
 
 const WALL_FRICTION = 0.08;
 const FORCE_MULT = 0.00085;
 const MAX_SPEED = 7;
+
+const DESKTOP_HINT_MS = 5500;
 
 const SENSOR_HTML = `
   <div style="margin-bottom:12px;font-size:1.05rem;font-weight:700">Senzory nepřijímají data</div>
@@ -35,9 +44,11 @@ export class GameScene extends Phaser.Scene {
   private winLayer!: HTMLElement;
   private startScreen!: HTMLElement;
   private sensorBanner: HTMLElement | null = null;
+  private desktopHintTimer: ReturnType<typeof setTimeout> | null = null;
   private sensorDebugEl: HTMLElement | null = null;
   private sensorDebugTimer: ReturnType<typeof setInterval> | null = null;
   private lastVibrateAt = 0;
+  private sensorStorage: StorageLike = typeof sessionStorage !== "undefined" ? sessionStorage : { getItem: () => null, setItem: () => undefined };
   constructor() {
     super({ key: "GameScene" });
   }
@@ -45,8 +56,15 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     const qs = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
     const skipSensorBanner = qs.get("e2e") === "1";
+    this.sensorStorage = typeof sessionStorage !== "undefined" ? sessionStorage : { getItem: () => null, setItem: () => undefined };
     this.tilt = new TiltController(
-      skipSensorBanner ? {} : { onSensorDataStale: () => this.showSensorStaleBanner() }
+      skipSensorBanner
+        ? {}
+        : {
+            onSensorDesktopHint: () => this.maybeShowDesktopSensorHint(),
+            onSensorDataStale: () => this.maybeShowFullSensorWarning(),
+            onSensorDataRecovered: () => this.onSensorValidDataRecovered()
+          }
     );
 
     this.ensureTextures();
@@ -71,6 +89,10 @@ export class GameScene extends Phaser.Scene {
       if (this.sensorDebugTimer) {
         clearInterval(this.sensorDebugTimer);
         this.sensorDebugTimer = null;
+      }
+      if (this.desktopHintTimer) {
+        clearTimeout(this.desktopHintTimer);
+        this.desktopHintTimer = null;
       }
       this.sensorDebugEl?.remove();
       this.sensorDebugEl = null;
@@ -308,9 +330,10 @@ export class GameScene extends Phaser.Scene {
     this.sensorDebugEl = el;
     const tick = (): void => {
       const s = this.tilt.getSensorSnapshot();
-      const warn = this.tilt.monitor.shouldWarnNoValidData(performance.now(), this.tilt.isKeyboardActive());
+      const issue = this.tilt.monitor.classifySensorIssue(performance.now());
+      const warn = issue !== "ok" && !this.tilt.isKeyboardActive();
       el.textContent = [
-        `[sensorDebug] warn=${warn}`,
+        `[sensorDebug] issue=${issue} warn=${warn}`,
         `perm A/G/M: ${s.permAccel}/${s.permGyro}/${s.permMag} denied=${s.permissionDenied}`,
         `orient: ev ${s.orientEvents} valid ${s.orientValid} γ ${s.lastGamma ?? "—"} β ${s.lastBeta ?? "—"}`,
         `motion: ev ${s.motionEvents} valid ${s.motionValid} g ${s.lastGrav ? `${s.lastGrav.x.toFixed(2)},${s.lastGrav.y.toFixed(2)},${s.lastGrav.z ?? "—"}` : "—"}`,
@@ -325,8 +348,60 @@ export class GameScene extends Phaser.Scene {
     this.sensorDebugTimer = setInterval(tick, 320);
   }
 
-  private showSensorStaleBanner(): void {
-    if (this.sensorBanner) return;
+  private removeSensorBanner(): void {
+    if (this.desktopHintTimer) {
+      clearTimeout(this.desktopHintTimer);
+      this.desktopHintTimer = null;
+    }
+    this.sensorBanner?.remove();
+    this.sensorBanner = null;
+  }
+
+  private onSensorValidDataRecovered(): void {
+    markValidSensorRecovery(this.sensorStorage);
+    this.removeSensorBanner();
+  }
+
+  private maybeShowDesktopSensorHint(): void {
+    if (!shouldShowSensorBannerKind(this.sensorStorage, "desktop_hint")) return;
+    recordSensorBannerShown(this.sensorStorage, "desktop_hint");
+
+    this.removeSensorBanner();
+    const el = document.createElement("div");
+    el.id = "tilt-maze-sensor-desktop-hint";
+    el.style.cssText = [
+      "position:fixed",
+      "left:50%",
+      "bottom:18px",
+      "transform:translateX(-50%)",
+      "max-width:min(360px,calc(100vw - 24px))",
+      "background:rgba(35,22,12,0.94)",
+      "border:1px solid rgba(201,162,39,0.6)",
+      "border-radius:12px",
+      "padding:12px 16px",
+      "color:#e8dcc8",
+      "z-index:2147483647",
+      "pointer-events:none",
+      "text-align:center",
+      "font-size:0.92rem",
+      "line-height:1.4",
+      "box-shadow:0 3px 12px rgba(0,0,0,0.35)"
+    ].join(";");
+    el.textContent = "Na tomto zařízení ovládej šipkami nebo WASD.";
+    document.body.appendChild(el);
+    this.sensorBanner = el;
+    this.desktopHintTimer = setTimeout(() => {
+      el.remove();
+      if (this.sensorBanner === el) this.sensorBanner = null;
+      this.desktopHintTimer = null;
+    }, DESKTOP_HINT_MS);
+  }
+
+  private maybeShowFullSensorWarning(): void {
+    if (!shouldShowSensorBannerKind(this.sensorStorage, "full_warning")) return;
+    recordSensorBannerShown(this.sensorStorage, "full_warning");
+
+    this.removeSensorBanner();
     const el = document.createElement("div");
     el.id = "tilt-maze-sensor-warn";
     el.style.cssText = [
@@ -348,6 +423,7 @@ export class GameScene extends Phaser.Scene {
     el.innerHTML = SENSOR_HTML;
     const dismiss = el.querySelector("#sensor-dismiss") as HTMLButtonElement;
     dismiss.addEventListener("click", () => {
+      markUserDismissedSensorBanner(this.sensorStorage);
       el.remove();
       this.sensorBanner = null;
     });

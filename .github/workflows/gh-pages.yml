@@ -22,6 +22,7 @@ jobs:
       # Kořen produkce: /tilt-maze/ · Náhled PR: /tilt-maze/pr-N/
       VITE_BASE_PATH: ${{ github.event_name == 'pull_request' && format('/tilt-maze/pr-{0}/', github.event.pull_request.number) || '/tilt-maze/' }}
       E2E_BASE_PATH: ${{ github.event_name == 'pull_request' && format('/tilt-maze/pr-{0}/', github.event.pull_request.number) || '/tilt-maze/' }}
+      PR_NUMBER: ${{ github.event.pull_request.number || '' }}
       VITE_IS_PR_PREVIEW: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
       VITE_DISABLE_PWA: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
     steps:

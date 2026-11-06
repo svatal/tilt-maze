@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { BUILD_INFO_LABEL } from "../buildInfo.generated";
 import { BALL_RADIUS, DESIGN_HEIGHT, DESIGN_WIDTH } from "../constants";
 import { LEVELS, type LevelDef } from "../levels";
 import { requestIOSMotionPermission, TiltController } from "../tilt";
@@ -37,7 +38,6 @@ export class GameScene extends Phaser.Scene {
   private sensorDebugEl: HTMLElement | null = null;
   private sensorDebugTimer: ReturnType<typeof setInterval> | null = null;
   private lastVibrateAt = 0;
-
   constructor() {
     super({ key: "GameScene" });
   }
@@ -84,6 +84,57 @@ export class GameScene extends Phaser.Scene {
     if (qs.get("sensorDebug") === "1") {
       this.setupSensorDebugOverlay();
     }
+
+    if (qs.get("e2e") === "1") {
+      const w = window as unknown as {
+        __tiltMazeScene?: GameScene;
+        __loadLevel?: (n: number) => void;
+      };
+      w.__tiltMazeScene = this;
+      w.__loadLevel = (n: number) => this.loadLevel(n);
+    }
+
+    this.attachBuildInfoLabel();
+  }
+
+  /** Pro E2E: všechny zdi úrovně ve vnitřním rámu desky */
+  verifyWallsFitDesignBoard(): boolean {
+    const lvl = LEVELS[this.levelIndex];
+    const pad = 2;
+    for (const w of lvl.walls) {
+      const left = w.cx - w.w / 2;
+      const right = w.cx + w.w / 2;
+      const top = w.cy - w.h / 2;
+      const bottom = w.cy + w.h / 2;
+      if (left < pad || right > DESIGN_WIDTH - pad || top < pad || bottom > DESIGN_HEIGHT - pad) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private attachBuildInfoLabel(): void {
+    const el = document.createElement("div");
+    el.id = "tilt-maze-build-info";
+    el.textContent = BUILD_INFO_LABEL;
+    el.style.cssText = [
+      "position:fixed",
+      "right:10px",
+      "bottom:8px",
+      "z-index:2147483645",
+      "font:10px/1.3 system-ui,sans-serif",
+      "color:rgba(245,230,211,0.72)",
+      "text-shadow:0 1px 2px #000",
+      "pointer-events:none",
+      "max-width:min(90vw,420px)",
+      "text-align:right",
+      "white-space:pre-wrap",
+      "word-break:break-word"
+    ].join(";");
+    document.body.appendChild(el);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      el.remove();
+    });
   }
 
   update(_time: number, delta: number): void {
@@ -316,19 +367,12 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private layoutHud(size: Phaser.Structs.Size): void {
-    const cam = this.cameras.main;
-    const sx = size.width / DESIGN_WIDTH;
-    const sy = size.height / DESIGN_HEIGHT;
-    const z = Math.min(sx, sy);
-    cam.setZoom(z);
-    const offX = (size.width - DESIGN_WIDTH * z) / 2;
-    const offY = (size.height - DESIGN_HEIGHT * z) / 2;
-    cam.setOrigin(0, 0);
-    cam.setScroll(-offX / z, -offY / z);
+  private layoutHud(_size: Phaser.Structs.Size): void {
+    // Režim Scale.FIT v main.ts — kamera zůstává 1:1 ve světě DESIGN_WIDTH×DESIGN_HEIGHT, mezery jsou mimo canvas
+    const bounds = this.game.scale.canvasBounds;
     if (this.hud) {
-      this.hud.style.paddingLeft = `${Math.max(8, offX)}px`;
-      this.hud.style.paddingRight = `${Math.max(8, offX)}px`;
+      this.hud.style.paddingLeft = `${Math.max(8, Math.round(bounds.left))}px`;
+      this.hud.style.paddingRight = `${Math.max(8, Math.round(window.innerWidth - bounds.right))}px`;
     }
   }
 

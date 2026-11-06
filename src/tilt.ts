@@ -3,7 +3,8 @@
  * DOM: DeviceOrientation + DeviceMotion; volitelně Generic Sensor API (GravitySensor).
  */
 
-import { NO_VALID_DATA_MS, SensorMonitor, querySensorPermissions } from "./sensorMonitor";
+import { SensorMonitor, querySensorPermissions } from "./sensorMonitor";
+import { computeRawTiltAxes } from "./tiltMapping";
 
 const SMOOTH = 0.18;
 const KEY_FORCE = 1.2;
@@ -257,48 +258,30 @@ export class TiltController {
   };
 
   update(_dt: number, forceScale: number): TiltOutput {
-    let rawX = this.keyTilt.x;
-    let rawY = this.keyTilt.y;
-
-    const recentOrient = this.lastOrientTs > 0 && performance.now() - this.lastOrientTs < 550;
-    const haveOrientGamma = this.lastGamma !== null && recentOrient;
-    const haveOrientBoth =
-      this.lastGamma !== null && this.lastBeta !== null && recentOrient;
-
-    const recentMotion = this.lastMotionTs > 0 && performance.now() - this.lastMotionTs < 550;
-    const haveMotion =
-      recentMotion &&
-      (Math.abs(this.gravX - this.calGravX) > 0.08 || Math.abs(this.gravY - this.calGravY) > 0.08);
-
-    if (haveOrientBoth) {
-      const g = (this.lastGamma! - this.calGamma) * (Math.PI / 180);
-      const b = (this.lastBeta! - this.calBeta) * (Math.PI / 180);
-      rawX += Math.sin(g) * 2.2;
-      rawY += -Math.sin(b) * 2.2;
-    } else if (haveOrientGamma) {
-      const g = (this.lastGamma! - this.calGamma) * (Math.PI / 180);
-      rawX += Math.sin(g) * 2.2;
-    } else if (haveMotion) {
-      const dx = this.gravX - this.calGravX;
-      const dy = this.gravY - this.calGravY;
-      rawX += dx * 0.35;
-      rawY += -dy * 0.35;
-    } else if (this.hasGravitySample && performance.now() - this.lastGravSensorTs < 600) {
-      const dx = this.gsX - this.calGsX;
-      const dy = this.gsY - this.calGsY;
-      const dz = this.gsZ - this.calGsZ;
-      const nx = dx / 9.81;
-      const ny = dy / 9.81;
-      const nz = dz / 9.81;
-      rawX += nx * 2.4;
-      rawY += -ny * 2.4;
-      if (Math.abs(nz) > 0.12) {
-        rawY += nz * 0.8;
-      }
-    }
-
-    rawX = Math.max(-2.8, Math.min(2.8, rawX));
-    rawY = Math.max(-2.8, Math.min(2.8, rawY));
+    const now = performance.now();
+    const { rawX, rawY } = computeRawTiltAxes({
+      lastGamma: this.lastGamma,
+      lastBeta: this.lastBeta,
+      calGamma: this.calGamma,
+      calBeta: this.calBeta,
+      gravX: this.gravX,
+      gravY: this.gravY,
+      calGravX: this.calGravX,
+      calGravY: this.calGravY,
+      gsX: this.gsX,
+      gsY: this.gsY,
+      gsZ: this.gsZ,
+      calGsX: this.calGsX,
+      calGsY: this.calGsY,
+      calGsZ: this.calGsZ,
+      keyX: this.keyTilt.x,
+      keyY: this.keyTilt.y,
+      lastOrientTs: this.lastOrientTs,
+      lastMotionTs: this.lastMotionTs,
+      lastGravSensorTs: this.lastGravSensorTs,
+      hasGravitySample: this.hasGravitySample,
+      now
+    });
 
     this.smoothAx += (rawX * forceScale - this.smoothAx) * SMOOTH;
     this.smoothAy += (rawY * forceScale - this.smoothAy) * SMOOTH;
@@ -306,5 +289,3 @@ export class TiltController {
     return { ax: this.smoothAx, ay: this.smoothAy };
   }
 }
-
-export { NO_VALID_DATA_MS };

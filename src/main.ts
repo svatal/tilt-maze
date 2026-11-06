@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { DESIGN_HEIGHT, DESIGN_WIDTH } from "./constants";
 import { assertAllLevelsSolvable } from "./levelSolvability";
 import { LEVELS } from "./levels";
 import { GameScene } from "./scenes/GameScene";
@@ -15,24 +16,16 @@ if (!container) {
   throw new Error("Chybí #game-container");
 }
 
-function gameSize(): { width: number; height: number } {
-  const w = Math.max(1, window.innerWidth);
-  const h = Math.max(1, window.innerHeight);
-  return { width: w, height: h };
-}
-
-const initial = gameSize();
-
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: container,
-  width: initial.width,
-  height: initial.height,
+  width: DESIGN_WIDTH,
+  height: DESIGN_HEIGHT,
   scale: {
-    mode: Phaser.Scale.RESIZE,
+    mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: initial.width,
-    height: initial.height
+    width: DESIGN_WIDTH,
+    height: DESIGN_HEIGHT
   },
   backgroundColor: "#1a120a",
   scene: [GameScene],
@@ -52,9 +45,10 @@ const config: Phaser.Types.Core.GameConfig = {
 
 const game = new Phaser.Game(config);
 
+(window as unknown as { __tiltMazeGame?: Phaser.Game }).__tiltMazeGame = game;
+
 window.addEventListener("resize", () => {
-  const { width, height } = gameSize();
-  game.scale.resize(width, height);
+  game.scale.refresh();
 });
 
 // E2E / ladění: dokončení úrovně z konzole

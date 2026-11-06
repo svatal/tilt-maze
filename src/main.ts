@@ -1,10 +1,13 @@
 import Phaser from "phaser";
-import { registerSW } from "virtual:pwa-register";
 import { assertAllLevelsSolvable } from "./levelSolvability";
 import { LEVELS } from "./levels";
 import { GameScene } from "./scenes/GameScene";
 
-registerSW({ immediate: true });
+if (import.meta.env.VITE_DISABLE_PWA !== "true") {
+  void import("virtual:pwa-register").then(({ registerSW }) => {
+    registerSW({ immediate: true });
+  });
+}
 assertAllLevelsSolvable(LEVELS);
 
 const container = document.getElementById("game-container");

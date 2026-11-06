@@ -62,19 +62,34 @@ Přidejte do URL **`?matterDebug=1`** — zobrazí se kontury Matter těles (mě
 
 **Poznámka:** skutečné naklonění se na stolním Chromium netestuje; vyžaduje fyzické zařízení s gyroskopem.
 
-## GitHub Pages z tohoto repozitáře
+## GitHub Pages (větev `gh-pages`)
 
-Po sloučení do výchozí větve (`main`) workflow `.github/workflows/pages.yml` sestaví projekt a nasadí ho přes **actions/deploy-pages**.
+Nasazení běží přes workflow **`.github/workflows/gh-pages.yml`**: sestavení (`npm run build`), **Vitest** a **Playwright**, poté push do větve **`gh-pages`** ([peaceiris/actions-gh-pages](https://github.com/peaceiris/actions-gh-pages)).
 
-**V nastavení repozitáře na GitHubu musíte:**
+- **Produkce (main):** obsah `dist/` se zapisuje do **kořene** větve `gh-pages` → stránka je na **`https://svatal.github.io/tilt-maze/`** (GitHub stránky projektů vždy mají kořen `/repo-name/`).
+- **Náhled z PR (stejný fork):** pro události `opened` / `synchronize` / `reopened` se build s `VITE_BASE_PATH=/tilt-maze/pr-<číslo>/` uloží do složky **`pr-<číslo>/`** na `gh-pages` → **`https://svatal.github.io/tilt-maze/pr-<číslo>/`**. Pod PR se automaticky přidá nebo aktualizuje komentář s odkazem.
+- **Zavření PR:** job smaže **`pr-<číslo>/`** z `gh-pages` a upraví komentář.
 
-1. **Settings → Pages → Build and deployment → Source:** zvolit **GitHub Actions** (ne „Deploy from branch“).
+Forky od cizích účtů se **nenasazují** (nemá smysl pouštět cizí kód s `GITHUB_TOKEN`).
 
-Po prvním úspěšném běhu bude aplikace obvykle na adrese:
+**Jednorázové nastavení v GitHubu (vlastník repozitáře):**
 
-**https://svatal.github.io/tilt-maze/**
+1. Otevřete **Settings → Pages**.
+2. U **Build and deployment** zvolte **Deploy from a branch**.
+3. **Branch:** `gh-pages`, složka **`/ (root)`**, uložte.
 
-(Pokud je repozitře `tilt-maze` pod uživatelem `svatal`.)
+Dřívější režim „GitHub Actions“ u deploy-pages už není potřeba — publikuje se přímo commit na `gh-pages`.
+
+### Lokální simulace cesty jako u PR
+
+```bash
+VITE_BASE_PATH=/tilt-maze/pr-2/ VITE_IS_PR_PREVIEW=true VITE_DISABLE_PWA=true E2E_BASE_PATH=/tilt-maze/pr-2/ npm run build
+VITE_BASE_PATH=/tilt-maze/pr-2/ E2E_BASE_PATH=/tilt-maze/pr-2/ npm run preview
+```
+
+### PWA u náhledů
+
+U buildů z PR je **`VITE_DISABLE_PWA=true`** (žádný service worker ani manifest v balíčku), aby starý SW z produkce **nezasahoval** do `/tilt-maze/pr-…/`. Plnohodnotná PWA zůstává jen u produkčního nasazení z `main`; scope SW je vždy vázaný na `VITE_BASE_PATH`.
 
 ## Capacitor (budoucí APK)
 

@@ -8,6 +8,8 @@ const root = path.resolve(__dirname, "../..");
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+const basePath = (process.env.E2E_BASE_PATH ?? "/tilt-maze/").replace(/\/?$/, "/");
+
 test.beforeAll(() => {
   if (!fs.existsSync(path.join(root, "dist", "index.html"))) {
     throw new Error("Spusťte nejdřív npm run build (chybí dist/)");
@@ -21,7 +23,7 @@ test("E2E: úroveň 1 klávesnicí + overlay Matter debug, bez chyb v konzoli", 
   });
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 
-  await page.goto("/tilt-maze/?e2e=1&matterDebug=1", { waitUntil: "networkidle" });
+  await page.goto(`${basePath}?e2e=1&matterDebug=1`, { waitUntil: "networkidle" });
 
   await page.getByRole("button", { name: "Start" }).click();
   await expect(page.locator("#tilt-maze-ui")).toBeVisible();
@@ -56,7 +58,7 @@ test("E2E: debug hook dokončí úroveň (regrese)", async ({ page }) => {
   });
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 
-  await page.goto("/tilt-maze/?e2e=1", { waitUntil: "networkidle" });
+  await page.goto(`${basePath}?e2e=1`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Start" }).click();
   await page.evaluate(() => {
     (window as unknown as { __debugCompleteLevel?: () => void }).__debugCompleteLevel?.();

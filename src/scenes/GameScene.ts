@@ -1,38 +1,79 @@
 import Phaser from "phaser";
-import { DESIGN_HEIGHT, DESIGN_WIDTH, LEVELS, type LevelDef } from "../levels";
-import { TiltController } from "../tilt";
+import { BUILD_INFO_LABEL } from "../buildInfo.generated";
+import { BALL_RADIUS, DESIGN_HEIGHT, DESIGN_WIDTH } from "../constants";
+import { LEVELS, type LevelDef } from "../levels";
+import { requestIOSMotionPermission, TiltController } from "../tilt";
+import {
+  markUserDismissedSensorBanner,
+  markValidSensorRecovery,
+  recordSensorBannerShown,
+  shouldShowSensorBannerKind,
+  type StorageLike
+} from "../sensorBannerSession";
 
-const BALL_RADIUS = 11;
 const WALL_FRICTION = 0.08;
 const FORCE_MULT = 0.00085;
 const MAX_SPEED = 7;
 
+const DESKTOP_HINT_MS = 5500;
+
+const SENSOR_HTML = `
+  <div style="margin-bottom:12px;font-size:1.05rem;font-weight:700">Senzory nepřijímají data</div>
+  <p style="margin:0 0 10px;max-width:340px;line-height:1.45;font-size:0.9rem">
+    Prohlížeč neposílá údaje o naklonění. Na <strong>Androidu v Brave</strong> zkontrolujte stránkové oprávnění
+    <strong>Pohybové senzory</strong> (ikonka zámku v adresním řádku → oprávnění) a že
+    <strong>Brave Shields</strong> neblokují senzory. V <strong>Chrome</strong> musí být stránka na <strong>HTTPS</strong>.
+    Na iOS povolte přístup v dialogu. Můžete použít tlačítka <strong>Kalibrovat</strong> po položení telefonu rovně.
+  </p>
+  <button type="button" id="sensor-dismiss" style="padding:10px 20px;border-radius:10px;border:1px solid #c9a227;background:#3d2918;color:#f5e6d3;cursor:pointer;font-size:0.9rem">Rozumím, použiju klávesnici</button>
+`;
+
 export class GameScene extends Phaser.Scene {
-  private tilt = new TiltController();
+  private tilt!: TiltController;
   private ball!: Phaser.Physics.Matter.Image;
   private levelIndex = 0;
   private elapsedMs = 0;
   private running = false;
-  private wallBodies: Phaser.Physics.Matter.Image[] = [];
-  /** Grafika děr (cíl, pasti) — odděleně od fyziky */
+  private wallBodies: MatterJS.BodyType[] = [];
   private decorative: Phaser.GameObjects.Graphics[] = [];
-  private goalObj: Phaser.Physics.Matter.Image | null = null;
-  private trapObjs: Phaser.Physics.Matter.Image[] = [];
+  private goalBody: MatterJS.BodyType | null = null;
+  private trapBodies: MatterJS.BodyType[] = [];
   private hud!: HTMLElement;
   private timerEl!: HTMLElement;
   private levelEl!: HTMLElement;
   private winLayer!: HTMLElement;
   private startScreen!: HTMLElement;
+  private sensorBanner: HTMLElement | null = null;
+  private desktopHintTimer: ReturnType<typeof setTimeout> | null = null;
+  private sensorDebugEl: HTMLElement | null = null;
+  private sensorDebugTimer: ReturnType<typeof setInterval> | null = null;
   private lastVibrateAt = 0;
-
+  private sensorStorage: StorageLike = typeof sessionStorage !== "undefined" ? sessionStorage : { getItem: () => null, setItem: () => undefined };
   constructor() {
     super({ key: "GameScene" });
   }
 
   create(): void {
+    const qs = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
+    const skipSensorBanner = qs.get("e2e") === "1";
+    this.sensorStorage = typeof sessionStorage !== "undefined" ? sessionStorage : { getItem: () => null, setItem: () => undefined };
+    this.tilt = new TiltController(
+      skipSensorBanner
+        ? {}
+        : {
+            onSensorDesktopHint: () => this.maybeShowDesktopSensorHint(),
+            onSensorDataStale: () => this.maybeShowFullSensorWarning(),
+            onSensorDataRecovered: () => this.onSensorValidDataRecovered()
+          }
+    );
+
     this.ensureTextures();
     this.matter.world.setBounds(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT, 32, true, true, true, true);
     this.matter.world.setGravity(0, 0);
+
+    if (qs.get("matterDebug") === "1" || import.meta.env.VITE_MATTER_DEBUG === "true") {
+      this.matter.world.createDebugGraphic();
+    }
 
     this.buildBackground();
     this.buildHud();
@@ -45,12 +86,77 @@ export class GameScene extends Phaser.Scene {
     this.game.events.on("debug-complete-level", this.debugWinLevel, this);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      if (this.sensorDebugTimer) {
+        clearInterval(this.sensorDebugTimer);
+        this.sensorDebugTimer = null;
+      }
+      if (this.desktopHintTimer) {
+        clearTimeout(this.desktopHintTimer);
+        this.desktopHintTimer = null;
+      }
+      this.sensorDebugEl?.remove();
+      this.sensorDebugEl = null;
       this.tilt.destroy();
       this.game.events.off("debug-complete-level", this.debugWinLevel, this);
       this.matter.world.off("collisionstart", this.onCollisionStart, this);
     });
 
     this.loadLevel(0);
+
+    if (qs.get("sensorDebug") === "1") {
+      this.setupSensorDebugOverlay();
+    }
+
+    if (qs.get("e2e") === "1") {
+      const w = window as unknown as {
+        __tiltMazeScene?: GameScene;
+        __loadLevel?: (n: number) => void;
+      };
+      w.__tiltMazeScene = this;
+      w.__loadLevel = (n: number) => this.loadLevel(n);
+    }
+
+    this.attachBuildInfoLabel();
+  }
+
+  /** Pro E2E: všechny zdi úrovně ve vnitřním rámu desky */
+  verifyWallsFitDesignBoard(): boolean {
+    const lvl = LEVELS[this.levelIndex];
+    const pad = 2;
+    for (const w of lvl.walls) {
+      const left = w.cx - w.w / 2;
+      const right = w.cx + w.w / 2;
+      const top = w.cy - w.h / 2;
+      const bottom = w.cy + w.h / 2;
+      if (left < pad || right > DESIGN_WIDTH - pad || top < pad || bottom > DESIGN_HEIGHT - pad) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private attachBuildInfoLabel(): void {
+    const el = document.createElement("div");
+    el.id = "tilt-maze-build-info";
+    el.textContent = BUILD_INFO_LABEL;
+    el.style.cssText = [
+      "position:fixed",
+      "right:10px",
+      "bottom:8px",
+      "z-index:2147483645",
+      "font:10px/1.3 system-ui,sans-serif",
+      "color:rgba(245,230,211,0.72)",
+      "text-shadow:0 1px 2px #000",
+      "pointer-events:none",
+      "max-width:min(90vw,420px)",
+      "text-align:right",
+      "white-space:pre-wrap",
+      "word-break:break-word"
+    ].join(";");
+    document.body.appendChild(el);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      el.remove();
+    });
   }
 
   update(_time: number, delta: number): void {
@@ -123,7 +229,10 @@ export class GameScene extends Phaser.Scene {
       <button id="btn-start" type="button" style="padding:14px 28px;font-size:1.05rem;border-radius:12px;border:none;background:#c9a227;color:#1a120a;font-weight:700;cursor:pointer">
         Start
       </button>
-      <p style="margin:16px 0 0;font-size:0.75rem;opacity:0.75">Android Chrome: HTTPS. iOS: po klepnutí na Start se může vyžádat přístup k pohybu.</p>
+      <p style="margin:16px 0 0;font-size:0.75rem;opacity:0.75">
+        Vyžaduje HTTPS (Chrome na Androidu). iOS: po Start může systém vyžádat přístup k pohybu.
+        Brave: povolte „Motion sensors“ u stránky; Shields může senzory blokovat.
+      </p>
     `;
 
     const hud = document.createElement("div");
@@ -197,6 +306,131 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private setupSensorDebugOverlay(): void {
+    if (this.sensorDebugEl) return;
+    const el = document.createElement("div");
+    el.id = "tilt-maze-sensor-debug";
+    el.style.cssText = [
+      "position:fixed",
+      "top:8px",
+      "left:8px",
+      "max-width:min(96vw,380px)",
+      "background:rgba(0,0,0,0.82)",
+      "color:#cfc",
+      "font:11px/1.35ui-monospace,monospace",
+      "padding:8px 10px",
+      "border-radius:8px",
+      "z-index:2147483646",
+      "pointer-events:none",
+      "text-align:left",
+      "white-space:pre-wrap",
+      "word-break:break-word"
+    ].join(";");
+    document.body.appendChild(el);
+    this.sensorDebugEl = el;
+    const tick = (): void => {
+      const s = this.tilt.getSensorSnapshot();
+      const issue = this.tilt.monitor.classifySensorIssue(performance.now());
+      const warn = issue !== "ok" && !this.tilt.isKeyboardActive();
+      el.textContent = [
+        `[sensorDebug] issue=${issue} warn=${warn}`,
+        `perm A/G/M: ${s.permAccel}/${s.permGyro}/${s.permMag} denied=${s.permissionDenied}`,
+        `orient: ev ${s.orientEvents} valid ${s.orientValid} γ ${s.lastGamma ?? "—"} β ${s.lastBeta ?? "—"}`,
+        `motion: ev ${s.motionEvents} valid ${s.motionValid} g ${s.lastGrav ? `${s.lastGrav.x.toFixed(2)},${s.lastGrav.y.toFixed(2)},${s.lastGrav.z ?? "—"}` : "—"}`,
+        `gravSensor: ctor ${s.gsConstructorOk} read ${s.gsReadings} err ${s.gsErrors}`,
+        s.lastGs ? `  GS ${s.lastGs.x.toFixed(2)},${s.lastGs.y.toFixed(2)},${s.lastGs.z.toFixed(2)}` : "  GS —",
+        s.lastGravityError ? `  err: ${s.lastGravityError}` : ""
+      ]
+        .filter(Boolean)
+        .join("\n");
+    };
+    tick();
+    this.sensorDebugTimer = setInterval(tick, 320);
+  }
+
+  private removeSensorBanner(): void {
+    if (this.desktopHintTimer) {
+      clearTimeout(this.desktopHintTimer);
+      this.desktopHintTimer = null;
+    }
+    this.sensorBanner?.remove();
+    this.sensorBanner = null;
+  }
+
+  private onSensorValidDataRecovered(): void {
+    markValidSensorRecovery(this.sensorStorage);
+    this.removeSensorBanner();
+  }
+
+  private maybeShowDesktopSensorHint(): void {
+    if (!shouldShowSensorBannerKind(this.sensorStorage, "desktop_hint")) return;
+    recordSensorBannerShown(this.sensorStorage, "desktop_hint");
+
+    this.removeSensorBanner();
+    const el = document.createElement("div");
+    el.id = "tilt-maze-sensor-desktop-hint";
+    el.style.cssText = [
+      "position:fixed",
+      "left:50%",
+      "bottom:18px",
+      "transform:translateX(-50%)",
+      "max-width:min(360px,calc(100vw - 24px))",
+      "background:rgba(35,22,12,0.94)",
+      "border:1px solid rgba(201,162,39,0.6)",
+      "border-radius:12px",
+      "padding:12px 16px",
+      "color:#e8dcc8",
+      "z-index:2147483647",
+      "pointer-events:none",
+      "text-align:center",
+      "font-size:0.92rem",
+      "line-height:1.4",
+      "box-shadow:0 3px 12px rgba(0,0,0,0.35)"
+    ].join(";");
+    el.textContent = "Na tomto zařízení ovládej šipkami nebo WASD.";
+    document.body.appendChild(el);
+    this.sensorBanner = el;
+    this.desktopHintTimer = setTimeout(() => {
+      el.remove();
+      if (this.sensorBanner === el) this.sensorBanner = null;
+      this.desktopHintTimer = null;
+    }, DESKTOP_HINT_MS);
+  }
+
+  private maybeShowFullSensorWarning(): void {
+    if (!shouldShowSensorBannerKind(this.sensorStorage, "full_warning")) return;
+    recordSensorBannerShown(this.sensorStorage, "full_warning");
+
+    this.removeSensorBanner();
+    const el = document.createElement("div");
+    el.id = "tilt-maze-sensor-warn";
+    el.style.cssText = [
+      "position:fixed",
+      "left:50%",
+      "bottom:18px",
+      "transform:translateX(-50%)",
+      "max-width:min(420px,calc(100vw - 24px))",
+      "background:rgba(35,22,12,0.96)",
+      "border:1px solid #c9a227",
+      "border-radius:12px",
+      "padding:14px 16px",
+      "color:#f5e6d3",
+      "z-index:2147483647",
+      "pointer-events:auto",
+      "text-align:left",
+      "box-shadow:0 4px 16px rgba(0,0,0,0.4)"
+    ].join(";");
+    el.innerHTML = SENSOR_HTML;
+    const dismiss = el.querySelector("#sensor-dismiss") as HTMLButtonElement;
+    dismiss.addEventListener("click", () => {
+      markUserDismissedSensorBanner(this.sensorStorage);
+      el.remove();
+      this.sensorBanner = null;
+    });
+    document.body.appendChild(el);
+    this.sensorBanner = el;
+  }
+
   private ensureTextures(): void {
     if (!this.textures.exists("ball_tex")) {
       const g = this.make.graphics({ x: 0, y: 0 });
@@ -209,28 +443,18 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private layoutHud(size: Phaser.Structs.Size): void {
-    const cam = this.cameras.main;
-    const sx = size.width / DESIGN_WIDTH;
-    const sy = size.height / DESIGN_HEIGHT;
-    const z = Math.min(sx, sy);
-    cam.setZoom(z);
-    const offX = (size.width - DESIGN_WIDTH * z) / 2;
-    const offY = (size.height - DESIGN_HEIGHT * z) / 2;
-    cam.setOrigin(0, 0);
-    cam.setScroll(-offX / z, -offY / z);
+  private layoutHud(_size: Phaser.Structs.Size): void {
+    // Režim Scale.FIT v main.ts — kamera zůstává 1:1 ve světě DESIGN_WIDTH×DESIGN_HEIGHT, mezery jsou mimo canvas
+    const bounds = this.game.scale.canvasBounds;
     if (this.hud) {
-      this.hud.style.paddingLeft = `${Math.max(8, offX)}px`;
-      this.hud.style.paddingRight = `${Math.max(8, offX)}px`;
+      this.hud.style.paddingLeft = `${Math.max(8, Math.round(bounds.left))}px`;
+      this.hud.style.paddingRight = `${Math.max(8, Math.round(window.innerWidth - bounds.right))}px`;
     }
   }
 
   private async onStartClick(): Promise<void> {
-    const iosOk = await TiltController.requestPermissionIOS();
-    if (!iosOk) {
-      console.warn("Přístup k orientaci zamítnut, použijte klávesnici nebo zkuste znovu.");
-    }
-    this.tilt.startSensors();
+    await requestIOSMotionPermission();
+    await this.tilt.startSensors();
     this.tilt.calibrate();
 
     const el = document.documentElement;
@@ -261,13 +485,19 @@ export class GameScene extends Phaser.Scene {
     this.decorative = [];
   }
 
+  private removeBody(b: MatterJS.BodyType): void {
+    this.matter.world.remove(b);
+  }
+
   private clearLevelBodies(): void {
-    for (const w of this.wallBodies) w.destroy();
+    for (const w of this.wallBodies) this.removeBody(w);
     this.wallBodies = [];
-    if (this.goalObj) this.goalObj.destroy();
-    this.goalObj = null;
-    for (const t of this.trapObjs) t.destroy();
-    this.trapObjs = [];
+    if (this.goalBody) {
+      this.removeBody(this.goalBody);
+      this.goalBody = null;
+    }
+    for (const t of this.trapBodies) this.removeBody(t);
+    this.trapBodies = [];
     if (this.ball) this.ball.destroy();
     this.clearDecor();
   }
@@ -295,50 +525,37 @@ export class GameScene extends Phaser.Scene {
       gr.lineStyle(2, gStroke, 1);
       gr.fillRoundedRect(w.cx - w.w / 2, w.cy - w.h / 2, w.w, w.h, 6);
       gr.strokeRoundedRect(w.cx - w.w / 2, w.cy - w.h / 2, w.w, w.h, 6);
-      const wall = this.matter.add.gameObject(gr, {
-        shape: {
-          type: "rectangle",
-          x: w.cx,
-          y: w.cy,
-          width: w.w,
-          height: w.h
-        },
+      this.decorative.push(gr);
+
+      const body = this.matter.add.rectangle(w.cx, w.cy, w.w, w.h, {
         isStatic: true,
         friction: WALL_FRICTION,
         restitution: 0.05,
+        chamfer: { radius: 4 },
         label: "wall"
-      }) as Phaser.Physics.Matter.Image;
-      this.wallBodies.push(wall);
+      });
+      this.wallBodies.push(body);
     }
 
-    const goalVis = this.add.circle(lvl.goal.x, lvl.goal.y, lvl.goal.r, 0x000000, 0);
-    this.goalObj = this.matter.add.gameObject(goalVis, {
-      shape: {
-        type: "circle",
-        x: lvl.goal.x,
-        y: lvl.goal.y,
-        radius: lvl.goal.r
-      },
+    this.goalBody = this.matter.add.circle(lvl.goal.x, lvl.goal.y, lvl.goal.r, {
       isStatic: true,
       isSensor: true,
       label: "goal"
-    }) as Phaser.Physics.Matter.Image;
+    });
     this.drawHole(lvl.goal.x, lvl.goal.y, lvl.goal.r, 0x0d3d0d);
 
     for (const tr of lvl.traps) {
-      const trapVis = this.add.circle(tr.x, tr.y, tr.r, 0x000000, 0);
-      const trap = this.matter.add.gameObject(trapVis, {
-        shape: { type: "circle", x: tr.x, y: tr.y, radius: tr.r },
+      const tb = this.matter.add.circle(tr.x, tr.y, tr.r, {
         isStatic: true,
         isSensor: true,
         label: "trap"
-      }) as Phaser.Physics.Matter.Image;
-      this.trapObjs.push(trap);
+      });
+      this.trapBodies.push(tb);
       this.drawHole(tr.x, tr.y, tr.r, 0x2a0a0a);
     }
 
-    this.ball = this.matter.add.image(lvl.start.x, lvl.start.y, "ball_tex");
-    this.ball = this.matter.add.gameObject(this.ball, {
+    const ballGo = this.add.image(lvl.start.x, lvl.start.y, "ball_tex");
+    this.ball = this.matter.add.gameObject(ballGo, {
       shape: {
         type: "circle",
         x: lvl.start.x,

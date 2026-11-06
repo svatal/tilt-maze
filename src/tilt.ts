@@ -3,13 +3,16 @@
  * DOM: DeviceOrientation + DeviceMotion; volitelně Generic Sensor API (GravitySensor).
  */
 
+import { NO_VALID_DATA_MS, SensorMonitor, querySensorPermissions } from "./sensorMonitor";
+
 const SMOOTH = 0.18;
 const KEY_FORCE = 1.2;
-const STALE_MS = 1200;
 const WARN_THROTTLE_MS = 8000;
+const HEALTH_INTERVAL_MS = 350;
 
 type GravitySensorCtor = new (opts?: { frequency?: number }) => {
-  addEventListener: (ev: "reading" | "error", fn: () => void) => void;
+  addEventListener: (ev: "reading" | "error", fn: (ev: Event) => void) => void;
+  removeEventListener: (ev: "reading" | "error", fn: (ev: Event) => void) => void;
   start: () => void;
   stop: () => void;
   x: number;
@@ -20,35 +23,8 @@ type GravitySensorCtor = new (opts?: { frequency?: number }) => {
 export type TiltOutput = { ax: number; ay: number };
 
 export type TiltControllerOptions = {
-  /** Voláno když ~1,2 s po Start nepřijdou žádná platná data ze senzorů */
+  /** Voláno když nelze získat použitelná data ze senzorů (viz SensorMonitor) */
   onSensorDataStale?: () => void;
-};
-
-async function tryGravitySensor(onReading: (x: number, y: number, z: number) => void): Promise<(() => void) | null> {
-  const GravitySensor = (globalThis as unknown as { GravitySensor?: GravitySensorCtor }).GravitySensor;
-  if (typeof GravitySensor !== "function") return null;
-  try {
-    if (navigator.permissions?.query) {
-      try {
-        await navigator.permissions.query({ name: "accelerometer" as PermissionName });
-      } catch {
-        /* některé prohlížeče nemají tento PermissionName v TS */
-      }
-    }
-    const s = new GravitySensor({ frequency: 30 });
-    const onRead = (): void => onReading(s.x, s.y, s.z);
-    s.addEventListener("reading", onRead);
-    s.start();
-    return () => {
-      try {
-        s.stop();
-      } catch {
-        /* ignore */
-      }
-    };
-  } catch {
-    return null;
-  }
 }
 
 export async function requestIOSMotionPermission(): Promise<boolean> {
@@ -82,13 +58,11 @@ export class TiltController {
   private lastGamma: number | null = null;
   private lastBeta: number | null = null;
   private lastOrientTs = 0;
-  /** DeviceMotion accelerationIncludingGravity (m/s²) */
   private gravX = 0;
   private gravY = 0;
   private calGravX = 0;
   private calGravY = 0;
   private lastMotionTs = 0;
-  /** GravitySensor (m/s²) když DOM nic nedává */
   private gsX = 0;
   private gsY = 0;
   private gsZ = 0;
@@ -105,6 +79,8 @@ export class TiltController {
   private healthTimer: ReturnType<typeof setInterval> | null = null;
   private lastStaleWarn = 0;
 
+  readonly monitor = new SensorMonitor();
+
   private readonly keyTilt = { x: 0, y: 0 };
   private readonly options: TiltControllerOptions;
 
@@ -118,6 +94,14 @@ export class TiltController {
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     this.teardownSensors();
+  }
+
+  getSensorSnapshot() {
+    return this.monitor.snapshot();
+  }
+
+  isKeyboardActive(): boolean {
+    return this.keyTilt.x !== 0 || this.keyTilt.y !== 0;
   }
 
   private teardownSensors(): void {
@@ -137,26 +121,28 @@ export class TiltController {
   }
 
   private markActivityFromKeyboard(): void {
-    this.lastOrientTs = performance.now();
-    this.lastMotionTs = performance.now();
-    this.lastGravSensorTs = performance.now();
+    const t = performance.now();
+    this.lastOrientTs = t;
+    this.lastMotionTs = t;
+    this.lastGravSensorTs = t;
+    this.monitor.markKeyboardOverride(t);
   }
 
   private checkSensorHealth(): void {
     if (!this.options.onSensorDataStale) return;
-    if (this.keyTilt.x !== 0 || this.keyTilt.y !== 0) {
+    const keyboard = this.keyTilt.x !== 0 || this.keyTilt.y !== 0;
+    if (keyboard) {
       this.markActivityFromKeyboard();
       return;
     }
     const t = performance.now();
-    const last = Math.max(this.lastOrientTs, this.lastMotionTs, this.lastGravSensorTs);
-    if (t - last < STALE_MS) return;
-    if (t - this.lastStaleWarn < WARN_THROTTLE_MS) return;
-    this.lastStaleWarn = t;
-    this.options.onSensorDataStale?.();
+    if (this.monitor.shouldWarnNoValidData(t, false)) {
+      if (t - this.lastStaleWarn < WARN_THROTTLE_MS) return;
+      this.lastStaleWarn = t;
+      this.options.onSensorDataStale();
+    }
   }
 
-  /** Kalibrace: aktuální poloha = neutrální */
   calibrate(): void {
     if (this.lastGamma !== null) this.calGamma = this.lastGamma;
     if (this.lastBeta !== null) this.calBeta = this.lastBeta;
@@ -170,47 +156,90 @@ export class TiltController {
   async startSensors(): Promise<void> {
     this.teardownSensors();
 
+    const perms = await querySensorPermissions();
+    this.monitor.setPermissionStates(perms.accel, perms.gyro, perms.mag);
+
+    const t0 = performance.now();
+    this.monitor.start(t0);
+
     window.addEventListener("deviceorientation", this.onOrientation as EventListener, { passive: true });
     window.addEventListener("devicemotion", this.onMotion as EventListener, { passive: true });
     this.listening = true;
 
-    const now = performance.now();
-    this.lastOrientTs = now;
-    this.lastMotionTs = now;
-    this.lastGravSensorTs = now;
+    this.lastOrientTs = 0;
+    this.lastMotionTs = 0;
+    this.lastGravSensorTs = 0;
 
-    this.stopGravitySensor = await tryGravitySensor((x, y, z) => {
-      this.gsX = x;
-      this.gsY = y;
-      this.gsZ = z;
-      this.hasGravitySample = true;
-      this.lastGravSensorTs = performance.now();
-    });
+    await this.tryInitGravitySensor();
 
     if (this.options.onSensorDataStale) {
-      this.healthTimer = setInterval(() => this.checkSensorHealth(), 400);
+      this.healthTimer = setInterval(() => this.checkSensorHealth(), HEALTH_INTERVAL_MS);
+    }
+  }
+
+  private async tryInitGravitySensor(): Promise<void> {
+    const GravitySensor = (globalThis as unknown as { GravitySensor?: GravitySensorCtor }).GravitySensor;
+    if (typeof GravitySensor !== "function") {
+      this.monitor.setGravityConstructorResult(false);
+      return;
+    }
+    try {
+      const s = new GravitySensor({ frequency: 30 });
+      const onRead = (): void => {
+        const at = performance.now();
+        this.gsX = s.x;
+        this.gsY = s.y;
+        this.gsZ = s.z;
+        this.hasGravitySample = true;
+        this.lastGravSensorTs = at;
+        this.monitor.recordGravityReading(s.x, s.y, s.z, at);
+      };
+      const onErr = (ev: Event): void => {
+        this.monitor.recordGravitySensorError(ev);
+      };
+      s.addEventListener("reading", onRead);
+      s.addEventListener("error", onErr);
+      s.start();
+      this.monitor.setGravityConstructorResult(true);
+      this.stopGravitySensor = () => {
+        try {
+          s.removeEventListener("reading", onRead);
+          s.removeEventListener("error", onErr);
+          s.stop();
+        } catch {
+          /* ignore */
+        }
+      };
+    } catch (e) {
+      this.monitor.setGravityConstructorResult(false, e);
     }
   }
 
   private readonly onOrientation = (e: DeviceOrientationEvent): void => {
+    const at = performance.now();
+    this.monitor.recordOrientation(e, at);
+
     let ok = false;
-    if (e.gamma != null && !Number.isNaN(e.gamma)) {
+    if (e.gamma != null && Number.isFinite(e.gamma)) {
       this.lastGamma = e.gamma;
       ok = true;
     }
-    if (e.beta != null && !Number.isNaN(e.beta)) {
+    if (e.beta != null && Number.isFinite(e.beta)) {
       this.lastBeta = e.beta;
       ok = true;
     }
-    if (ok) this.lastOrientTs = performance.now();
+    if (ok) this.lastOrientTs = at;
   };
 
   private readonly onMotion = (e: DeviceMotionEvent): void => {
+    const at = performance.now();
+    this.monitor.recordMotion(e, at);
+
     const g = e.accelerationIncludingGravity;
-    if (!g || g.x == null || g.y == null) return;
+    if (!g || g.x == null || g.y == null || !Number.isFinite(g.x) || !Number.isFinite(g.y)) return;
     this.gravX = g.x;
     this.gravY = g.y;
-    this.lastMotionTs = performance.now();
+    this.lastMotionTs = at;
   };
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
@@ -227,19 +256,16 @@ export class TiltController {
     if (k === "arrowup" || k === "w" || k === "arrowdown" || k === "s") this.keyTilt.y = 0;
   };
 
-  /**
-   * Vrátí „gravitační“ zrychlení v jednotkách vhodných pro Matter applyForce.
-   */
   update(_dt: number, forceScale: number): TiltOutput {
     let rawX = this.keyTilt.x;
     let rawY = this.keyTilt.y;
 
-    const recentOrient = performance.now() - this.lastOrientTs < 550;
+    const recentOrient = this.lastOrientTs > 0 && performance.now() - this.lastOrientTs < 550;
     const haveOrientGamma = this.lastGamma !== null && recentOrient;
     const haveOrientBoth =
       this.lastGamma !== null && this.lastBeta !== null && recentOrient;
 
-    const recentMotion = performance.now() - this.lastMotionTs < 550;
+    const recentMotion = this.lastMotionTs > 0 && performance.now() - this.lastMotionTs < 550;
     const haveMotion =
       recentMotion &&
       (Math.abs(this.gravX - this.calGravX) > 0.08 || Math.abs(this.gravY - this.calGravY) > 0.08);
@@ -280,3 +306,5 @@ export class TiltController {
     return { ax: this.smoothAx, ay: this.smoothAy };
   }
 }
+
+export { NO_VALID_DATA_MS };

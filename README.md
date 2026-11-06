@@ -80,6 +80,10 @@ Forky od cizích účtů se **nenasazují** (nemá smysl pouštět cizí kód s 
 
 Dřívější režim „GitHub Actions“ u deploy-pages už není potřeba — publikuje se přímo commit na `gh-pages`.
 
+### Ladění senzorů na telefonu
+
+Přidejte **`?sensorDebug=1`** (např. náhled PR nebo produkce). V levém horním rohu uvidíte počty událostí, poslední hodnoty a stav oprávnění – vhodné při hlášení z Brave/Chrome.
+
 ### Lokální simulace cesty jako u PR
 
 ```bash

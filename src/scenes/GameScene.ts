@@ -34,6 +34,8 @@ export class GameScene extends Phaser.Scene {
   private winLayer!: HTMLElement;
   private startScreen!: HTMLElement;
   private sensorBanner: HTMLElement | null = null;
+  private sensorDebugEl: HTMLElement | null = null;
+  private sensorDebugTimer: ReturnType<typeof setInterval> | null = null;
   private lastVibrateAt = 0;
 
   constructor() {
@@ -42,9 +44,9 @@ export class GameScene extends Phaser.Scene {
 
   create(): void {
     const qs = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
-    const isE2E = qs.get("e2e") === "1";
+    const skipSensorBanner = qs.get("e2e") === "1";
     this.tilt = new TiltController(
-      isE2E ? {} : { onSensorDataStale: () => this.showSensorStaleBanner() }
+      skipSensorBanner ? {} : { onSensorDataStale: () => this.showSensorStaleBanner() }
     );
 
     this.ensureTextures();
@@ -66,12 +68,22 @@ export class GameScene extends Phaser.Scene {
     this.game.events.on("debug-complete-level", this.debugWinLevel, this);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      if (this.sensorDebugTimer) {
+        clearInterval(this.sensorDebugTimer);
+        this.sensorDebugTimer = null;
+      }
+      this.sensorDebugEl?.remove();
+      this.sensorDebugEl = null;
       this.tilt.destroy();
       this.game.events.off("debug-complete-level", this.debugWinLevel, this);
       this.matter.world.off("collisionstart", this.onCollisionStart, this);
     });
 
     this.loadLevel(0);
+
+    if (qs.get("sensorDebug") === "1") {
+      this.setupSensorDebugOverlay();
+    }
   }
 
   update(_time: number, delta: number): void {
@@ -221,6 +233,47 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private setupSensorDebugOverlay(): void {
+    if (this.sensorDebugEl) return;
+    const el = document.createElement("div");
+    el.id = "tilt-maze-sensor-debug";
+    el.style.cssText = [
+      "position:fixed",
+      "top:8px",
+      "left:8px",
+      "max-width:min(96vw,380px)",
+      "background:rgba(0,0,0,0.82)",
+      "color:#cfc",
+      "font:11px/1.35ui-monospace,monospace",
+      "padding:8px 10px",
+      "border-radius:8px",
+      "z-index:2147483646",
+      "pointer-events:none",
+      "text-align:left",
+      "white-space:pre-wrap",
+      "word-break:break-word"
+    ].join(";");
+    document.body.appendChild(el);
+    this.sensorDebugEl = el;
+    const tick = (): void => {
+      const s = this.tilt.getSensorSnapshot();
+      const warn = this.tilt.monitor.shouldWarnNoValidData(performance.now(), this.tilt.isKeyboardActive());
+      el.textContent = [
+        `[sensorDebug] warn=${warn}`,
+        `perm A/G/M: ${s.permAccel}/${s.permGyro}/${s.permMag} denied=${s.permissionDenied}`,
+        `orient: ev ${s.orientEvents} valid ${s.orientValid} γ ${s.lastGamma ?? "—"} β ${s.lastBeta ?? "—"}`,
+        `motion: ev ${s.motionEvents} valid ${s.motionValid} g ${s.lastGrav ? `${s.lastGrav.x.toFixed(2)},${s.lastGrav.y.toFixed(2)},${s.lastGrav.z ?? "—"}` : "—"}`,
+        `gravSensor: ctor ${s.gsConstructorOk} read ${s.gsReadings} err ${s.gsErrors}`,
+        s.lastGs ? `  GS ${s.lastGs.x.toFixed(2)},${s.lastGs.y.toFixed(2)},${s.lastGs.z.toFixed(2)}` : "  GS —",
+        s.lastGravityError ? `  err: ${s.lastGravityError}` : ""
+      ]
+        .filter(Boolean)
+        .join("\n");
+    };
+    tick();
+    this.sensorDebugTimer = setInterval(tick, 320);
+  }
+
   private showSensorStaleBanner(): void {
     if (this.sensorBanner) return;
     const el = document.createElement("div");
@@ -236,7 +289,7 @@ export class GameScene extends Phaser.Scene {
       "border-radius:12px",
       "padding:14px 16px",
       "color:#f5e6d3",
-      "z-index:100",
+      "z-index:2147483647",
       "pointer-events:auto",
       "text-align:left",
       "box-shadow:0 4px 16px rgba(0,0,0,0.4)"

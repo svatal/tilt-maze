@@ -1,28 +1,39 @@
 import Phaser from "phaser";
-import { DESIGN_HEIGHT, DESIGN_WIDTH, LEVELS, type LevelDef } from "../levels";
-import { TiltController } from "../tilt";
+import { BALL_RADIUS, DESIGN_HEIGHT, DESIGN_WIDTH } from "../constants";
+import { LEVELS, type LevelDef } from "../levels";
+import { requestIOSMotionPermission, TiltController } from "../tilt";
 
-const BALL_RADIUS = 11;
 const WALL_FRICTION = 0.08;
 const FORCE_MULT = 0.00085;
 const MAX_SPEED = 7;
 
+const SENSOR_HTML = `
+  <div style="margin-bottom:12px;font-size:1.05rem;font-weight:700">Senzory nepřijímají data</div>
+  <p style="margin:0 0 10px;max-width:340px;line-height:1.45;font-size:0.9rem">
+    Prohlížeč neposílá údaje o naklonění. Na <strong>Androidu v Brave</strong> zkontrolujte stránkové oprávnění
+    <strong>Pohybové senzory</strong> (ikonka zámku v adresním řádku → oprávnění) a že
+    <strong>Brave Shields</strong> neblokují senzory. V <strong>Chrome</strong> musí být stránka na <strong>HTTPS</strong>.
+    Na iOS povolte přístup v dialogu. Můžete použít tlačítka <strong>Kalibrovat</strong> po položení telefonu rovně.
+  </p>
+  <button type="button" id="sensor-dismiss" style="padding:10px 20px;border-radius:10px;border:1px solid #c9a227;background:#3d2918;color:#f5e6d3;cursor:pointer;font-size:0.9rem">Rozumím, použiju klávesnici</button>
+`;
+
 export class GameScene extends Phaser.Scene {
-  private tilt = new TiltController();
+  private tilt!: TiltController;
   private ball!: Phaser.Physics.Matter.Image;
   private levelIndex = 0;
   private elapsedMs = 0;
   private running = false;
-  private wallBodies: Phaser.Physics.Matter.Image[] = [];
-  /** Grafika děr (cíl, pasti) — odděleně od fyziky */
+  private wallBodies: MatterJS.BodyType[] = [];
   private decorative: Phaser.GameObjects.Graphics[] = [];
-  private goalObj: Phaser.Physics.Matter.Image | null = null;
-  private trapObjs: Phaser.Physics.Matter.Image[] = [];
+  private goalBody: MatterJS.BodyType | null = null;
+  private trapBodies: MatterJS.BodyType[] = [];
   private hud!: HTMLElement;
   private timerEl!: HTMLElement;
   private levelEl!: HTMLElement;
   private winLayer!: HTMLElement;
   private startScreen!: HTMLElement;
+  private sensorBanner: HTMLElement | null = null;
   private lastVibrateAt = 0;
 
   constructor() {
@@ -30,9 +41,19 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
+    const qs = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
+    const isE2E = qs.get("e2e") === "1";
+    this.tilt = new TiltController(
+      isE2E ? {} : { onSensorDataStale: () => this.showSensorStaleBanner() }
+    );
+
     this.ensureTextures();
     this.matter.world.setBounds(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT, 32, true, true, true, true);
     this.matter.world.setGravity(0, 0);
+
+    if (qs.get("matterDebug") === "1" || import.meta.env.VITE_MATTER_DEBUG === "true") {
+      this.matter.world.createDebugGraphic();
+    }
 
     this.buildBackground();
     this.buildHud();
@@ -123,7 +144,10 @@ export class GameScene extends Phaser.Scene {
       <button id="btn-start" type="button" style="padding:14px 28px;font-size:1.05rem;border-radius:12px;border:none;background:#c9a227;color:#1a120a;font-weight:700;cursor:pointer">
         Start
       </button>
-      <p style="margin:16px 0 0;font-size:0.75rem;opacity:0.75">Android Chrome: HTTPS. iOS: po klepnutí na Start se může vyžádat přístup k pohybu.</p>
+      <p style="margin:16px 0 0;font-size:0.75rem;opacity:0.75">
+        Vyžaduje HTTPS (Chrome na Androidu). iOS: po Start může systém vyžádat přístup k pohybu.
+        Brave: povolte „Motion sensors“ u stránky; Shields může senzory blokovat.
+      </p>
     `;
 
     const hud = document.createElement("div");
@@ -197,6 +221,36 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private showSensorStaleBanner(): void {
+    if (this.sensorBanner) return;
+    const el = document.createElement("div");
+    el.id = "tilt-maze-sensor-warn";
+    el.style.cssText = [
+      "position:fixed",
+      "left:50%",
+      "bottom:18px",
+      "transform:translateX(-50%)",
+      "max-width:min(420px,calc(100vw - 24px))",
+      "background:rgba(35,22,12,0.96)",
+      "border:1px solid #c9a227",
+      "border-radius:12px",
+      "padding:14px 16px",
+      "color:#f5e6d3",
+      "z-index:100",
+      "pointer-events:auto",
+      "text-align:left",
+      "box-shadow:0 4px 16px rgba(0,0,0,0.4)"
+    ].join(";");
+    el.innerHTML = SENSOR_HTML;
+    const dismiss = el.querySelector("#sensor-dismiss") as HTMLButtonElement;
+    dismiss.addEventListener("click", () => {
+      el.remove();
+      this.sensorBanner = null;
+    });
+    document.body.appendChild(el);
+    this.sensorBanner = el;
+  }
+
   private ensureTextures(): void {
     if (!this.textures.exists("ball_tex")) {
       const g = this.make.graphics({ x: 0, y: 0 });
@@ -226,11 +280,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private async onStartClick(): Promise<void> {
-    const iosOk = await TiltController.requestPermissionIOS();
-    if (!iosOk) {
-      console.warn("Přístup k orientaci zamítnut, použijte klávesnici nebo zkuste znovu.");
-    }
-    this.tilt.startSensors();
+    await requestIOSMotionPermission();
+    await this.tilt.startSensors();
     this.tilt.calibrate();
 
     const el = document.documentElement;
@@ -261,13 +312,19 @@ export class GameScene extends Phaser.Scene {
     this.decorative = [];
   }
 
+  private removeBody(b: MatterJS.BodyType): void {
+    this.matter.world.remove(b);
+  }
+
   private clearLevelBodies(): void {
-    for (const w of this.wallBodies) w.destroy();
+    for (const w of this.wallBodies) this.removeBody(w);
     this.wallBodies = [];
-    if (this.goalObj) this.goalObj.destroy();
-    this.goalObj = null;
-    for (const t of this.trapObjs) t.destroy();
-    this.trapObjs = [];
+    if (this.goalBody) {
+      this.removeBody(this.goalBody);
+      this.goalBody = null;
+    }
+    for (const t of this.trapBodies) this.removeBody(t);
+    this.trapBodies = [];
     if (this.ball) this.ball.destroy();
     this.clearDecor();
   }
@@ -295,50 +352,37 @@ export class GameScene extends Phaser.Scene {
       gr.lineStyle(2, gStroke, 1);
       gr.fillRoundedRect(w.cx - w.w / 2, w.cy - w.h / 2, w.w, w.h, 6);
       gr.strokeRoundedRect(w.cx - w.w / 2, w.cy - w.h / 2, w.w, w.h, 6);
-      const wall = this.matter.add.gameObject(gr, {
-        shape: {
-          type: "rectangle",
-          x: w.cx,
-          y: w.cy,
-          width: w.w,
-          height: w.h
-        },
+      this.decorative.push(gr);
+
+      const body = this.matter.add.rectangle(w.cx, w.cy, w.w, w.h, {
         isStatic: true,
         friction: WALL_FRICTION,
         restitution: 0.05,
+        chamfer: { radius: 4 },
         label: "wall"
-      }) as Phaser.Physics.Matter.Image;
-      this.wallBodies.push(wall);
+      });
+      this.wallBodies.push(body);
     }
 
-    const goalVis = this.add.circle(lvl.goal.x, lvl.goal.y, lvl.goal.r, 0x000000, 0);
-    this.goalObj = this.matter.add.gameObject(goalVis, {
-      shape: {
-        type: "circle",
-        x: lvl.goal.x,
-        y: lvl.goal.y,
-        radius: lvl.goal.r
-      },
+    this.goalBody = this.matter.add.circle(lvl.goal.x, lvl.goal.y, lvl.goal.r, {
       isStatic: true,
       isSensor: true,
       label: "goal"
-    }) as Phaser.Physics.Matter.Image;
+    });
     this.drawHole(lvl.goal.x, lvl.goal.y, lvl.goal.r, 0x0d3d0d);
 
     for (const tr of lvl.traps) {
-      const trapVis = this.add.circle(tr.x, tr.y, tr.r, 0x000000, 0);
-      const trap = this.matter.add.gameObject(trapVis, {
-        shape: { type: "circle", x: tr.x, y: tr.y, radius: tr.r },
+      const tb = this.matter.add.circle(tr.x, tr.y, tr.r, {
         isStatic: true,
         isSensor: true,
         label: "trap"
-      }) as Phaser.Physics.Matter.Image;
-      this.trapObjs.push(trap);
+      });
+      this.trapBodies.push(tb);
       this.drawHole(tr.x, tr.y, tr.r, 0x2a0a0a);
     }
 
-    this.ball = this.matter.add.image(lvl.start.x, lvl.start.y, "ball_tex");
-    this.ball = this.matter.add.gameObject(this.ball, {
+    const ballGo = this.add.image(lvl.start.x, lvl.start.y, "ball_tex");
+    this.ball = this.matter.add.gameObject(ballGo, {
       shape: {
         type: "circle",
         x: lvl.start.x,

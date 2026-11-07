@@ -18,7 +18,8 @@ async function screenshotLevels(page: import("@playwright/test").Page, view: str
   await page.goto(`${basePath}?e2e=1&matterDebug=1`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Start" }).click();
 
-  for (let i = 0; i < 3; i++) {
+  const levelCount = 10;
+  for (let i = 0; i < levelCount; i++) {
     await page.evaluate((n) => {
       (window as unknown as { __loadLevel?: (x: number) => void }).__loadLevel?.(n);
     }, i);

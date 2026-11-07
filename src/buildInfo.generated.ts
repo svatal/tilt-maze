@@ -1,2 +1,2 @@
 /* Automaticky generováno při buildu — neupravovat ručně */
-export const BUILD_INFO_LABEL = "cursor/tilt-maze-pwa-f1a3 · 8dc8942 · 06. 11. 2026 15:52";
+export const BUILD_INFO_LABEL = "cursor/ten-levels-progression-5ae4 · 6258652 · 07. 11. 2026 14:12";

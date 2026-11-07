@@ -53,6 +53,8 @@ Scénáře: úroveň 1 **šipkami nahoru/vpravo** (s `?e2e=1&matterDebug=1` je v
 
 Přidejte do URL **`?matterDebug=1`** — zobrazí se kontury Matter těles (měly by přesně sedět na vykreslené zdi).
 
+Odraz kuličky od zdí je řízený v `src/ballBounce.ts`: Matter řeší tření a separaci s nulovou restitucí, po kroku fyziky se podle rychlosti nárazu doplní mírný normální odraz (pomalé kontakty se uklidní, rychlejší přímé nárazy jsou viditelně odražené, šikmé zachovají tangenciální složku).
+
 ## Test na telefonu (Android Chrome)
 
 1. Nahrajte `dist/` na HTTPS hosting nebo použijte GitHub Pages po zapnutí workflow (viz níže).

@@ -1,4 +1,10 @@
 import Phaser from "phaser";
+import {
+  isBounceObstacle,
+  queueWallBounceFromPair,
+  velocityAfterWallBounce,
+  type PendingWallBounce
+} from "../ballBounce";
 import { BUILD_INFO_LABEL } from "../buildInfo.generated";
 import { BALL_RADIUS, DESIGN_HEIGHT, DESIGN_WIDTH } from "../constants";
 import { LEVELS, type LevelDef } from "../levels";
@@ -48,14 +54,19 @@ export class GameScene extends Phaser.Scene {
   private sensorDebugEl: HTMLElement | null = null;
   private sensorDebugTimer: ReturnType<typeof setInterval> | null = null;
   private lastVibrateAt = 0;
+  private e2eMode = false;
+  private wallBounceQueue: PendingWallBounce[] = [];
   private sensorStorage: StorageLike = typeof sessionStorage !== "undefined" ? sessionStorage : { getItem: () => null, setItem: () => undefined };
+  /** Pouze při `?e2e=1` — diagnostika odrazu v Playwright. */
+  private bounceDebug = { queued: 0, applied: 0, lastImpact: 0, collisions: 0, obstacles: 0 };
   constructor() {
     super({ key: "GameScene" });
   }
 
   create(): void {
     const qs = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
-    const skipSensorBanner = qs.get("e2e") === "1";
+    this.e2eMode = qs.get("e2e") === "1";
+    const skipSensorBanner = this.e2eMode;
     this.sensorStorage = typeof sessionStorage !== "undefined" ? sessionStorage : { getItem: () => null, setItem: () => undefined };
     this.tilt = new TiltController(
       skipSensorBanner
@@ -82,6 +93,7 @@ export class GameScene extends Phaser.Scene {
     this.layoutHud(this.scale.gameSize);
 
     this.matter.world.on("collisionstart", this.onCollisionStart, this);
+    this.matter.world.on("afterupdate", this.applyQueuedWallBounces, this);
 
     this.game.events.on("debug-complete-level", this.debugWinLevel, this);
 
@@ -99,6 +111,7 @@ export class GameScene extends Phaser.Scene {
       this.tilt.destroy();
       this.game.events.off("debug-complete-level", this.debugWinLevel, this);
       this.matter.world.off("collisionstart", this.onCollisionStart, this);
+      this.matter.world.off("afterupdate", this.applyQueuedWallBounces, this);
     });
 
     this.loadLevel(0);
@@ -107,13 +120,40 @@ export class GameScene extends Phaser.Scene {
       this.setupSensorDebugOverlay();
     }
 
-    if (qs.get("e2e") === "1") {
+    if (this.e2eMode) {
       const w = window as unknown as {
         __tiltMazeScene?: GameScene;
         __loadLevel?: (n: number) => void;
+        __setBallVelocity?: (vx: number, vy: number) => void;
+        __getBallVelocity?: () => { x: number; y: number };
+        __getBallPosition?: () => { x: number; y: number };
+        __setBallPosition?: (x: number, y: number) => void;
+        __getBounceDebug?: () => { queued: number; applied: number; lastImpact: number; collisions: number; obstacles: number };
       };
       w.__tiltMazeScene = this;
       w.__loadLevel = (n: number) => this.loadLevel(n);
+      w.__setBallVelocity = (vx, vy) => {
+        if (!this.ball?.body) return;
+        const bb = this.ball.body as MatterJS.BodyType;
+        this.matter.body.setVelocity(bb, { x: vx, y: vy });
+      };
+      w.__setBallPosition = (x, y) => {
+        if (!this.ball?.body) return;
+        const bb = this.ball.body as MatterJS.BodyType;
+        this.matter.body.setPosition(bb, { x, y });
+        this.matter.body.setVelocity(bb, { x: 0, y: 0 });
+        bb.isSleeping = false;
+        this.ball.setPosition(x, y);
+      };
+      w.__getBallVelocity = () => {
+        const bb = this.ball?.body as MatterJS.BodyType | undefined;
+        return bb ? { x: bb.velocity.x, y: bb.velocity.y } : { x: 0, y: 0 };
+      };
+      w.__getBallPosition = () => {
+        const bb = this.ball?.body as MatterJS.BodyType | undefined;
+        return bb ? { x: bb.position.x, y: bb.position.y } : { x: 0, y: 0 };
+      };
+      w.__getBounceDebug = () => ({ ...this.bounceDebug });
     }
 
     this.attachBuildInfoLabel();
@@ -530,7 +570,7 @@ export class GameScene extends Phaser.Scene {
       const body = this.matter.add.rectangle(w.cx, w.cy, w.w, w.h, {
         isStatic: true,
         friction: WALL_FRICTION,
-        restitution: 0.05,
+        restitution: 0,
         chamfer: { radius: 4 },
         label: "wall"
       });
@@ -565,7 +605,7 @@ export class GameScene extends Phaser.Scene {
       label: "ball",
       friction: 0.02,
       frictionAir: 0.012,
-      restitution: 0.15
+      restitution: 0
     }) as Phaser.Physics.Matter.Image;
     this.ball.setDisplaySize(BALL_RADIUS * 2, BALL_RADIUS * 2);
   }
@@ -590,11 +630,34 @@ export class GameScene extends Phaser.Scene {
       const b = pair.bodyB as MatterJS.BodyType;
       const involvedBall = a === ballBody || b === ballBody;
       if (!involvedBall) continue;
+      if (this.e2eMode) {
+        this.bounceDebug.collisions += 1;
+      }
 
       const other = a === ballBody ? b : a;
       const ol = String(other.label);
 
-      if (ol === "wall") {
+      if (isBounceObstacle(other, ballBody)) {
+        if (this.e2eMode) {
+          this.bounceDebug.obstacles += 1;
+        }
+        const dx = ballBody.position.x - ballBody.positionPrev.x;
+        const dy = ballBody.position.y - ballBody.positionPrev.y;
+        const stepV = { x: dx, y: dy };
+        const bodyV = ballBody.velocity;
+        const stepSp = Math.hypot(stepV.x, stepV.y);
+        const v =
+          stepSp > Math.hypot(bodyV.x, bodyV.y) * 0.45
+            ? stepV
+            : { x: bodyV.x, y: bodyV.y };
+        const pending = queueWallBounceFromPair(pair, ballBody, v);
+        if (pending) {
+          this.wallBounceQueue.push(pending);
+          if (this.e2eMode) {
+            this.bounceDebug.queued += 1;
+            this.bounceDebug.lastImpact = pending.impactSpeed;
+          }
+        }
         const now = performance.now();
         if (now - this.lastVibrateAt > 120 && typeof navigator !== "undefined" && navigator.vibrate) {
           this.lastVibrateAt = now;
@@ -616,6 +679,27 @@ export class GameScene extends Phaser.Scene {
       }
     }
   }
+
+  private applyQueuedWallBounces = (): void => {
+    if (!this.ball?.body || this.wallBounceQueue.length === 0) return;
+    const bb = this.ball.body as MatterJS.BodyType;
+    const v0 = { x: bb.velocity.x, y: bb.velocity.y };
+    let v = v0;
+    for (const pending of this.wallBounceQueue) {
+      v = velocityAfterWallBounce(v, pending);
+    }
+    const sp0 = Math.hypot(v0.x, v0.y);
+    const sp1 = Math.hypot(v.x, v.y);
+    if (sp1 > sp0 + 0.02 && sp0 > 0.05) {
+      const k = sp0 / sp1;
+      v = { x: v.x * k, y: v.y * k };
+    }
+    this.matter.body.setVelocity(bb, v);
+    if (this.e2eMode) {
+      this.bounceDebug.applied += this.wallBounceQueue.length;
+    }
+    this.wallBounceQueue.length = 0;
+  };
 
   private resetBallToStart(): void {
     const lvl = LEVELS[this.levelIndex];

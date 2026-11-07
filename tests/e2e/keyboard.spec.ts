@@ -23,9 +23,7 @@ test("E2E: úroveň 1 klávesnicí + overlay Matter debug, bez chyb v konzoli", 
   });
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 
-  await page.goto(`${basePath}?e2e=1&matterDebug=1`, { waitUntil: "networkidle" });
-
-  await page.getByRole("button", { name: "Start" }).click();
+  await page.goto(`${basePath}?e2e=1&skipMenu=1&matterDebug=1`, { waitUntil: "networkidle" });
   await expect(page.locator("#tilt-maze-ui")).toBeVisible();
 
   const won = page.getByText("Výhra!", { exact: false });
@@ -58,8 +56,7 @@ test("E2E: debug hook dokončí úroveň (regrese)", async ({ page }) => {
   });
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 
-  await page.goto(`${basePath}?e2e=1`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "Start" }).click();
+  await page.goto(`${basePath}?e2e=1&skipMenu=1`, { waitUntil: "networkidle" });
   await page.evaluate(() => {
     (window as unknown as { __debugCompleteLevel?: () => void }).__debugCompleteLevel?.();
   });

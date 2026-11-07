@@ -3,6 +3,7 @@ import { DESIGN_HEIGHT, DESIGN_WIDTH } from "./constants";
 import { assertAllLevelsSolvable } from "./levelSolvability";
 import { LEVELS } from "./levels";
 import { GameScene } from "./scenes/GameScene";
+import { MenuScene } from "./scenes/MenuScene";
 
 if (import.meta.env.VITE_DISABLE_PWA !== "true") {
   void import("virtual:pwa-register").then(({ registerSW }) => {
@@ -28,7 +29,7 @@ const config: Phaser.Types.Core.GameConfig = {
     height: DESIGN_HEIGHT
   },
   backgroundColor: "#1a120a",
-  scene: [GameScene],
+  scene: [MenuScene, GameScene],
   physics: {
     default: "matter",
     matter: {

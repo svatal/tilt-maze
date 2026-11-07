@@ -49,6 +49,12 @@ export class TrapHoleController {
     this.resetState();
   }
 
+  /** Poslední známá poloha středu před fyzikálním krokem (smyk / černá díra). */
+  seedMotionSample(x: number, y: number): void {
+    this.prevBallX = x;
+    this.prevBallY = y;
+  }
+
   destroy(): void {
     for (const g of this.gfx) g.destroy();
     this.gfx = [];
@@ -68,7 +74,7 @@ export class TrapHoleController {
   tick(
     bb: MatterJS.BodyType,
     deltaMs: number,
-    applyForce: (body: MatterJS.BodyType, force: { x: number; y: number }) => void,
+    _applyForce: (body: MatterJS.BodyType, force: { x: number; y: number }) => void,
     setVelocity: (body: MatterJS.BodyType, vel: { x: number; y: number }) => void,
     setPosition: (body: MatterJS.BodyType, pos: { x: number; y: number }) => void,
     allowCapture = true
@@ -94,16 +100,11 @@ export class TrapHoleController {
     this.prevBallX = pos.x;
     this.prevBallY = pos.y;
 
-    if (result.pullFx !== 0 || result.pullFy !== 0) {
-      applyForce(bb, { x: result.pullFx, y: result.pullFy });
-    }
-
     if (result.fallingActive && result.targetX != null && result.targetY != null) {
       const nx = pos.x + (result.targetX - pos.x) * TRAP_HOLE.fallLerp;
       const ny = pos.y + (result.targetY - pos.y) * TRAP_HOLE.fallLerp;
       setPosition(bb, { x: nx, y: ny });
-      const v = bb.velocity;
-      setVelocity(bb, { x: v.x * TRAP_HOLE.fallDamping, y: v.y * TRAP_HOLE.fallDamping });
+      setVelocity(bb, { x: 0, y: 0 });
     }
 
     const idx = this.state.activeTrapIndex;

@@ -1,19 +1,17 @@
 import { BALL_RADIUS } from "./constants";
-import { clamp, computeBowlPull, holeDepth, isShallowGraze, type HoleDef } from "./holeBowl";
+import { clamp, type HoleDef } from "./holeBowl";
 
+/**
+ * Past = „černá díra“: platí celý VIZUÁLNÍ poloměr `trap.r` (střed míčku).
+ * Žádné výjimky pro rychlost, hloubku ani okraj. Mimo kruh žádné síly.
+ */
 export const TRAP_HOLE = {
-  influenceRadiusMul: 1.06,
-  /** Poloměr jádra pasti (zlomek r) — vstup = okamžitý pád, ne pomalé usazení jako u cíle. */
-  coreRadiusMul: 0.72,
-  /** Smykový průlet okrajem — stejný princip jako u cíle. */
-  fastPassSpeed: 5.4,
-  /** Horní rychlost hry (Matter jednotky, MAX_SPEED ve scéně ≈ 7). */
-  maxCaptureSpeed: 7.6,
   fallDurationMs: 280,
-  pullScale: 1.15,
-  fallDamping: 0.78,
-  fallLerp: 0.18,
-  maxShrink: 0.38
+  fallDamping: 0.55,
+  fallLerp: 0.22,
+  maxShrink: 0.38,
+  /** Tolerance pro hranici disku (px). */
+  boundaryEpsilon: 1e-4
 } as const;
 
 export type TrapDef = HoleDef;
@@ -31,7 +29,16 @@ export function initialTrapFallState(): TrapFallState {
   return { phase: "idle", fallMs: 0, activeTrapIndex: null, respawnPending: false };
 }
 
-/** Vzdálenost bodu od úsečky (px,py)–(qx,qy). */
+export function trapCaptureRadius(trap: TrapDef): number {
+  return trap.r;
+}
+
+export function ballCenterInsideTrapDisk(ballX: number, ballY: number, trap: TrapDef): boolean {
+  const r = trapCaptureRadius(trap);
+  return Math.hypot(ballX - trap.x, ballY - trap.y) <= r + TRAP_HOLE.boundaryEpsilon;
+}
+
+/** Vzdálenost bodu (px,py) od úsečky (x1,y1)–(x2,y2). */
 export function distancePointToSegment(
   px: number,
   py: number,
@@ -51,45 +58,37 @@ export function distancePointToSegment(
   return Math.hypot(px - nx, py - ny);
 }
 
-/**
- * Měl by spadnout do pasti? Jádro díry / průlet smykem — i při herní rychlosti.
- * Mělké rychlé ojetí okraje zůstává mimo.
- */
+/** Úsek pohybu středu míčku protne (nebo je uvnitř) disku pasti? */
+export function ballPathEntersTrapDisk(
+  trap: TrapDef,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number
+): boolean {
+  if (ballCenterInsideTrapDisk(x2, y2, trap)) return true;
+  const travel = Math.hypot(x2 - x1, y2 - y1);
+  if (travel < 1e-6) return false;
+  const r = trapCaptureRadius(trap);
+  const closest = distancePointToSegment(trap.x, trap.y, x1, y1, x2, y2);
+  return closest <= r + TRAP_HOLE.boundaryEpsilon;
+}
+
 export function shouldTrapCapture(
   trap: TrapDef,
   ballX: number,
   ballY: number,
-  vx: number,
-  vy: number,
-  ballRadius: number,
+  _vx: number,
+  _vy: number,
+  _ballRadius: number,
   prevX: number | null,
   prevY: number | null
 ): boolean {
-  const d = Math.hypot(ballX - trap.x, ballY - trap.y);
-  const depth = holeDepth(d, trap.r, ballRadius);
-  const speed = Math.hypot(vx, vy);
-  const shallow = isShallowGraze(depth, speed, ballRadius, TRAP_HOLE.fastPassSpeed);
-  const coreR = trap.r * TRAP_HOLE.coreRadiusMul;
-
-  const onOuterRim =
-    d > trap.r - ballRadius * 0.35 && depth < ballRadius * 0.2 && d < trap.r + ballRadius * 0.45;
-  if ((shallow || onOuterRim) && speed >= TRAP_HOLE.fastPassSpeed * 0.88) {
-    return false;
-  }
-
-  if (speed > TRAP_HOLE.maxCaptureSpeed) return false;
-
-  const inCore = d <= coreR;
-  let sweptCore = false;
+  if (ballCenterInsideTrapDisk(ballX, ballY, trap)) return true;
   if (prevX != null && prevY != null) {
-    const travel = Math.hypot(ballX - prevX, ballY - prevY);
-    if (travel > 0.4) {
-      const closest = distancePointToSegment(trap.x, trap.y, prevX, prevY, ballX, ballY);
-      sweptCore = closest <= coreR * 0.95;
-    }
+    return ballPathEntersTrapDisk(trap, prevX, prevY, ballX, ballY);
   }
-
-  return inCore || sweptCore;
+  return false;
 }
 
 export function findTrapCapture(
@@ -127,6 +126,8 @@ export type TrapFallStepInput = {
   allowCapture?: boolean;
   prevBallX?: number | null;
   prevBallY?: number | null;
+  /** Simuluje vnější tilt po zachycení (nesmí uvolnit). */
+  externalAccel?: { x: number; y: number };
 };
 
 export type TrapFallStepResult = {
@@ -146,28 +147,22 @@ export type TrapCrossSimResult = {
   captureStep: number | null;
 };
 
-/** Integrační simulace: míček projíždí středem pasti po úsečce (jako v update smyku). */
-export function simulateTrapCenterCrossing(opts: {
+export type TrapMotionSimOpts = {
   trap: TrapDef;
   ballRadius: number;
   vx: number;
   vy?: number;
   steps?: number;
   deltaMs?: number;
-  startOffsetX?: number;
-}): TrapCrossSimResult {
-  const {
-    trap,
-    ballRadius,
-    vx,
-    vy = 0,
-    steps = 48,
-    deltaMs = 16,
-    startOffsetX = -(trap.r + ballRadius + 8)
-  } = opts;
+  startX: number;
+  startY: number;
+};
+
+export function simulateTrapMotion(opts: TrapMotionSimOpts): TrapCrossSimResult {
+  const { trap, ballRadius, vx, vy = 0, steps = 48, deltaMs = 16, startX, startY } = opts;
   let state = initialTrapFallState();
-  let x = trap.x + startOffsetX;
-  let y = trap.y;
+  let x = startX;
+  let y = startY;
   let prevX: number | null = null;
   let prevY: number | null = null;
   let respawnCount = 0;
@@ -186,13 +181,19 @@ export function simulateTrapCenterCrossing(opts: {
       ballRadius,
       deltaMs,
       prevBallX: prevX,
-      prevBallY: prevY
+      prevBallY: prevY,
+      externalAccel: { x: vx * 0.01, y: vy * 0.01 }
     });
     state = r.state;
     if (r.shouldRespawn) respawnCount += 1;
     if (r.state.phase === "falling" && !captured) {
       captured = true;
       captureStep = step;
+    }
+    if (r.state.phase === "falling") {
+      prevX = x;
+      prevY = y;
+      continue;
     }
     prevX = x;
     prevY = y;
@@ -202,9 +203,52 @@ export function simulateTrapCenterCrossing(opts: {
   return { captured, respawnCount, captureStep };
 }
 
+/** Horizontální průlet středem (regrese rychlosti). */
+export function simulateTrapCenterCrossing(opts: {
+  trap: TrapDef;
+  ballRadius: number;
+  vx: number;
+  vy?: number;
+  steps?: number;
+  deltaMs?: number;
+  startOffsetX?: number;
+}): TrapCrossSimResult {
+  const startOffsetX = opts.startOffsetX ?? -(opts.trap.r + opts.ballRadius + 8);
+  return simulateTrapMotion({
+    trap: opts.trap,
+    ballRadius: opts.ballRadius,
+    vx: opts.vx,
+    vy: opts.vy,
+    steps: opts.steps,
+    deltaMs: opts.deltaMs,
+    startX: opts.trap.x + startOffsetX,
+    startY: opts.trap.y
+  });
+}
+
+/** Tětiva se oběma konci MIMO disk, ale protíná viditelný kruh (okraj). */
+export function simulateTrapChordBothEndsOutside(opts: {
+  trap: TrapDef;
+  ballRadius: number;
+  vx: number;
+  deltaMs?: number;
+}): TrapCrossSimResult {
+  const { trap, ballRadius, vx, deltaMs = 16 } = opts;
+  const half = trap.r + 18;
+  return simulateTrapMotion({
+    trap,
+    ballRadius,
+    vx,
+    deltaMs,
+    steps: 56,
+    startX: trap.x - half,
+    startY: trap.y
+  });
+}
+
 export function stepTrapFall(input: TrapFallStepInput): TrapFallStepResult {
   let { state } = input;
-  const { traps, ballRadius, deltaMs } = input;
+  const { traps, deltaMs } = input;
   const base = {
     pullFx: 0,
     pullFy: 0,
@@ -232,7 +276,7 @@ export function stepTrapFall(input: TrapFallStepInput): TrapFallStepResult {
           input.ballY,
           input.vx,
           input.vy,
-          ballRadius,
+          input.ballRadius,
           "idle",
           prevX,
           prevY
@@ -241,16 +285,6 @@ export function stepTrapFall(input: TrapFallStepInput): TrapFallStepResult {
     if (idx != null) {
       state = { phase: "falling", fallMs: 0, activeTrapIndex: idx, respawnPending: false };
     } else {
-      for (const tr of traps) {
-        const p = computeBowlPull(input.ballX, input.ballY, input.vx, input.vy, tr, ballRadius, TRAP_HOLE, "idle");
-        if (p.shallow) continue;
-        if (p.dist > tr.r + ballRadius * 0.45) continue;
-        if (p.depth <= -ballRadius * 0.2) continue;
-        if (p.pullFx !== 0 || p.pullFy !== 0) {
-          base.pullFx += p.pullFx;
-          base.pullFy += p.pullFy;
-        }
-      }
       return { ...base, state };
     }
   }
@@ -261,7 +295,6 @@ export function stepTrapFall(input: TrapFallStepInput): TrapFallStepResult {
       state = initialTrapFallState();
       return { ...base, state };
     }
-    const pull = computeBowlPull(input.ballX, input.ballY, input.vx, input.vy, tr, ballRadius, TRAP_HOLE, "falling");
     state = { ...state, fallMs: state.fallMs + deltaMs };
     const sinkT = clamp(state.fallMs / TRAP_HOLE.fallDurationMs, 0, 1);
     const shouldRespawn = state.fallMs >= TRAP_HOLE.fallDurationMs && !state.respawnPending;
@@ -270,8 +303,8 @@ export function stepTrapFall(input: TrapFallStepInput): TrapFallStepResult {
     }
     return {
       state,
-      pullFx: pull.pullFx,
-      pullFy: pull.pullFy,
+      pullFx: 0,
+      pullFy: 0,
       sinkT,
       fallingActive: !shouldRespawn,
       targetX: tr.x,

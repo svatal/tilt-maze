@@ -132,6 +132,7 @@ export class GameScene extends Phaser.Scene {
         this.matter.body.setVelocity(bb, { x: vx, y: vy });
         this.goalBowl.resetState();
         this.trapHoles.cancelFall();
+        this.trapHoles.seedMotionSample(x, y);
         this.ball.setScale(1);
         this.ball.setAlpha(1);
       };
@@ -609,6 +610,7 @@ export class GameScene extends Phaser.Scene {
     this.ball.setDisplaySize(BALL_RADIUS * 2, BALL_RADIUS * 2);
     this.ball.setScale(1);
     this.ball.setDepth(5);
+    this.trapHoles.seedMotionSample(lvl.start.x, lvl.start.y);
   }
 
   private onCollisionStart(event: Phaser.Physics.Matter.Events.CollisionStartEvent): void {
@@ -648,6 +650,7 @@ export class GameScene extends Phaser.Scene {
     this.ball.setScale(1);
     this.ball.setAlpha(1);
     this.ball.setDepth(5);
+    this.trapHoles.seedMotionSample(lvl.start.x, lvl.start.y);
   }
 
   private finishTrapRespawn(): void {

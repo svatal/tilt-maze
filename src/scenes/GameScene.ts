@@ -3,6 +3,9 @@ import { BUILD_INFO_LABEL } from "../buildInfo.generated";
 import { BALL_RADIUS, DESIGN_HEIGHT, DESIGN_WIDTH } from "../constants";
 import { LEVELS, type LevelDef } from "../levels";
 import { requestIOSMotionPermission, TiltController } from "../tilt";
+import { TRAP_HOLE } from "../trapHole";
+import { GoalBowlController } from "../goalBowlController";
+import { TrapHoleController } from "../trapHoleController";
 import {
   markUserDismissedSensorBanner,
   markValidSensorRecovery,
@@ -36,8 +39,8 @@ export class GameScene extends Phaser.Scene {
   private running = false;
   private wallBodies: MatterJS.BodyType[] = [];
   private decorative: Phaser.GameObjects.Graphics[] = [];
-  private goalBody: MatterJS.BodyType | null = null;
-  private trapBodies: MatterJS.BodyType[] = [];
+  private goalBowl = new GoalBowlController(this);
+  private trapHoles = new TrapHoleController(this);
   private hud!: HTMLElement;
   private timerEl!: HTMLElement;
   private levelEl!: HTMLElement;
@@ -99,6 +102,8 @@ export class GameScene extends Phaser.Scene {
       this.tilt.destroy();
       this.game.events.off("debug-complete-level", this.debugWinLevel, this);
       this.matter.world.off("collisionstart", this.onCollisionStart, this);
+      this.goalBowl.destroy();
+      this.trapHoles.destroy();
     });
 
     this.loadLevel(0);
@@ -111,9 +116,20 @@ export class GameScene extends Phaser.Scene {
       const w = window as unknown as {
         __tiltMazeScene?: GameScene;
         __loadLevel?: (n: number) => void;
+        __e2ePlaceBall?: (x: number, y: number, vx?: number, vy?: number) => void;
       };
       w.__tiltMazeScene = this;
       w.__loadLevel = (n: number) => this.loadLevel(n);
+      w.__e2ePlaceBall = (x: number, y: number, vx = 0, vy = 0) => {
+        if (!this.ball?.body) return;
+        const bb = this.ball.body as MatterJS.BodyType;
+        this.matter.body.setPosition(bb, { x, y });
+        this.matter.body.setVelocity(bb, { x: vx, y: vy });
+        this.goalBowl.resetState();
+        this.trapHoles.cancelFall();
+        this.ball.setScale(1);
+        this.ball.setAlpha(1);
+      };
     }
 
     this.attachBuildInfoLabel();
@@ -162,21 +178,57 @@ export class GameScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     if (!this.running || !this.ball?.body) return;
     this.elapsedMs += delta;
+    this.timerEl.textContent = this.formatTime(this.elapsedMs);
 
-    const t = this.tilt.update(delta, 1);
-    const fx = t.ax * FORCE_MULT;
-    const fy = t.ay * FORCE_MULT;
     const bb = this.ball.body as MatterJS.BodyType;
-    this.matter.body.applyForce(bb, bb.position, { x: fx, y: fy });
+    const matterOps = {
+      applyForce: (body: MatterJS.BodyType, force: { x: number; y: number }) =>
+        this.matter.body.applyForce(body, body.position, force),
+      setVelocity: (body: MatterJS.BodyType, vel: { x: number; y: number }) =>
+        this.matter.body.setVelocity(body, vel),
+      setPosition: (body: MatterJS.BodyType, pos: { x: number; y: number }) =>
+        this.matter.body.setPosition(body, pos)
+    };
 
-    const v = bb.velocity;
-    const sp = Math.hypot(v.x, v.y);
-    if (sp > MAX_SPEED) {
-      const k = MAX_SPEED / sp;
-      this.matter.body.setVelocity(bb, { x: v.x * k, y: v.y * k });
+    this.trapHoles.tick(
+      bb,
+      delta,
+      matterOps.applyForce,
+      matterOps.setVelocity,
+      matterOps.setPosition,
+      !this.goalBowl.isSettling()
+    );
+    const trapFalling = this.trapHoles.isFalling();
+
+    if (!trapFalling) {
+      const t = this.tilt.update(delta, 1);
+      const fx = t.ax * FORCE_MULT;
+      const fy = t.ay * FORCE_MULT;
+      matterOps.applyForce(bb, { x: fx, y: fy });
+
+      const v = bb.velocity;
+      const sp = Math.hypot(v.x, v.y);
+      if (sp > MAX_SPEED) {
+        const k = MAX_SPEED / sp;
+        matterOps.setVelocity(bb, { x: v.x * k, y: v.y * k });
+      }
     }
 
-    this.timerEl.textContent = this.formatTime(this.elapsedMs);
+    if (!trapFalling) {
+      this.goalBowl.tick(bb, delta, matterOps.applyForce, matterOps.setVelocity, matterOps.setPosition);
+    }
+
+    const goalSink = this.goalBowl.getSinkT();
+    const trapSink = this.trapHoles.getSinkT();
+    if (trapFalling || trapSink > 0) {
+      this.ball.setScale(1 - trapSink * TRAP_HOLE.maxShrink);
+      this.ball.setAlpha(1 - trapSink * 0.35);
+      this.ball.setDepth(1);
+    } else {
+      this.ball.setScale(1 - goalSink * 0.22);
+      this.ball.setAlpha(1);
+      this.ball.setDepth(goalSink > 0.05 ? 1 : 5);
+    }
   }
 
   private debugWinLevel = (): void => {
@@ -492,12 +544,8 @@ export class GameScene extends Phaser.Scene {
   private clearLevelBodies(): void {
     for (const w of this.wallBodies) this.removeBody(w);
     this.wallBodies = [];
-    if (this.goalBody) {
-      this.removeBody(this.goalBody);
-      this.goalBody = null;
-    }
-    for (const t of this.trapBodies) this.removeBody(t);
-    this.trapBodies = [];
+    this.goalBowl.resetState();
+    this.trapHoles.cancelFall();
     if (this.ball) this.ball.destroy();
     this.clearDecor();
   }
@@ -537,22 +585,8 @@ export class GameScene extends Phaser.Scene {
       this.wallBodies.push(body);
     }
 
-    this.goalBody = this.matter.add.circle(lvl.goal.x, lvl.goal.y, lvl.goal.r, {
-      isStatic: true,
-      isSensor: true,
-      label: "goal"
-    });
-    this.drawHole(lvl.goal.x, lvl.goal.y, lvl.goal.r, 0x0d3d0d);
-
-    for (const tr of lvl.traps) {
-      const tb = this.matter.add.circle(tr.x, tr.y, tr.r, {
-        isStatic: true,
-        isSensor: true,
-        label: "trap"
-      });
-      this.trapBodies.push(tb);
-      this.drawHole(tr.x, tr.y, tr.r, 0x2a0a0a);
-    }
+    this.goalBowl.configure(lvl.goal, BALL_RADIUS, () => this.winLevel());
+    this.trapHoles.configure(lvl.traps, BALL_RADIUS, () => this.finishTrapRespawn());
 
     const ballGo = this.add.image(lvl.start.x, lvl.start.y, "ball_tex");
     this.ball = this.matter.add.gameObject(ballGo, {
@@ -568,17 +602,8 @@ export class GameScene extends Phaser.Scene {
       restitution: 0.15
     }) as Phaser.Physics.Matter.Image;
     this.ball.setDisplaySize(BALL_RADIUS * 2, BALL_RADIUS * 2);
-  }
-
-  private drawHole(cx: number, cy: number, r: number, inner: number): void {
-    const gr = this.add.graphics();
-    this.decorative.push(gr);
-    gr.fillStyle(0x1a120a, 1);
-    gr.fillCircle(cx, cy, r + 2);
-    gr.fillStyle(inner, 0.85);
-    gr.fillCircle(cx, cy, r - 2);
-    gr.lineStyle(2, 0x0a0604, 1);
-    gr.strokeCircle(cx, cy, r);
+    this.ball.setScale(1);
+    this.ball.setDepth(5);
   }
 
   private onCollisionStart(event: Phaser.Physics.Matter.Events.CollisionStartEvent): void {
@@ -606,23 +631,37 @@ export class GameScene extends Phaser.Scene {
         }
       }
 
-      if (ol === "goal") {
-        this.winLevel();
-        return;
-      }
-      if (ol === "trap") {
-        this.resetBallToStart();
-        return;
+    }
+  }
+
+  private restoreBallPlayableState(): void {
+    if (!this.ball?.body) return;
+    const lvl = LEVELS[this.levelIndex];
+    const bb = this.ball.body as MatterJS.BodyType;
+    this.matter.body.setPosition(bb, { x: lvl.start.x, y: lvl.start.y });
+    this.matter.body.setVelocity(bb, { x: 0, y: 0 });
+    this.ball.setScale(1);
+    this.ball.setAlpha(1);
+    this.ball.setDepth(5);
+  }
+
+  private finishTrapRespawn(): void {
+    this.goalBowl.resetState();
+    this.trapHoles.cancelFall();
+    this.restoreBallPlayableState();
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      try {
+        navigator.vibrate([15, 40, 15]);
+      } catch {
+        /* ignore */
       }
     }
   }
 
   private resetBallToStart(): void {
-    const lvl = LEVELS[this.levelIndex];
-    if (!this.ball?.body) return;
-    const bb = this.ball.body as MatterJS.BodyType;
-    this.matter.body.setPosition(bb, { x: lvl.start.x, y: lvl.start.y });
-    this.matter.body.setVelocity(bb, { x: 0, y: 0 });
+    this.goalBowl.resetState();
+    this.trapHoles.cancelFall();
+    this.restoreBallPlayableState();
     if (typeof navigator !== "undefined" && navigator.vibrate) {
       try {
         navigator.vibrate([15, 40, 15]);
@@ -633,6 +672,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private restartLevel(): void {
+    this.trapHoles.cancelFall();
     this.running = true;
     this.resetBallToStart();
     this.elapsedMs = 0;
@@ -641,6 +681,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private winLevel(): void {
+    if (this.winLayer.style.display === "flex") return;
     this.running = false;
     const next = this.levelIndex + 1;
     const finishedAll = next >= LEVELS.length;

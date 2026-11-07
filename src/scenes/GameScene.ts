@@ -10,6 +10,8 @@ import {
   shouldShowSensorBannerKind,
   type StorageLike
 } from "../sensorBannerSession";
+import { playAreaFromCanvasBounds, type PlayAreaRect } from "../mouseTiltMapping";
+import { MouseTiltOverlay, createMouseHelpPanel } from "../mouseTiltOverlay";
 
 const WALL_FRICTION = 0.08;
 const FORCE_MULT = 0.00085;
@@ -45,6 +47,8 @@ export class GameScene extends Phaser.Scene {
   private startScreen!: HTMLElement;
   private sensorBanner: HTMLElement | null = null;
   private desktopHintTimer: ReturnType<typeof setTimeout> | null = null;
+  private mouseOverlay: MouseTiltOverlay | null = null;
+  private btnMouseToggle: HTMLButtonElement | null = null;
   private sensorDebugEl: HTMLElement | null = null;
   private sensorDebugTimer: ReturnType<typeof setInterval> | null = null;
   private lastVibrateAt = 0;
@@ -57,16 +61,6 @@ export class GameScene extends Phaser.Scene {
     const qs = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
     const skipSensorBanner = qs.get("e2e") === "1";
     this.sensorStorage = typeof sessionStorage !== "undefined" ? sessionStorage : { getItem: () => null, setItem: () => undefined };
-    this.tilt = new TiltController(
-      skipSensorBanner
-        ? {}
-        : {
-            onSensorDesktopHint: () => this.maybeShowDesktopSensorHint(),
-            onSensorDataStale: () => this.maybeShowFullSensorWarning(),
-            onSensorDataRecovered: () => this.onSensorValidDataRecovered()
-          }
-    );
-
     this.ensureTextures();
     this.matter.world.setBounds(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT, 32, true, true, true, true);
     this.matter.world.setGravity(0, 0);
@@ -77,6 +71,22 @@ export class GameScene extends Phaser.Scene {
 
     this.buildBackground();
     this.buildHud();
+
+    this.mouseOverlay = new MouseTiltOverlay({ getPlayArea: () => this.getPlayArea() });
+
+    this.tilt = new TiltController({
+      getPlayArea: () => this.getPlayArea(),
+      isUiTarget: (el) => this.isOverlayUiTarget(el),
+      onMouseArmedChange: (armed) => this.onMouseArmedChanged(armed),
+      onMouseTiltVisual: (nx, ny, active) => this.mouseOverlay?.updateTilt(nx, ny, active),
+      ...(skipSensorBanner
+        ? {}
+        : {
+            onSensorDesktopHint: () => this.maybeShowDesktopSensorHint(),
+            onSensorDataStale: () => this.maybeShowFullSensorWarning(),
+            onSensorDataRecovered: () => this.onSensorValidDataRecovered()
+          })
+    });
 
     this.scale.on("resize", this.layoutHud, this);
     this.layoutHud(this.scale.gameSize);
@@ -96,6 +106,8 @@ export class GameScene extends Phaser.Scene {
       }
       this.sensorDebugEl?.remove();
       this.sensorDebugEl = null;
+      this.mouseOverlay?.destroy();
+      this.mouseOverlay = null;
       this.tilt.destroy();
       this.game.events.off("debug-complete-level", this.debugWinLevel, this);
       this.matter.world.off("collisionstart", this.onCollisionStart, this);
@@ -224,7 +236,7 @@ export class GameScene extends Phaser.Scene {
       <h1 style="margin:0 0 12px;font-size:1.5rem;font-weight:700">Sklopený labyrint</h1>
       <p style="margin:0 0 20px;max-width:320px;line-height:1.45;font-size:0.95rem">
         Nakloňte telefon a doveďte kuličku do cílové díry. Vyhněte se pastem.
-        Na ploše lze použít šipky nebo WASD.
+        Na ploše: šipky/WASD, nebo myš od středu herní plochy (tlačítko Myš).
       </p>
       <button id="btn-start" type="button" style="padding:14px 28px;font-size:1.05rem;border-radius:12px;border:none;background:#c9a227;color:#1a120a;font-weight:700;cursor:pointer">
         Start
@@ -272,7 +284,13 @@ export class GameScene extends Phaser.Scene {
 
     const btnCal = mkBtn("btn-cal", "Kalibrovat");
     const btnRestart = mkBtn("btn-restart", "Restart");
-    actions.append(btnCal, btnRestart);
+    const btnMouse = mkBtn("btn-mouse", "Myš");
+    btnMouse.setAttribute("aria-pressed", "false");
+    btnMouse.title = "Zapnout/vypnout analogové ovládání myší (klávesa M)";
+    this.btnMouseToggle = btnMouse;
+
+    const mouseHelp = createMouseHelpPanel();
+    actions.append(btnCal, btnRestart, btnMouse, mouseHelp.root);
 
     hud.append(this.levelEl, this.timerEl, actions);
 
@@ -304,6 +322,37 @@ export class GameScene extends Phaser.Scene {
     btnRestart.addEventListener("click", () => {
       this.restartLevel();
     });
+
+    btnMouse.addEventListener("click", () => {
+      this.tilt.toggleMouseArmed();
+    });
+  }
+
+  private getPlayArea(): PlayAreaRect {
+    const b = this.game.scale.canvasBounds;
+    return playAreaFromCanvasBounds({ x: b.x, y: b.y, width: b.width, height: b.height });
+  }
+
+  private isOverlayUiTarget(el: EventTarget | null): boolean {
+    if (!(el instanceof Node)) return false;
+    const ui = document.getElementById("tilt-maze-ui");
+    if (ui?.contains(el)) return true;
+    if (this.sensorBanner?.contains(el)) return true;
+    const help = document.getElementById("tilt-maze-mouse-help");
+    if (help?.contains(el)) return true;
+    return false;
+  }
+
+  private onMouseArmedChanged(armed: boolean): void {
+    this.btnMouseToggle?.setAttribute("aria-pressed", String(armed));
+    this.btnMouseToggle?.classList.toggle("mouse-armed-active", armed);
+    if (armed) {
+      this.btnMouseToggle!.style.outline = "2px solid rgba(201,162,39,0.85)";
+    } else {
+      this.btnMouseToggle!.style.outline = "";
+    }
+    this.mouseOverlay?.setArmed(armed);
+    this.mouseOverlay?.layout();
   }
 
   private setupSensorDebugOverlay(): void {
@@ -331,7 +380,7 @@ export class GameScene extends Phaser.Scene {
     const tick = (): void => {
       const s = this.tilt.getSensorSnapshot();
       const issue = this.tilt.monitor.classifySensorIssue(performance.now());
-      const warn = issue !== "ok" && !this.tilt.isKeyboardActive();
+      const warn = issue !== "ok" && !this.tilt.isDesktopInputOverride();
       el.textContent = [
         `[sensorDebug] issue=${issue} warn=${warn}`,
         `perm A/G/M: ${s.permAccel}/${s.permGyro}/${s.permMag} denied=${s.permissionDenied}`,
@@ -387,7 +436,8 @@ export class GameScene extends Phaser.Scene {
       "line-height:1.4",
       "box-shadow:0 3px 12px rgba(0,0,0,0.35)"
     ].join(";");
-    el.textContent = "Na tomto zařízení ovládej šipkami nebo WASD.";
+    el.textContent =
+      "Na tomto zařízení: šipky/WASD, nebo zapni Myš a táhni kurzor od středu herní plochy (viz nápověda).";
     document.body.appendChild(el);
     this.sensorBanner = el;
     this.desktopHintTimer = setTimeout(() => {
@@ -447,9 +497,10 @@ export class GameScene extends Phaser.Scene {
     // Režim Scale.FIT v main.ts — kamera zůstává 1:1 ve světě DESIGN_WIDTH×DESIGN_HEIGHT, mezery jsou mimo canvas
     const bounds = this.game.scale.canvasBounds;
     if (this.hud) {
-      this.hud.style.paddingLeft = `${Math.max(8, Math.round(bounds.left))}px`;
-      this.hud.style.paddingRight = `${Math.max(8, Math.round(window.innerWidth - bounds.right))}px`;
+      this.hud.style.paddingLeft = `${Math.max(8, Math.round(bounds.x))}px`;
+      this.hud.style.paddingRight = `${Math.max(8, Math.round(window.innerWidth - (bounds.x + bounds.width)))}px`;
     }
+    this.mouseOverlay?.layout();
   }
 
   private async onStartClick(): Promise<void> {

@@ -3,6 +3,8 @@
  * DOM: DeviceOrientation + DeviceMotion; volitelně Generic Sensor API (GravitySensor).
  */
 
+import { MouseTiltInput } from "./mouseTiltInput";
+import type { PlayAreaRect } from "./mouseTiltMapping";
 import { SensorMonitor, querySensorPermissions } from "./sensorMonitor";
 import { computeRawTiltAxes } from "./tiltMapping";
 
@@ -29,7 +31,11 @@ export type TiltControllerOptions = {
   onSensorDataStale?: () => void;
   /** Přišla platná data ze senzoru — skrýt banner a už nezobrazovat */
   onSensorDataRecovered?: () => void;
-}
+  getPlayArea?: () => PlayAreaRect;
+  isUiTarget?: (el: EventTarget | null) => boolean;
+  onMouseArmedChange?: (armed: boolean) => void;
+  onMouseTiltVisual?: (nx: number, ny: number, active: boolean) => void;
+};
 
 export async function requestIOSMotionPermission(): Promise<boolean> {
   const DO = DeviceOrientationEvent as unknown as {
@@ -87,16 +93,31 @@ export class TiltController {
 
   private readonly keyTilt = { x: 0, y: 0 };
   private readonly options: TiltControllerOptions;
+  private mouseInput: MouseTiltInput | null = null;
 
   constructor(options: TiltControllerOptions = {}) {
     this.options = options;
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
+    if (options.getPlayArea) {
+      this.mouseInput = new MouseTiltInput({
+        getPlayArea: options.getPlayArea,
+        isUiTarget: options.isUiTarget ?? (() => false),
+        onArmedChange: (a) => options.onMouseArmedChange?.(a),
+        onPointerTiltChange: (x, y, nx, ny, active) => {
+          void x;
+          void y;
+          options.onMouseTiltVisual?.(nx, ny, active);
+        }
+      });
+    }
   }
 
   destroy(): void {
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
+    this.mouseInput?.destroy();
+    this.mouseInput = null;
     this.teardownSensors();
   }
 
@@ -106,6 +127,22 @@ export class TiltController {
 
   isKeyboardActive(): boolean {
     return this.keyTilt.x !== 0 || this.keyTilt.y !== 0;
+  }
+
+  isMouseArmed(): boolean {
+    return this.mouseInput?.isArmed() ?? false;
+  }
+
+  setMouseArmed(v: boolean): void {
+    this.mouseInput?.setArmed(v);
+  }
+
+  toggleMouseArmed(): void {
+    this.mouseInput?.toggleArmed();
+  }
+
+  isDesktopInputOverride(): boolean {
+    return this.isKeyboardActive() || this.isMouseArmed();
   }
 
   private teardownSensors(): void {
@@ -132,12 +169,27 @@ export class TiltController {
     this.monitor.markKeyboardOverride(t);
   }
 
+  private markActivityFromMouse(): void {
+    const t = performance.now();
+    this.monitor.markKeyboardOverride(t);
+  }
+
   private checkSensorHealth(): void {
     const { onSensorDesktopHint, onSensorDataStale, onSensorDataRecovered } = this.options;
     if (!onSensorDesktopHint && !onSensorDataStale && !onSensorDataRecovered) return;
     const keyboard = this.keyTilt.x !== 0 || this.keyTilt.y !== 0;
+    const mouseSnap = this.mouseInput?.snapshot();
+    const mouseDriving =
+      mouseSnap?.armed &&
+      mouseSnap.windowFocused &&
+      mouseSnap.pointerInside &&
+      (mouseSnap.rawX !== 0 || mouseSnap.rawY !== 0);
     if (keyboard) {
       this.markActivityFromKeyboard();
+      return;
+    }
+    if (mouseDriving) {
+      this.markActivityFromMouse();
       return;
     }
     const t = performance.now();
@@ -260,6 +312,13 @@ export class TiltController {
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     const k = e.key.toLowerCase();
+    if (k === "m" && this.mouseInput && !e.repeat) {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+      e.preventDefault();
+      this.mouseInput.toggleArmed();
+      return;
+    }
     if (k === "arrowleft" || k === "a") this.keyTilt.x = -KEY_FORCE;
     if (k === "arrowright" || k === "d") this.keyTilt.x = KEY_FORCE;
     if (k === "arrowup" || k === "w") this.keyTilt.y = -KEY_FORCE;
@@ -274,6 +333,8 @@ export class TiltController {
 
   update(_dt: number, forceScale: number): TiltOutput {
     const now = performance.now();
+    const mouseSnap = this.mouseInput?.snapshot();
+    const mouseTilt = this.mouseInput?.getRawTilt() ?? { x: 0, y: 0 };
     const { rawX, rawY } = computeRawTiltAxes({
       lastGamma: this.lastGamma,
       lastBeta: this.lastBeta,
@@ -291,6 +352,11 @@ export class TiltController {
       calGsZ: this.calGsZ,
       keyX: this.keyTilt.x,
       keyY: this.keyTilt.y,
+      mouseX: mouseTilt.x,
+      mouseY: mouseTilt.y,
+      mouseArmed: mouseSnap?.armed ?? false,
+      mousePointerInside: mouseSnap?.pointerInside ?? false,
+      mouseWindowFocused: mouseSnap?.windowFocused ?? true,
       lastOrientTs: this.lastOrientTs,
       lastMotionTs: this.lastMotionTs,
       lastGravSensorTs: this.lastGravSensorTs,

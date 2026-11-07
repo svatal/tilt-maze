@@ -3,6 +3,8 @@
  * Osa Y: záporné rawY = síla nahoru na obrazovce (menší world y v Phaseru).
  */
 
+import { hasRecentSensorData, shouldApplyMouseTilt } from "./mouseTiltMapping";
+
 export type TiltSampleInput = {
   lastGamma: number | null;
   lastBeta: number | null;
@@ -20,6 +22,11 @@ export type TiltSampleInput = {
   calGsZ: number;
   keyX: number;
   keyY: number;
+  mouseX: number;
+  mouseY: number;
+  mouseArmed: boolean;
+  mousePointerInside: boolean;
+  mouseWindowFocused: boolean;
   lastOrientTs: number;
   lastMotionTs: number;
   lastGravSensorTs: number;
@@ -31,6 +38,24 @@ export type TiltSampleInput = {
  * Vrací hrubé složky tiltu (před klipnutím a SMOOTH).
  */
 export function computeRawTiltAxes(s: TiltSampleInput): { rawX: number; rawY: number } {
+  const keyboard = s.keyX !== 0 || s.keyY !== 0;
+  const sensorRecent = hasRecentSensorData(s);
+  const mouseApply = shouldApplyMouseTilt({
+    mouseArmed: s.mouseArmed,
+    pointerInside: s.mousePointerInside,
+    windowFocused: s.mouseWindowFocused,
+    keyboardActive: keyboard,
+    sensorRecent
+  });
+
+  if (mouseApply) {
+    let rawX = s.mouseX;
+    let rawY = s.mouseY;
+    rawX = Math.max(-2.8, Math.min(2.8, rawX));
+    rawY = Math.max(-2.8, Math.min(2.8, rawY));
+    return { rawX, rawY };
+  }
+
   let rawX = s.keyX;
   let rawY = s.keyY;
 
@@ -103,6 +128,11 @@ export function rawTiltFromBetaOnly(betaDeg: number, calBetaDeg = 0): number {
     calGsZ: 0,
     keyX: 0,
     keyY: 0,
+    mouseX: 0,
+    mouseY: 0,
+    mouseArmed: false,
+    mousePointerInside: false,
+    mouseWindowFocused: true,
     lastOrientTs: 1,
     lastMotionTs: 0,
     lastGravSensorTs: 0,

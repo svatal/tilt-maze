@@ -117,9 +117,14 @@ export class GameScene extends Phaser.Scene {
         __tiltMazeScene?: GameScene;
         __loadLevel?: (n: number) => void;
         __e2ePlaceBall?: (x: number, y: number, vx?: number, vy?: number) => void;
+        __e2eTrapSnapshot?: () => { falling: boolean; sinkT: number };
       };
       w.__tiltMazeScene = this;
       w.__loadLevel = (n: number) => this.loadLevel(n);
+      w.__e2eTrapSnapshot = () => ({
+        falling: this.trapHoles.isFalling(),
+        sinkT: this.trapHoles.getSinkT()
+      });
       w.__e2ePlaceBall = (x: number, y: number, vx = 0, vy = 0) => {
         if (!this.ball?.body) return;
         const bb = this.ball.body as MatterJS.BodyType;

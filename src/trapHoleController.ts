@@ -15,6 +15,8 @@ export class TrapHoleController {
   private ballRadius = 11;
   private onRespawn: (() => void) | null = null;
   private respawnDispatched = false;
+  private prevBallX: number | null = null;
+  private prevBallY: number | null = null;
 
   constructor(private readonly scene: Phaser.Scene) {}
 
@@ -35,6 +37,8 @@ export class TrapHoleController {
   resetState(): void {
     this.state = initialTrapFallState();
     this.respawnDispatched = false;
+    this.prevBallX = null;
+    this.prevBallY = null;
     for (let i = 0; i < this.traps.length; i++) {
       const tr = this.traps[i];
       if (tr && this.gfx[i]) paintTrapHole(this.gfx[i], tr, 0);
@@ -81,10 +85,14 @@ export class TrapHoleController {
       vy: bb.velocity.y,
       ballRadius: this.ballRadius,
       deltaMs,
-      allowCapture
+      allowCapture,
+      prevBallX: this.prevBallX,
+      prevBallY: this.prevBallY
     });
 
     this.state = result.state;
+    this.prevBallX = pos.x;
+    this.prevBallY = pos.y;
 
     if (result.pullFx !== 0 || result.pullFy !== 0) {
       applyForce(bb, { x: result.pullFx, y: result.pullFy });
@@ -109,6 +117,8 @@ export class TrapHoleController {
       this.onRespawn();
       this.state = initialTrapFallState();
       this.respawnDispatched = false;
+      this.prevBallX = null;
+      this.prevBallY = null;
     }
   }
 }

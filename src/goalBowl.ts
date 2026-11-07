@@ -3,13 +3,13 @@ import { clamp, computeBowlPull, holeDepth, isShallowGraze, type HoleDef } from 
 
 /** Parametry mísy cíle — ladění chování vs. rychlost míčku. */
 export const GOAL_BOWL = {
-  influenceRadiusMul: 1.12,
+  influenceRadiusMul: 1.09,
   captureDepthMul: 0.28,
   settleDepthMul: 0.32,
   fastPassSpeed: 5.4,
   maxSettleEntrySpeed: 5.8,
   settleDurationMs: 460,
-  pullScale: 2.6,
+  pullScale: 3.15,
   settleDamping: 0.82,
   settleLerp: 0.15
 } as const;

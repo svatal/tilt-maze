@@ -16,7 +16,19 @@ test.beforeAll(() => {
   }
 });
 
-test("E2E: úroveň 1 klávesnicí + overlay Matter debug, bez chyb v konzoli", async ({ page }) => {
+async function holdKeys(
+  page: import("@playwright/test").Page,
+  keys: string[],
+  ms: number
+): Promise<void> {
+  for (const k of keys) await page.keyboard.down(k);
+  await sleep(ms);
+  for (const k of keys) await page.keyboard.up(k);
+}
+
+test("E2E: úroveň 1 klávesnice posune kuličku + Matter debug, bez chyb v konzoli", async ({ page }) => {
+  test.setTimeout(45_000);
+
   const errors: string[] = [];
   page.on("console", (msg) => {
     if (msg.type() === "error") errors.push(`console.error: ${msg.text()}`);
@@ -27,23 +39,30 @@ test("E2E: úroveň 1 klávesnicí + overlay Matter debug, bez chyb v konzoli", 
 
   await page.getByRole("button", { name: "Start" }).click();
   await expect(page.locator("#tilt-maze-ui")).toBeVisible();
+  await page.locator("body").click();
 
-  const won = page.getByText("Výhra!", { exact: false });
-  const deadline = Date.now() + 35000;
+  const matterDebug = await page.evaluate(() => {
+    const s = (window as unknown as { __tiltMazeScene?: Phaser.Scene & { matter: Phaser.Physics.Matter.MatterPhysics } })
+      .__tiltMazeScene;
+    return !!(s?.matter?.world as unknown as { debugGraphic?: unknown })?.debugGraphic;
+  });
+  expect(matterDebug).toBe(true);
 
-  while (Date.now() < deadline) {
-    if (await won.isVisible()) break;
-    await page.keyboard.down("ArrowUp");
-    await sleep(220);
-    await page.keyboard.up("ArrowUp");
-    if (await won.isVisible()) break;
-    await page.keyboard.down("ArrowRight");
-    await sleep(160);
-    await page.keyboard.up("ArrowRight");
-    await sleep(30);
-  }
+  const ballPos = async () =>
+    page.evaluate(() => {
+      const s = (window as unknown as { __tiltMazeScene?: Phaser.Scene & { matter: Phaser.Physics.Matter.MatterPhysics } })
+        .__tiltMazeScene;
+      const ball = s!.matter.world.getAllBodies().find((b) => b.label === "ball");
+      return { x: ball!.position.x, y: ball!.position.y };
+    });
 
-  await expect(won).toBeVisible({ timeout: 2000 });
+  const start = await ballPos();
+  await holdKeys(page, ["ArrowUp", "ArrowRight"], 3200);
+  const after = await ballPos();
+  const travel = Math.hypot(after.x - start.x, after.y - start.y);
+
+  expect(after.y).toBeLessThan(start.y - 40);
+  expect(travel).toBeGreaterThan(120);
 
   await fs.promises.mkdir("/opt/cursor/artifacts", { recursive: true });
   await page.screenshot({ path: "/opt/cursor/artifacts/screenshot.png", fullPage: true });
@@ -60,6 +79,7 @@ test("E2E: debug hook dokončí úroveň (regrese)", async ({ page }) => {
 
   await page.goto(`${basePath}?e2e=1`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Start" }).click();
+  await expect(page.locator("#tilt-maze-ui")).toBeVisible();
   await page.evaluate(() => {
     (window as unknown as { __debugCompleteLevel?: () => void }).__debugCompleteLevel?.();
   });

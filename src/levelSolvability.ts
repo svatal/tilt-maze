@@ -1,5 +1,6 @@
 /**
  * Kontrola průchodnosti: grid BFS od startu k cíli s rezervou pro poloměr kuličky.
+ * Dokládá existenci cesty v diskretizovaném modelu — ne subjektivní obtížnost hry na zařízení.
  */
 
 import { BALL_RADIUS } from "./constants";

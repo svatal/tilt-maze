@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { getBuildInfoLabel } from "./scripts/build-info-label";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
@@ -7,9 +8,13 @@ export default defineConfig(({ mode }) => {
   const base = rawBase.endsWith("/") ? rawBase : `${rawBase}/`;
   const isPrPreview = env.VITE_IS_PR_PREVIEW === "true";
   const enablePwa = env.VITE_DISABLE_PWA !== "true" && !isPrPreview;
+  const buildInfoLabel = getBuildInfoLabel();
 
   return {
     base,
+    define: {
+      "import.meta.env.VITE_BUILD_INFO_LABEL": JSON.stringify(buildInfoLabel)
+    },
     publicDir: "public",
     plugins: [
       VitePWA({

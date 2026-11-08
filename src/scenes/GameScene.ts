@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { BUILD_INFO_LABEL } from "../buildInfo.generated";
+import { BUILD_INFO_LABEL } from "../buildInfo";
 import { BALL_RADIUS, DESIGN_HEIGHT, DESIGN_WIDTH } from "../constants";
 import { LEVELS, type LevelDef } from "../levels";
 import { requestIOSMotionPermission, TiltController } from "../tilt";

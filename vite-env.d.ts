@@ -5,6 +5,7 @@ interface ImportMetaEnv {
   readonly VITE_BASE_PATH: string;
   readonly VITE_IS_PR_PREVIEW: string;
   readonly VITE_DISABLE_PWA: string;
+  readonly VITE_BUILD_INFO_LABEL: string;
 }
 
 interface ImportMeta {

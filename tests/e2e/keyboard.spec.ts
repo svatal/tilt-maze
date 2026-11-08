@@ -17,6 +17,7 @@ test.beforeAll(() => {
 });
 
 test("E2E: úroveň 1 klávesnicí + overlay Matter debug, bez chyb v konzoli", async ({ page }) => {
+  test.setTimeout(75_000);
   const errors: string[] = [];
   page.on("console", (msg) => {
     if (msg.type() === "error") errors.push(`console.error: ${msg.text()}`);
@@ -29,21 +30,44 @@ test("E2E: úroveň 1 klávesnicí + overlay Matter debug, bez chyb v konzoli", 
   await expect(page.locator("#tilt-maze-ui")).toBeVisible();
 
   const won = page.getByText("Výhra!", { exact: false });
-  const deadline = Date.now() + 35000;
 
-  while (Date.now() < deadline) {
+  const holdKey = async (key: string, ms: number) => {
+    if (await won.isVisible()) return;
+    await page.keyboard.down(key);
+    await sleep(ms);
+    await page.keyboard.up(key);
+    await sleep(40);
+  };
+
+  // Úroveň 1: levačkou nahoru, pak doladění do cíle (300, 80)
+  await holdKey("ArrowUp", 2000);
+  await holdKey("ArrowRight", 520);
+  await holdKey("ArrowUp", 14000);
+
+  const goal = { x: 300, y: 80 };
+  for (let i = 0; i < 120; i++) {
     if (await won.isVisible()) break;
-    await page.keyboard.down("ArrowUp");
-    await sleep(220);
-    await page.keyboard.up("ArrowUp");
-    if (await won.isVisible()) break;
-    await page.keyboard.down("ArrowRight");
-    await sleep(160);
-    await page.keyboard.up("ArrowRight");
-    await sleep(30);
+    const pos = await page.evaluate(() => {
+      const ball = (window as unknown as { __tiltMazeScene?: { ball?: { x: number; y: number } } })
+        .__tiltMazeScene?.ball;
+      return ball ? { x: ball.x, y: ball.y } : null;
+    });
+    if (!pos) break;
+    const dx = pos.x - goal.x;
+    const dy = pos.y - goal.y;
+    if (Math.hypot(dx, dy) < 18) {
+      await holdKey("ArrowLeft", dx > 2 ? 55 : 0);
+      await holdKey("ArrowRight", dx < -2 ? 55 : 0);
+      await holdKey("ArrowDown", dy < -2 ? 70 : 0);
+      await holdKey("ArrowUp", dy > 2 ? 70 : 0);
+      await sleep(120);
+    } else if (dy < -6) await holdKey("ArrowDown", 85);
+    else if (dy > 6) await holdKey("ArrowUp", 85);
+    else if (dx > 6) await holdKey("ArrowLeft", 85);
+    else await holdKey("ArrowRight", 85);
   }
 
-  await expect(won).toBeVisible({ timeout: 2000 });
+  await expect(won).toBeVisible({ timeout: 15000 });
 
   await fs.promises.mkdir("/opt/cursor/artifacts", { recursive: true });
   await page.screenshot({ path: "/opt/cursor/artifacts/screenshot.png", fullPage: true });

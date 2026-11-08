@@ -22,7 +22,7 @@ npm run test:unit
 
 Otevřete v prohlížeči URL z Vite (např. `http://localhost:5173/tilt-maze/`). Pro test naklonění na Androidu je potřeba **HTTPS** (např. tunel přes `ngrok` / Cloudflare Tunnel) nebo připojení z `https://localhost` podle prostředí.
 
-Herní plocha má **pevné rozlišení 360×640** logických pixelů; Phaser používá **Scale.FIT** — na širokém monitoru tedy uvidíte **letterbox** (tmavé okraje), ale celá deska i zdi zůstávají uvnitř hnědého rámu. V pravém dolním rohu je **řádek sestavení** (větev, hash, čas Europe/Prague z CI nebo lokálně z gitu).
+Herní plocha má **pevné rozlišení 360×640** logických pixelů; Phaser používá **Scale.FIT** — na širokém monitoru tedy uvidíte **letterbox** (tmavé okraje), ale celá deska i zdi zůstávají uvnitř hnědého rámu. V pravém dolním rohu je **řádek sestavení** (větev, hash, čas Europe/Prague): generuje ho `scripts/inject-build-info.mjs` do `src/buildInfo.generated.ts` (soubor je v **`.gitignore`**, před `dev`/`build` přes npm lifecycle). U náhledů PR workflow nastaví `BUILD_INFO_SHA` na head commit PR (ne merge ref).
 
 ## Sestavení
 

@@ -23,6 +23,8 @@ jobs:
       VITE_BASE_PATH: ${{ github.event_name == 'pull_request' && format('/tilt-maze/pr-{0}/', github.event.pull_request.number) || '/tilt-maze/' }}
       E2E_BASE_PATH: ${{ github.event_name == 'pull_request' && format('/tilt-maze/pr-{0}/', github.event.pull_request.number) || '/tilt-maze/' }}
       PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+      # Štítek v aplikaci: u PR head commit větve (ne ephemeral merge SHA z GITHUB_SHA).
+      BUILD_INFO_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       VITE_IS_PR_PREVIEW: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
       VITE_DISABLE_PWA: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
     steps:

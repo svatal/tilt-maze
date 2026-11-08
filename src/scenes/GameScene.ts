@@ -10,11 +10,23 @@ import {
   shouldShowSensorBannerKind,
   type StorageLike
 } from "../sensorBannerSession";
+import {
+  ballCenterDistance,
+  ballCenterTriggersHoleSink,
+  ballInHoleSlopeAnnulus,
+  composeBoardAndHoleTilts,
+  holeLocalTilt,
+  type HoleDef
+} from "../holeSlope";
 
 const WALL_FRICTION = 0.08;
 const FORCE_MULT = 0.00085;
 const MAX_SPEED = 7;
 
+/** Čas sesazení v cíli před výhrou (Phaser tween). */
+const GOAL_SETTLE_MS = 460;
+/** Krátký propad v pasti. */
+const TRAP_SINK_MS = 280;
 const DESKTOP_HINT_MS = 5500;
 
 const SENSOR_HTML = `
@@ -49,6 +61,12 @@ export class GameScene extends Phaser.Scene {
   private sensorDebugTimer: ReturnType<typeof setInterval> | null = null;
   private lastVibrateAt = 0;
   private sensorStorage: StorageLike = typeof sessionStorage !== "undefined" ? sessionStorage : { getItem: () => null, setItem: () => undefined };
+  private goalSettling = false;
+  private trapSinking = false;
+  private terminalTween: Phaser.Tweens.Tween | null = null;
+  private goalHole: HoleDef | null = null;
+  /** E2E: vzdálenost středu v okamžiku spuštění trigger animace. */
+  private e2eLastTriggerDist: number | null = null;
   constructor() {
     super({ key: "GameScene" });
   }
@@ -111,12 +129,55 @@ export class GameScene extends Phaser.Scene {
       const w = window as unknown as {
         __tiltMazeScene?: GameScene;
         __loadLevel?: (n: number) => void;
+        __e2ePlaceBall?: (x: number, y: number) => void;
+        __e2eHoleState?: () => {
+          goalSettling: boolean;
+          trapSinking: boolean;
+          ballStatic: boolean;
+          lastTriggerDist: number | null;
+        };
+        __e2eTickHoles?: () => void;
+        __e2eHoleLocalMag?: (trapIndex?: number) => number;
       };
       w.__tiltMazeScene = this;
       w.__loadLevel = (n: number) => this.loadLevel(n);
+      w.__e2ePlaceBall = (x: number, y: number) => this.e2ePlaceBall(x, y);
+      w.__e2eHoleState = () => ({
+        goalSettling: this.goalSettling,
+        trapSinking: this.trapSinking,
+        ballStatic: Boolean((this.ball?.body as MatterJS.BodyType | undefined)?.isStatic),
+        lastTriggerDist: this.e2eLastTriggerDist
+      });
+      w.__e2eTickHoles = () => this.e2eTickHoleChecks();
+      w.__e2eHoleLocalMag = (trapIndex = 0) => {
+        const tr = LEVELS[this.levelIndex].traps[trapIndex];
+        if (!tr || !this.ball?.body) return 0;
+        const bb = this.ball.body as MatterJS.BodyType;
+        const h: HoleDef = { cx: tr.x, cy: tr.y, r: tr.r };
+        const t = holeLocalTilt(bb.position.x, bb.position.y, h);
+        return Math.hypot(t.ax, t.ay);
+      };
     }
 
     this.attachBuildInfoLabel();
+  }
+
+  /** E2E: přesun kuličky a reset rychlosti. */
+  e2ePlaceBall(x: number, y: number): void {
+    if (!this.ball?.body) return;
+    const bb = this.ball.body as MatterJS.BodyType;
+    this.cancelTerminalMotion();
+    this.matter.body.setStatic(bb, false);
+    this.matter.body.setPosition(bb, { x, y });
+    this.matter.body.setVelocity(bb, { x: 0, y: 0 });
+    this.e2eLastTriggerDist = null;
+  }
+
+  /** E2E: vyhodnotí trigger zóny bez čekání na další snímek update smyčky. */
+  e2eTickHoleChecks(): void {
+    if (!this.ball?.body) return;
+    const bb = this.ball.body as MatterJS.BodyType;
+    this.checkHoleTerminals(bb.position, LEVELS[this.levelIndex]);
   }
 
   /** Pro E2E: všechny zdi úrovně ve vnitřním rámu desky */
@@ -163,20 +224,140 @@ export class GameScene extends Phaser.Scene {
     if (!this.running || !this.ball?.body) return;
     this.elapsedMs += delta;
 
-    const t = this.tilt.update(delta, 1);
-    const fx = t.ax * FORCE_MULT;
-    const fy = t.ay * FORCE_MULT;
     const bb = this.ball.body as MatterJS.BodyType;
-    this.matter.body.applyForce(bb, bb.position, { x: fx, y: fy });
+    const pos = bb.position;
+    const lvl = LEVELS[this.levelIndex];
 
-    const v = bb.velocity;
-    const sp = Math.hypot(v.x, v.y);
-    if (sp > MAX_SPEED) {
-      const k = MAX_SPEED / sp;
-      this.matter.body.setVelocity(bb, { x: v.x * k, y: v.y * k });
+    if (!this.goalSettling && !this.trapSinking) {
+      const t = this.tilt.update(delta, 1);
+      const trapBowls: HoleDef[] = lvl.traps
+        .map((tr) => ({ cx: tr.x, cy: tr.y, r: tr.r }))
+        .filter((h) => ballInHoleSlopeAnnulus(pos.x, pos.y, h));
+      const composed = composeBoardAndHoleTilts(t.ax, t.ay, pos.x, pos.y, this.goalHole, trapBowls);
+      const fx = composed.ax * FORCE_MULT;
+      const fy = composed.ay * FORCE_MULT;
+      this.matter.body.applyForce(bb, bb.position, { x: fx, y: fy });
+
+      const v = bb.velocity;
+      const sp = Math.hypot(v.x, v.y);
+      if (sp > MAX_SPEED) {
+        const k = MAX_SPEED / sp;
+        this.matter.body.setVelocity(bb, { x: v.x * k, y: v.y * k });
+      }
+
+      this.checkHoleTerminals(pos, lvl);
     }
 
     this.timerEl.textContent = this.formatTime(this.elapsedMs);
+  }
+
+  private checkHoleTerminals(pos: { x: number; y: number }, lvl: LevelDef): void {
+    const goal: HoleDef = { cx: lvl.goal.x, cy: lvl.goal.y, r: lvl.goal.r };
+    if (ballCenterTriggersHoleSink(pos.x, pos.y, goal)) {
+      this.beginGoalSettle(goal);
+      return;
+    }
+    for (const tr of lvl.traps) {
+      const hole: HoleDef = { cx: tr.x, cy: tr.y, r: tr.r };
+      if (ballCenterTriggersHoleSink(pos.x, pos.y, hole)) {
+        this.beginTrapSink(hole);
+        return;
+      }
+    }
+  }
+
+  private recordE2eTrigger(hole: HoleDef): void {
+    if (!this.ball?.body) return;
+    const bb = this.ball.body as MatterJS.BodyType;
+    const qs = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
+    if (qs.get("e2e") !== "1") return;
+    this.e2eLastTriggerDist = ballCenterDistance(bb.position.x, bb.position.y, hole);
+  }
+
+  private cancelTerminalMotion(): void {
+    this.goalSettling = false;
+    this.trapSinking = false;
+    this.e2eLastTriggerDist = null;
+    if (this.terminalTween) {
+      this.terminalTween.stop();
+      this.terminalTween = null;
+    }
+    if (this.ball) {
+      this.ball.setScale(1);
+      this.ball.setAlpha(1);
+      const display = BALL_RADIUS * 2;
+      this.ball.setDisplaySize(display, display);
+    }
+    if (this.ball?.body) {
+      const bb = this.ball.body as MatterJS.BodyType;
+      this.matter.body.setStatic(bb, false);
+    }
+  }
+
+  private beginGoalSettle(hole: HoleDef): void {
+    if (this.goalSettling || this.trapSinking || !this.ball?.body) return;
+    this.recordE2eTrigger(hole);
+    this.goalSettling = true;
+    const bb = this.ball.body as MatterJS.BodyType;
+    this.matter.body.setVelocity(bb, { x: bb.velocity.x * 0.35, y: bb.velocity.y * 0.35 });
+    this.matter.body.setStatic(bb, true);
+
+    this.terminalTween = this.tweens.add({
+      targets: this.ball,
+      scaleX: 0.35,
+      scaleY: 0.35,
+      alpha: 0.25,
+      duration: GOAL_SETTLE_MS,
+      ease: "Sine.easeIn",
+      onComplete: () => {
+        this.terminalTween = null;
+        this.goalSettling = false;
+        this.winLevel();
+      }
+    });
+  }
+
+  private beginTrapSink(hole: HoleDef): void {
+    if (this.trapSinking || this.goalSettling || !this.ball?.body) return;
+    this.recordE2eTrigger(hole);
+    this.trapSinking = true;
+    const bb = this.ball.body as MatterJS.BodyType;
+    this.matter.body.setVelocity(bb, { x: 0, y: 0 });
+    this.matter.body.setStatic(bb, true);
+
+    this.terminalTween = this.tweens.add({
+      targets: this.ball,
+      scaleX: 0.2,
+      scaleY: 0.2,
+      alpha: 0.1,
+      duration: TRAP_SINK_MS,
+      ease: "Quad.easeIn",
+      onComplete: () => {
+        this.terminalTween = null;
+        this.trapSinking = false;
+        this.restoreBallAfterTrap();
+      }
+    });
+
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      try {
+        navigator.vibrate([15, 40, 15]);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  private restoreBallAfterTrap(): void {
+    const lvl = LEVELS[this.levelIndex];
+    if (!this.ball?.body) return;
+    const bb = this.ball.body as MatterJS.BodyType;
+    this.ball.setScale(1);
+    this.ball.setAlpha(1);
+    this.ball.setDisplaySize(BALL_RADIUS * 2, BALL_RADIUS * 2);
+    this.matter.body.setStatic(bb, false);
+    this.matter.body.setPosition(bb, { x: lvl.start.x, y: lvl.start.y });
+    this.matter.body.setVelocity(bb, { x: 0, y: 0 });
   }
 
   private debugWinLevel = (): void => {
@@ -496,6 +677,7 @@ export class GameScene extends Phaser.Scene {
       this.removeBody(this.goalBody);
       this.goalBody = null;
     }
+    this.goalHole = null;
     for (const t of this.trapBodies) this.removeBody(t);
     this.trapBodies = [];
     if (this.ball) this.ball.destroy();
@@ -505,6 +687,7 @@ export class GameScene extends Phaser.Scene {
   private loadLevel(index: number): void {
     this.levelIndex = Phaser.Math.Clamp(index, 0, LEVELS.length - 1);
     const lvl = LEVELS[this.levelIndex];
+    this.cancelTerminalMotion();
     this.clearLevelBodies();
 
     this.spawnLevel(lvl);
@@ -542,6 +725,7 @@ export class GameScene extends Phaser.Scene {
       isSensor: true,
       label: "goal"
     });
+    this.goalHole = { cx: lvl.goal.x, cy: lvl.goal.y, r: lvl.goal.r };
     this.drawHole(lvl.goal.x, lvl.goal.y, lvl.goal.r, 0x0d3d0d);
 
     for (const tr of lvl.traps) {
@@ -606,41 +790,25 @@ export class GameScene extends Phaser.Scene {
         }
       }
 
-      if (ol === "goal") {
-        this.winLevel();
-        return;
-      }
-      if (ol === "trap") {
-        this.resetBallToStart();
-        return;
-      }
-    }
-  }
-
-  private resetBallToStart(): void {
-    const lvl = LEVELS[this.levelIndex];
-    if (!this.ball?.body) return;
-    const bb = this.ball.body as MatterJS.BodyType;
-    this.matter.body.setPosition(bb, { x: lvl.start.x, y: lvl.start.y });
-    this.matter.body.setVelocity(bb, { x: 0, y: 0 });
-    if (typeof navigator !== "undefined" && navigator.vibrate) {
-      try {
-        navigator.vibrate([15, 40, 15]);
-      } catch {
-        /* ignore */
-      }
     }
   }
 
   private restartLevel(): void {
     this.running = true;
-    this.resetBallToStart();
+    this.cancelTerminalMotion();
+    const lvl = LEVELS[this.levelIndex];
+    if (this.ball?.body) {
+      const bb = this.ball.body as MatterJS.BodyType;
+      this.matter.body.setPosition(bb, { x: lvl.start.x, y: lvl.start.y });
+      this.matter.body.setVelocity(bb, { x: 0, y: 0 });
+    }
     this.elapsedMs = 0;
     this.winLayer.style.display = "none";
     this.winLayer.innerHTML = "";
   }
 
   private winLevel(): void {
+    this.cancelTerminalMotion();
     this.running = false;
     const next = this.levelIndex + 1;
     const finishedAll = next >= LEVELS.length;

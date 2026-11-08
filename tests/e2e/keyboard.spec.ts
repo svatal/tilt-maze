@@ -17,6 +17,7 @@ test.beforeAll(() => {
 });
 
 test("E2E: úroveň 1 klávesnicí + overlay Matter debug, bez chyb v konzoli", async ({ page }) => {
+  test.setTimeout(70_000);
   const errors: string[] = [];
   page.on("console", (msg) => {
     if (msg.type() === "error") errors.push(`console.error: ${msg.text()}`);
@@ -29,7 +30,7 @@ test("E2E: úroveň 1 klávesnicí + overlay Matter debug, bez chyb v konzoli", 
   await expect(page.locator("#tilt-maze-ui")).toBeVisible();
 
   const won = page.getByText("Výhra!", { exact: false });
-  const deadline = Date.now() + 35000;
+  const deadline = Date.now() + 55000;
 
   while (Date.now() < deadline) {
     if (await won.isVisible()) break;

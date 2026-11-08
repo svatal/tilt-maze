@@ -1,2 +1,2 @@
 /* Automaticky generováno při buildu — neupravovat ručně */
-export const BUILD_INFO_LABEL = "cursor/goal-trap-local-tilt-d17c · aec4d35 · 08. 11. 2026 18:08";
+export const BUILD_INFO_LABEL = "cursor/goal-trap-local-tilt-d17c · 3eec442 · 08. 11. 2026 18:21";

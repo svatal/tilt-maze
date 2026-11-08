@@ -1,89 +1,74 @@
 import { describe, expect, it } from "vitest";
 import {
-  ballCenterInDisk,
-  ballInHoleInfluence,
+  HOLE_TRIGGER_FRAC,
+  ballCenterInVisibleHole,
+  ballCenterTriggersHoleSink,
+  ballInHoleSlopeAnnulus,
   composeBoardAndHoleTilts,
-  entersVisibleBowl,
-  holeCoreRadius,
   holeLocalTilt,
-  reachesHoleCore,
-  segmentCrossesDisk,
+  holeTriggerRadius,
   type HoleDef
 } from "../src/holeSlope";
 
 const goal: HoleDef = { cx: 100, cy: 100, r: 20 };
-const FORCE_MULT = 0.00085;
 
-describe("holeLocalTilt", () => {
-  it("mimo vliv → nula", () => {
-    const v = holeLocalTilt(50, 50, goal);
-    expect(v.ax).toBe(0);
-    expect(v.ay).toBe(0);
+describe("trigger zóna 0.5·r", () => {
+  it("poloměr trigger = polovina viditelné díry", () => {
+    expect(holeTriggerRadius(20)).toBe(10);
+    expect(HOLE_TRIGGER_FRAC).toBe(0.5);
   });
 
-  it("na kraji misky směřuje ke středu s nenulovou silou", () => {
-    const v = holeLocalTilt(118, 100, goal);
-    expect(v.ax).toBeLessThan(0);
-    expect(Math.hypot(v.ax, v.ay)).toBeGreaterThan(0.04);
+  it("okraj viditelné díry (dist=r) neaktivuje trigger", () => {
+    expect(ballCenterTriggersHoleSink(120, 100, goal)).toBe(false);
   });
 
-  it("blíž ke středu síla roste", () => {
-    const inner = holeLocalTilt(105, 100, goal);
-    const rim = holeLocalTilt(118, 100, goal);
-    expect(Math.hypot(inner.ax, inner.ay)).toBeGreaterThan(Math.hypot(rim.ax, rim.ay));
+  it("vnitřní trigger ano", () => {
+    expect(ballCenterTriggersHoleSink(105, 100, goal)).toBe(true);
+  });
+
+  it("mimo díru ne", () => {
+    expect(ballCenterTriggersHoleSink(130, 100, goal)).toBe(false);
   });
 });
 
-describe("terminální jádro vs okraj", () => {
-  it("okraj viditelné díry není jádro", () => {
-    const coreTrap = holeCoreRadius(goal.r, "trap");
-    const coreGoal = holeCoreRadius(goal.r, "goal");
-    expect(ballCenterInDisk(118, 100, goal.cx, goal.cy, coreTrap)).toBe(false);
-    expect(ballCenterInDisk(104, 100, goal.cx, goal.cy, coreGoal)).toBe(true);
+describe("mezikruh sklonu", () => {
+  it("v mezikruhu lokální síla směrem ke středu", () => {
+    const v = holeLocalTilt(115, 100, goal);
+    expect(v.ax).toBeLessThan(0);
+    expect(Math.hypot(v.ax, v.ay)).toBeGreaterThan(0.05);
   });
 
-  it("reachesHoleCore na okraji misky (bez průletu jádrem) → false", () => {
-    expect(reachesHoleCore(118, 100, 117, 100, goal)).toBe(false);
+  it("ve trigger zóně žádný lokální sklon", () => {
+    expect(holeLocalTilt(105, 100, goal).ax).toBe(0);
   });
 
-  it("průlet jádrem mezi snímky → true", () => {
-    expect(reachesHoleCore(50, 100, 150, 100, goal)).toBe(true);
+  it("mimo díru nula", () => {
+    expect(holeLocalTilt(50, 50, goal).ax).toBe(0);
+  });
+
+  it("annulus helper", () => {
+    expect(ballInHoleSlopeAnnulus(115, 100, goal)).toBe(true);
+    expect(ballInHoleSlopeAnnulus(105, 100, goal)).toBe(false);
+    expect(ballInHoleSlopeAnnulus(130, 100, goal)).toBe(false);
   });
 });
 
 describe("composeBoardAndHoleTilts", () => {
-  it("přičítá lokální misku uvnitř vlivu", () => {
-    const hole = goal;
-    const c = composeBoardAndHoleTilts(0.5, 0, 105, 100, null, [hole]);
-    const local = holeLocalTilt(105, 100, hole);
-    expect(c.ax).toBeCloseTo(0.5 + local.ax, 5);
+  it("přičítá sklon jen v mezikruhu", () => {
+    const c = composeBoardAndHoleTilts(0.4, 0.1, 115, 100, goal, []);
+    const local = holeLocalTilt(115, 100, goal);
+    expect(c.ax).toBeCloseTo(0.4 + local.ax, 5);
+  });
+
+  it("ve trigger zóně jen board", () => {
+    const c = composeBoardAndHoleTilts(0.4, 0.1, 105, 100, goal, []);
+    expect(c.ax).toBe(0.4);
+    expect(c.ay).toBe(0.1);
   });
 });
 
-describe("síla misky roste směrem ke středu", () => {
-  it("blíž středu → silnější lokální tah", () => {
-    const mid = holeLocalTilt(108, 100, goal);
-    const deep = holeLocalTilt(103, 100, goal);
-    expect(Math.hypot(deep.ax, deep.ay)).toBeGreaterThan(Math.hypot(mid.ax, mid.ay));
-    expect(deep.ax).toBeLessThan(0);
-  });
-});
-
-describe("past — zarážka", () => {
-  const trap: HoleDef = { cx: 180, cy: 320, r: 22 };
-
-  it("vstup do viditelné misky", () => {
-    expect(entersVisibleBowl(150, 320, 198, 320, trap)).toBe(true);
-    expect(ballInHoleInfluence(198, 320, trap)).toBe(true);
-  });
-
-  it("near-miss mimo", () => {
-    expect(entersVisibleBowl(150, 280, 210, 280, trap)).toBe(false);
-  });
-});
-
-describe("segmentCrossesDisk", () => {
-  it("rychlý průlet přes kotouč mezi snímky", () => {
-    expect(segmentCrossesDisk(50, 100, 150, 100, 100, 100, 20)).toBe(true);
+describe("viditelná díra", () => {
+  it("střed na okraji kruhu je uvnitř", () => {
+    expect(ballCenterInVisibleHole(120, 100, goal)).toBe(true);
   });
 });

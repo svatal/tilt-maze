@@ -42,10 +42,24 @@ test("E2E past: okraj viditelné díry (dist≈r) nespustí animaci", async ({ p
   });
   expect(st?.trapSinking).toBe(false);
   expect(st?.lastTriggerDist).toBeNull();
-  await sleep(180);
-  expect(await page.evaluate(() => (window as unknown as { __e2eHoleState?: () => { trapSinking: boolean } }).__e2eHoleState?.().trapSinking)).toBe(
-    false
-  );
+});
+
+test("E2E past: na viditelném okraji silný lokální tah (≈45°) bez animace", async ({ page }) => {
+  await startLevel1(page);
+  const rim = await page.evaluate(() => {
+    const w = window as unknown as {
+      __e2ePlaceBall?: (x: number, y: number) => void;
+      __e2eHoleLocalMag?: () => number;
+      __e2eHoleState?: () => { trapSinking: boolean };
+    };
+    w.__e2ePlaceBall?.(180 + 22 - 0.15, 320);
+    return {
+      mag: w.__e2eHoleLocalMag?.() ?? 0,
+      trapSinking: w.__e2eHoleState?.().trapSinking ?? true
+    };
+  });
+  expect(rim.trapSinking).toBe(false);
+  expect(rim.mag).toBeGreaterThan(1.45);
 });
 
 test("E2E past: střed ve vnitřní polovině spustí propad a dist ≤ 0.5r", async ({ page }) => {

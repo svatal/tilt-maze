@@ -15,6 +15,7 @@ import {
   ballCenterTriggersHoleSink,
   ballInHoleSlopeAnnulus,
   composeBoardAndHoleTilts,
+  holeLocalTilt,
   type HoleDef
 } from "../holeSlope";
 
@@ -136,6 +137,7 @@ export class GameScene extends Phaser.Scene {
           lastTriggerDist: number | null;
         };
         __e2eTickHoles?: () => void;
+        __e2eHoleLocalMag?: (trapIndex?: number) => number;
       };
       w.__tiltMazeScene = this;
       w.__loadLevel = (n: number) => this.loadLevel(n);
@@ -147,6 +149,14 @@ export class GameScene extends Phaser.Scene {
         lastTriggerDist: this.e2eLastTriggerDist
       });
       w.__e2eTickHoles = () => this.e2eTickHoleChecks();
+      w.__e2eHoleLocalMag = (trapIndex = 0) => {
+        const tr = LEVELS[this.levelIndex].traps[trapIndex];
+        if (!tr || !this.ball?.body) return 0;
+        const bb = this.ball.body as MatterJS.BodyType;
+        const h: HoleDef = { cx: tr.x, cy: tr.y, r: tr.r };
+        const t = holeLocalTilt(bb.position.x, bb.position.y, h);
+        return Math.hypot(t.ax, t.ay);
+      };
     }
 
     this.attachBuildInfoLabel();

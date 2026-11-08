@@ -1,15 +1,24 @@
 /**
  * Lokální sklon v mělké misce (2D aproximace). Viditelný poloměr r = level + vykreslení.
- * Trigger animace: jen střed kuličky uvnitř poloviny poloměru (0.5·r).
- * Mezikruh 0.5r < dist ≤ r: lokální tah do středu, bez animace.
+ * Trigger animace: jen střed kuličky uvnitř 0.5·r (aktuální snímek).
+ * Mezikruh 0.5r < dist ≤ r: lokální tilt do středu; ve vnitřní polovině jen animace (žádný lokální sklon).
+ *
+ * Profil úhlu (nominalní ° ekvivalent u hrany, ne doslovný 3D úhel):
+ *   mimo (d > r) → 0; při překročení okraje náhlý skok na max;
+ *   uvnitř mezikruhu úhel lineárně klesá k 0 při d → 0.5r (tedy slabší směrem ke středu).
+ *   θ(d) = θ_rim · (d/r) pro 0.5r < d ≤ r.
+ * Mapování na jednotky board tiltu: |a| = TILT_SIN_SCALE · sin(θ), stejně jako tiltMapping u orientace.
  */
 
 export type HoleDef = { cx: number; cy: number; r: number };
 
-/** Poloměr vnitřní zóny pro spuštění sink/settle tween (polovina průměru díry). */
 export const HOLE_TRIGGER_FRAC = 0.5;
 
-const HOLE_PEAK_TILT = 1.38;
+/** Úhel na viditelném okraji díry (d = r). */
+export const HOLE_RIM_ANGLE_DEG = 45;
+
+/** Odpovídá sin-faktoru v computeRawTiltAxes (γ/β → raw). */
+export const TILT_SIN_SCALE = 2.2;
 
 export function holeTriggerRadius(visibleR: number): number {
   return visibleR * HOLE_TRIGGER_FRAC;
@@ -19,23 +28,30 @@ export function ballCenterDistance(ballX: number, ballY: number, hole: HoleDef):
   return Math.hypot(ballX - hole.cx, ballY - hole.cy);
 }
 
-/** Střed uvnitř viditelné díry (dist ≤ r). */
 export function ballCenterInVisibleHole(ballX: number, ballY: number, hole: HoleDef): boolean {
   return ballCenterDistance(ballX, ballY, hole) <= hole.r;
 }
 
-/**
- * Mezikruh pro lokální sklon — ne ve vnitřní trigger zóně, ne mimo díru.
- */
 export function ballInHoleSlopeAnnulus(ballX: number, ballY: number, hole: HoleDef): boolean {
   const d = ballCenterDistance(ballX, ballY, hole);
-  const inner = holeTriggerRadius(hole.r);
-  return d <= hole.r && d > inner;
+  return d <= hole.r && d > holeTriggerRadius(hole.r);
 }
 
-/** Terminální animace: výhradně střed uvnitř inner disku (žádný segment / předchozí snímek). */
 export function ballCenterTriggersHoleSink(ballX: number, ballY: number, hole: HoleDef): boolean {
   return ballCenterDistance(ballX, ballY, hole) <= holeTriggerRadius(hole.r);
+}
+
+/** Nominalní úhel misky [°] pro vzdálenost d od středu; 0 mimo mezikruh. */
+export function holeLocalTiltAngleDeg(d: number, visibleR: number): number {
+  if (d > visibleR || d <= holeTriggerRadius(visibleR)) return 0;
+  return HOLE_RIM_ANGLE_DEG * (d / visibleR);
+}
+
+/** Velikost lokální složky ax/ay (před FORCE_MULT) z úhlu. */
+export function holeLocalTiltMagnitude(d: number, visibleR: number): number {
+  const deg = holeLocalTiltAngleDeg(d, visibleR);
+  if (deg <= 0) return 0;
+  return TILT_SIN_SCALE * Math.sin((deg * Math.PI) / 180);
 }
 
 export function holeLocalTilt(ballX: number, ballY: number, hole: HoleDef): { ax: number; ay: number } {
@@ -47,9 +63,7 @@ export function holeLocalTilt(ballX: number, ballY: number, hole: HoleDef): { ax
   const dy = hole.cy - ballY;
   const towardX = d > 1e-6 ? dx / d : 0;
   const towardY = d > 1e-6 ? dy / d : 0;
-  const span = hole.r - inner;
-  const t = span > 0 ? (hole.r - d) / span : 0;
-  const mag = HOLE_PEAK_TILT * t * t;
+  const mag = holeLocalTiltMagnitude(d, hole.r);
   return { ax: towardX * mag, ay: towardY * mag };
 }
 

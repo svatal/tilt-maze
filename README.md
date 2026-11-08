@@ -14,6 +14,17 @@ npm install
 npm run dev
 ```
 
+### Kontrola kvality herní logiky (lidské i agentní PR)
+
+U změn chování (cíl, pasti, fyzika, scéna) před mergem ověřte:
+
+1. **Testy** — `npm run test:unit` a po `npm run build` i `npm run test:e2e`.
+2. **Zbytečná složitost** — čistá logika ve `src/`, integrační simulátory v `tests/helpers/`, žádné mrtvé parametry API, sdílené moduly jen tam, kde se opravdu sdílí.
+3. **Chování vs. testy** — unit geometrii nemá nahrazovat E2E scény (Matter pořadí snímků); nepřidávat duplicitní asserty bez doplnění pokrytí.
+4. **Záměrně oddělené** — např. cíl (mísa + usazení) a past (disk + pád) zůstávají oddělené, dokud to nepožaduje jednotný design.
+
+Stručný audit diffu (duplicity, mrtvý kód, přesun test harnessu) je součástí každého většího PR s herní logikou.
+
 Automatická kontrola, že jsou všechny úrovně BFS řešitelné (hrubá mřížka):
 
 ```bash

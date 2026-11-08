@@ -8,11 +8,15 @@ import {
   type TrapFallState
 } from "./trapHole";
 
+type MatterBodyOps = {
+  setVelocity: (body: MatterJS.BodyType, vel: { x: number; y: number }) => void;
+  setPosition: (body: MatterJS.BodyType, pos: { x: number; y: number }) => void;
+};
+
 export class TrapHoleController {
   private traps: TrapDef[] = [];
   private state: TrapFallState = initialTrapFallState();
   private gfx: Phaser.GameObjects.Graphics[] = [];
-  private ballRadius = 11;
   private onRespawn: (() => void) | null = null;
   private respawnDispatched = false;
   private prevBallX: number | null = null;
@@ -20,9 +24,8 @@ export class TrapHoleController {
 
   constructor(private readonly scene: Phaser.Scene) {}
 
-  configure(traps: TrapDef[], ballRadius: number, onRespawn: () => void): void {
+  configure(traps: TrapDef[], onRespawn: () => void): void {
     this.traps = traps;
-    this.ballRadius = ballRadius;
     this.onRespawn = onRespawn;
     this.resetState();
     for (const g of this.gfx) g.destroy();
@@ -67,18 +70,11 @@ export class TrapHoleController {
   }
 
   getSinkT(): number {
-    if (this.state.phase !== "falling" && this.state.phase !== "done") return 0;
+    if (this.state.phase !== "falling") return 0;
     return Math.min(1, this.state.fallMs / TRAP_HOLE.fallDurationMs);
   }
 
-  tick(
-    bb: MatterJS.BodyType,
-    deltaMs: number,
-    _applyForce: (body: MatterJS.BodyType, force: { x: number; y: number }) => void,
-    setVelocity: (body: MatterJS.BodyType, vel: { x: number; y: number }) => void,
-    setPosition: (body: MatterJS.BodyType, pos: { x: number; y: number }) => void,
-    allowCapture = true
-  ): void {
+  tick(bb: MatterJS.BodyType, deltaMs: number, ops: MatterBodyOps, allowCapture = true): void {
     if (this.traps.length === 0) return;
 
     const pos = bb.position;
@@ -87,9 +83,6 @@ export class TrapHoleController {
       traps: this.traps,
       ballX: pos.x,
       ballY: pos.y,
-      vx: bb.velocity.x,
-      vy: bb.velocity.y,
-      ballRadius: this.ballRadius,
       deltaMs,
       allowCapture,
       prevBallX: this.prevBallX,
@@ -100,26 +93,22 @@ export class TrapHoleController {
     this.prevBallX = pos.x;
     this.prevBallY = pos.y;
 
-    if (result.fallingActive && result.targetX != null && result.targetY != null) {
-      const nx = pos.x + (result.targetX - pos.x) * TRAP_HOLE.fallLerp;
-      const ny = pos.y + (result.targetY - pos.y) * TRAP_HOLE.fallLerp;
-      setPosition(bb, { x: nx, y: ny });
-      setVelocity(bb, { x: 0, y: 0 });
+    if (result.fallingActive && result.sinkCenterX != null && result.sinkCenterY != null) {
+      const nx = pos.x + (result.sinkCenterX - pos.x) * TRAP_HOLE.fallLerp;
+      const ny = pos.y + (result.sinkCenterY - pos.y) * TRAP_HOLE.fallLerp;
+      ops.setPosition(bb, { x: nx, y: ny });
+      ops.setVelocity(bb, { x: 0, y: 0 });
     }
 
     const idx = this.state.activeTrapIndex;
     if (idx != null && this.gfx[idx]) {
-      const tr = this.traps[idx];
-      paintTrapHole(this.gfx[idx], tr, result.sinkT);
+      paintTrapHole(this.gfx[idx], this.traps[idx], result.sinkT);
     }
 
     if (result.shouldRespawn && !this.respawnDispatched && this.onRespawn) {
       this.respawnDispatched = true;
       this.onRespawn();
-      this.state = initialTrapFallState();
-      this.respawnDispatched = false;
-      this.prevBallX = null;
-      this.prevBallY = null;
+      this.resetState();
     }
   }
 }

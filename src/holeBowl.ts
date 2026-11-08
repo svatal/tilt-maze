@@ -1,4 +1,4 @@
-/** Sdílená fyzika mělké mísy pro cíl i pasti (Matter.js 2D). */
+/** Fyzika mělké mísy cíle (Matter.js 2D). Pasti používají vlastní disk v trapHole.ts. */
 
 export type HoleDef = { x: number; y: number; r: number };
 
@@ -32,7 +32,7 @@ export function isShallowGraze(
   return depth >= -shallowBand && depth < ballRadius * 0.25 && speed >= fastPassSpeed * 0.85;
 }
 
-export type BowlPullPhase = "idle" | "approach" | "settling" | "falling" | "completed";
+export type BowlPullPhase = "idle" | "approach" | "settling" | "completed";
 
 export function computeBowlPull(
   ballX: number,
@@ -54,7 +54,7 @@ export function computeBowlPull(
     return { pullFx: 0, pullFy: 0, depth, dist: d, shallow };
   }
 
-  if (shallow && phase !== "settling" && phase !== "falling") {
+  if (shallow && phase !== "settling") {
     const edge = Math.max(0, 1 - (d - hole.r) / (ballRadius * 1.2));
     const weak = edge * 0.00012;
     const nx = (hole.x - ballX) / (d || 1);
@@ -68,7 +68,7 @@ export function computeBowlPull(
   const nx = (hole.x - ballX) / (d || 1);
   const ny = (hole.y - ballY) / (d || 1);
 
-  if (phase === "settling" || phase === "falling") {
+  if (phase === "settling") {
     return { pullFx: nx * strength * 1.55, pullFy: ny * strength * 1.55, depth, dist: d, shallow: false };
   }
 

@@ -199,9 +199,7 @@ export class GameScene extends Phaser.Scene {
     this.trapHoles.tick(
       bb,
       delta,
-      matterOps.applyForce,
-      matterOps.setVelocity,
-      matterOps.setPosition,
+      { setVelocity: matterOps.setVelocity, setPosition: matterOps.setPosition },
       !this.goalBowl.isSettling()
     );
     const trapFalling = this.trapHoles.isFalling();
@@ -592,7 +590,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.goalBowl.configure(lvl.goal, BALL_RADIUS, () => this.winLevel());
-    this.trapHoles.configure(lvl.traps, BALL_RADIUS, () => this.finishTrapRespawn());
+    this.trapHoles.configure(lvl.traps, () => this.finishTrapRespawn());
 
     const ballGo = this.add.image(lvl.start.x, lvl.start.y, "ball_tex");
     this.ball = this.matter.add.gameObject(ballGo, {

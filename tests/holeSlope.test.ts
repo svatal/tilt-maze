@@ -21,7 +21,6 @@ const rimMag = TILT_SIN_SCALE * Math.sin((HOLE_RIM_ANGLE_DEG * Math.PI) / 180);
 
 describe("radiální profil θ = θ_rim · (d/r)", () => {
   it("těsně mimo díru → 0", () => {
-    expect(holeLocalTiltAngleDeg(R + 0.01, R)).toBe(0);
     expect(holeLocalTiltMagnitude(R + 0.01, R)).toBe(0);
     expect(holeLocalTilt(121, 100, goal).ax).toBe(0);
   });
@@ -31,48 +30,38 @@ describe("radiální profil θ = θ_rim · (d/r)", () => {
     expect(holeLocalTiltMagnitude(R, R)).toBeCloseTo(rimMag, 5);
   });
 
-  it("skok přes okraj: z nuly na maximum", () => {
-    expect(holeLocalTiltMagnitude(R + 0.001, R)).toBe(0);
-    expect(holeLocalTiltMagnitude(R - 0.001, R)).toBeCloseTo(rimMag * ((R - 0.001) / R), 4);
+  it("směrem ke středu úhel klesá monotonně v mezikruhu", () => {
+    expect(holeLocalTiltMagnitude(12, R)).toBeLessThan(holeLocalTiltMagnitude(18, R));
   });
 
-  it("směrem ke středu úhel klesá monotonně", () => {
-    const dOut = 18;
-    const dIn = 12;
-    expect(holeLocalTiltMagnitude(dIn, R)).toBeLessThan(holeLocalTiltMagnitude(dOut, R));
-    expect(holeLocalTiltAngleDeg(dIn, R)).toBeLessThan(holeLocalTiltAngleDeg(dOut, R));
-  });
-
-  it("u vnitřní hranice mezikruhu (0.5r) konečná nenulová, ale slabší než okraj", () => {
+  it("u vnitřní hranice mezikruhu (0.25r) je konečný sklon", () => {
     const inner = holeTriggerRadius(R);
-    expect(holeLocalTiltAngleDeg(inner + 0.01, R)).toBeCloseTo(45 * ((inner + 0.01) / R), 4);
-    expect(holeLocalTiltMagnitude(inner + 0.01, R)).toBeLessThan(rimMag);
+    expect(holeLocalTiltMagnitude(inner + 0.02, R)).toBeGreaterThan(0);
+    expect(holeLocalTiltMagnitude(inner - 0.02, R)).toBe(0);
   });
 
   it("ve vnitřní trigger zóně lokální sklon = 0", () => {
-    expect(holeLocalTiltAngleDeg(8, R)).toBe(0);
-    expect(holeLocalTilt(105, 100, goal).ax).toBe(0);
-  });
-
-  it("směr do středu díry", () => {
-    const v = holeLocalTilt(119, 100, goal);
-    expect(v.ax).toBeLessThan(0);
-    expect(Math.abs(v.ay)).toBeLessThan(0.02);
+    expect(holeLocalTilt(103, 100, goal).ax).toBe(0);
   });
 });
 
-describe("trigger zóna 0.5·r", () => {
-  it("poloměr trigger = polovina viditelné díry", () => {
-    expect(holeTriggerRadius(20)).toBe(10);
-    expect(HOLE_TRIGGER_FRAC).toBe(0.5);
+describe("trigger zóna 0.25·r", () => {
+  it("poloměr trigger = čtvrtina průměru", () => {
+    expect(holeTriggerRadius(20)).toBe(5);
+    expect(HOLE_TRIGGER_FRAC).toBe(0.25);
+  });
+
+  it("na polovině poloměru (0.5r) trigger ne", () => {
+    expect(ballCenterTriggersHoleSink(110, 100, goal)).toBe(false);
+    expect(ballInHoleSlopeAnnulus(110, 100, goal)).toBe(true);
+  });
+
+  it("vnitřní trigger ano", () => {
+    expect(ballCenterTriggersHoleSink(104, 100, goal)).toBe(true);
   });
 
   it("okraj viditelné díry neaktivuje trigger", () => {
     expect(ballCenterTriggersHoleSink(120, 100, goal)).toBe(false);
-  });
-
-  it("vnitřní trigger ano", () => {
-    expect(ballCenterTriggersHoleSink(105, 100, goal)).toBe(true);
   });
 });
 

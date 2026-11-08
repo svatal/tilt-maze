@@ -1,18 +1,18 @@
 /**
  * Lokální sklon v mělké misce (2D aproximace). Viditelný poloměr r = level + vykreslení.
- * Trigger animace: jen střed kuličky uvnitř 0.5·r (aktuální snímek).
- * Mezikruh 0.5r < dist ≤ r: lokální tilt do středu; ve vnitřní polovině jen animace (žádný lokální sklon).
+ * Trigger animace: jen střed kuličky uvnitř 0.25·r (čtvrtina průměru, aktuální snímek).
+ * Mezikruh 0.25r < dist ≤ r: lokální tilt; uvnitř trigger zóny jen animace (žádný lokální sklon).
  *
  * Profil úhlu (nominalní ° ekvivalent u hrany, ne doslovný 3D úhel):
  *   mimo (d > r) → 0; při překročení okraje náhlý skok na max;
- *   uvnitř mezikruhu úhel lineárně klesá k 0 při d → 0.5r (tedy slabší směrem ke středu).
- *   θ(d) = θ_rim · (d/r) pro 0.5r < d ≤ r.
+ *   uvnitř mezikruhu úhel lineárně klesá k 0 při d → 0.25r (slabší směrem ke středu).
+ *   θ(d) = θ_rim · (d/r) pro 0.25r < d ≤ r.
  * Mapování na jednotky board tiltu: |a| = TILT_SIN_SCALE · sin(θ), stejně jako tiltMapping u orientace.
  */
 
 export type HoleDef = { cx: number; cy: number; r: number };
 
-export const HOLE_TRIGGER_FRAC = 0.5;
+export const HOLE_TRIGGER_FRAC = 0.25;
 
 /** Úhel na viditelném okraji díry (d = r). */
 export const HOLE_RIM_ANGLE_DEG = 45;

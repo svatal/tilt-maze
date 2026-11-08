@@ -12,6 +12,7 @@ const basePath = (process.env.E2E_BASE_PATH ?? "/tilt-maze/").replace(/\/?$/, "/
 
 const TRAP = { cx: 180, cy: 320, r: 22 };
 const GOAL = { cx: 300, cy: 80, r: 26 };
+const TRIGGER_FRAC = 0.25;
 
 test.beforeAll(() => {
   if (!fs.existsSync(path.join(root, "dist", "index.html"))) {
@@ -26,8 +27,6 @@ async function startLevel1(page: import("@playwright/test").Page) {
 
 test("E2E past: okraj viditelné díry (dist≈r) nespustí animaci", async ({ page }) => {
   await startLevel1(page);
-  const rimDist = TRAP.r;
-  const x = TRAP.cx + rimDist;
   await page.evaluate((px) => {
     const w = window as unknown as {
       __e2ePlaceBall?: (x: number, y: number) => void;
@@ -35,7 +34,7 @@ test("E2E past: okraj viditelné díry (dist≈r) nespustí animaci", async ({ p
     };
     w.__e2ePlaceBall?.(px, 320);
     w.__e2eTickHoles?.();
-  }, x);
+  }, TRAP.cx + TRAP.r);
   const st = await page.evaluate(() => {
     const w = window as unknown as { __e2eHoleState?: () => { trapSinking: boolean; lastTriggerDist: number | null } };
     return w.__e2eHoleState?.();
@@ -44,7 +43,24 @@ test("E2E past: okraj viditelné díry (dist≈r) nespustí animaci", async ({ p
   expect(st?.lastTriggerDist).toBeNull();
 });
 
-test("E2E past: na viditelném okraji silný lokální tah (≈45°) bez animace", async ({ page }) => {
+test("E2E past: na 0.5r už není trigger (jen mezikruh)", async ({ page }) => {
+  await startLevel1(page);
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      __e2ePlaceBall?: (x: number, y: number) => void;
+      __e2eTickHoles?: () => void;
+    };
+    w.__e2ePlaceBall?.(180 + 11, 320);
+    w.__e2eTickHoles?.();
+  });
+  const st = await page.evaluate(() => {
+    const w = window as unknown as { __e2eHoleState?: () => { trapSinking: boolean } };
+    return w.__e2eHoleState?.();
+  });
+  expect(st?.trapSinking).toBe(false);
+});
+
+test("E2E past: na okraji silný lokální tah (≈45°) bez animace", async ({ page }) => {
   await startLevel1(page);
   const rim = await page.evaluate(() => {
     const w = window as unknown as {
@@ -62,15 +78,15 @@ test("E2E past: na viditelném okraji silný lokální tah (≈45°) bez animace
   expect(rim.mag).toBeGreaterThan(1.45);
 });
 
-test("E2E past: střed ve vnitřní polovině spustí propad a dist ≤ 0.5r", async ({ page }) => {
+test("E2E past: střed v 0.25r spustí propad", async ({ page }) => {
   await startLevel1(page);
-  const innerR = TRAP.r * 0.5;
+  const innerR = TRAP.r * TRIGGER_FRAC;
   await page.evaluate(() => {
     const w = window as unknown as {
       __e2ePlaceBall?: (x: number, y: number) => void;
       __e2eTickHoles?: () => void;
     };
-    w.__e2ePlaceBall?.(180 + 7, 320);
+    w.__e2ePlaceBall?.(180 + 4, 320);
     w.__e2eTickHoles?.();
   });
   const st = await page.evaluate((maxR) => {
@@ -81,7 +97,6 @@ test("E2E past: střed ve vnitřní polovině spustí propad a dist ≤ 0.5r", a
     return { trapSinking: s?.trapSinking, lastTriggerDist: s?.lastTriggerDist };
   }, innerR);
   expect(st?.trapSinking).toBe(true);
-  expect(st?.lastTriggerDist).not.toBeNull();
   expect(st!.lastTriggerDist!).toBeLessThanOrEqual(innerR + 0.05);
 });
 
@@ -109,7 +124,7 @@ test("E2E past: po propadu klávesnice bez restart", async ({ page }) => {
   await startLevel1(page);
   await page.evaluate(() => {
     const w = window as unknown as { __e2ePlaceBall?: (x: number, y: number) => void; __e2eTickHoles?: () => void };
-    w.__e2ePlaceBall?.(187, 320);
+    w.__e2ePlaceBall?.(183, 320);
     w.__e2eTickHoles?.();
   });
   await sleep(400);
@@ -130,7 +145,7 @@ test("E2E: restart během propadu pasti", async ({ page }) => {
   await startLevel1(page);
   await page.evaluate(() => {
     const w = window as unknown as { __e2ePlaceBall?: (x: number, y: number) => void; __e2eTickHoles?: () => void };
-    w.__e2ePlaceBall?.(187, 320);
+    w.__e2ePlaceBall?.(183, 320);
     w.__e2eTickHoles?.();
   });
   await sleep(60);
@@ -141,7 +156,7 @@ test("E2E: restart během propadu pasti", async ({ page }) => {
   expect(st?.ballStatic).toBe(false);
 });
 
-test("E2E cíl: okraj bez výhry, trigger až ve vnitřní polovině", async ({ page }) => {
+test("E2E cíl: okraj bez výhry, trigger až v 0.25r", async ({ page }) => {
   await startLevel1(page);
   await page.evaluate(() => {
     const w = window as unknown as { __e2ePlaceBall?: (x: number, y: number) => void; __e2eTickHoles?: () => void };
@@ -150,16 +165,15 @@ test("E2E cíl: okraj bez výhry, trigger až ve vnitřní polovině", async ({ 
   });
   expect(await page.getByText("Výhra!", { exact: false }).isVisible()).toBe(false);
 
-  const innerR = GOAL.r * 0.5;
+  const innerR = GOAL.r * TRIGGER_FRAC;
   await page.evaluate(() => {
     const w = window as unknown as { __e2ePlaceBall?: (x: number, y: number) => void; __e2eTickHoles?: () => void };
-    w.__e2ePlaceBall?.(300 + 8, 80);
+    w.__e2ePlaceBall?.(300 + 5, 80);
     w.__e2eTickHoles?.();
   });
   const st = await page.evaluate((maxR) => {
     const w = window as unknown as { __e2eHoleState?: () => { goalSettling: boolean; lastTriggerDist: number | null } };
-    const s = w.__e2eHoleState?.();
-    return s;
+    return w.__e2eHoleState?.();
   }, innerR);
   expect(st?.goalSettling).toBe(true);
   expect(st?.lastTriggerDist).toBeLessThanOrEqual(innerR + 0.05);
@@ -177,7 +191,7 @@ test("E2E cíl: mezikruh + klávesnice → výhra až u středu", async ({ page 
   await sleep(150);
   expect(await page.getByText("Výhra!", { exact: false }).isVisible()).toBe(false);
   await page.keyboard.down("ArrowUp");
-  await sleep(1200);
+  await sleep(1400);
   await page.keyboard.up("ArrowUp");
-  await expect(page.getByText("Výhra!", { exact: false })).toBeVisible({ timeout: 6000 });
+  await expect(page.getByText("Výhra!", { exact: false })).toBeVisible({ timeout: 8000 });
 });

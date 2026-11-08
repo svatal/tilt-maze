@@ -1,38 +1,54 @@
 /**
- * Lokální příspěvek sklonu u cílové díry (mělká miska) — čistá 2D aproximace.
- * Ve 2D projekci má svislá stěna nulovou šířku; místo toho je konečná šířka
- * sklonu (vnitřní kotouč + plynulý přechod k okraji viditelné díry).
- * Jednotky jsou stejné jako u board tiltu (složky ax/ay před FORCE_MULT).
+ * Lokální příspěvek sklonu u děr (mělká miska) — čistá 2D aproximace.
+ * Ve 2D projekci má svislá stěna nulovou šířku; sklon má konečnou šířku
+ * (viditelná díra + plynulý přechod). Jednotky = board tilt před FORCE_MULT.
  */
 
-export type GoalHole = { cx: number; cy: number; r: number };
+export type HoleDef = { cx: number; cy: number; r: number };
 
-/** Vnější okraj vlivu misky (pixelů za viditelným okrajem díry). */
-const GOAL_RIM_PAD = 6;
+const HOLE_RIM_PAD = 6;
 
-/** Maximální lokální tilt u středu misky (přičítá se k board tiltu). */
-const GOAL_PEAK_TILT = 0.95;
+/** Silnější tah ke středu; u středu misky nejvíc, u okraje slabě. */
+const HOLE_PEAK_TILT = 1.38;
+
+/** Animace propadu/výhry jen když střed kuličky vstoupí do tohoto jádra u středu díry. */
+const TRAP_CORE_FRAC = 0.45;
+const GOAL_CORE_FRAC = 0.52;
+
+export const HOLE_CORE_FRAC = TRAP_CORE_FRAC;
+
+export function holeCoreRadius(visibleR: number, kind: "goal" | "trap" = "trap"): number {
+  const frac = kind === "goal" ? GOAL_CORE_FRAC : TRAP_CORE_FRAC;
+  return visibleR * frac;
+}
+
+export function holeInfluenceOuter(visibleR: number): number {
+  return visibleR + HOLE_RIM_PAD;
+}
 
 /**
- * Plynulý profil: 0 na vnějším okraji vlivu, GOAL_PEAK_TILT ve středu.
- * Směr směřuje ke středu díry (kulička se „kutálí“ dovnitř).
+ * Plynulý profil misky: směr ke středu, síla roste ke středu.
  */
-export function goalLocalTilt(ballX: number, ballY: number, goal: GoalHole): { ax: number; ay: number } {
-  const dx = goal.cx - ballX;
-  const dy = goal.cy - ballY;
+export function holeLocalTilt(ballX: number, ballY: number, hole: HoleDef): { ax: number; ay: number } {
+  const dx = hole.cx - ballX;
+  const dy = hole.cy - ballY;
   const dist = Math.hypot(dx, dy);
-  const outer = goal.r + GOAL_RIM_PAD;
+  const outer = holeInfluenceOuter(hole.r);
   if (dist >= outer || outer <= 0) return { ax: 0, ay: 0 };
 
   const towardX = dist > 1e-6 ? dx / dist : 0;
   const towardY = dist > 1e-6 ? dy / dist : 0;
   const u = dist / outer;
   const profile = (1 - u) * (1 - u);
-  const mag = GOAL_PEAK_TILT * profile;
+  const mag = HOLE_PEAK_TILT * profile;
   return { ax: towardX * mag, ay: towardY * mag };
 }
 
-/** Střed kuličky uvnitř viditelného kotouče (hřídel = střed, ne overlap senzoru). */
+export function ballInHoleInfluence(ballX: number, ballY: number, hole: HoleDef): boolean {
+  return Math.hypot(ballX - hole.cx, ballY - hole.cy) < holeInfluenceOuter(hole.r);
+}
+
+/** Střed kuličky uvnitř kotouče daného poloměru. */
 export function ballCenterInDisk(
   ballX: number,
   ballY: number,
@@ -43,9 +59,6 @@ export function ballCenterInDisk(
   return Math.hypot(ballX - cx, ballY - cy) <= radius;
 }
 
-/**
- * Zachytí vstup středu do kotouče mezi dvěma fyzikálními snímky (rychlý průlet).
- */
 export function segmentCrossesDisk(
   x0: number,
   y0: number,
@@ -72,15 +85,55 @@ export function segmentCrossesDisk(
   return Math.hypot(px - cx, py - cy) <= radius;
 }
 
-/** Složení board tiltu a lokální misky (lokální se nepřeskakuje globálním klipem v tiltMapping). */
-export function composeBoardAndGoalTilt(
+/** Vstup / průlet do viditelné misky (pro zarážku pasti). */
+export function entersVisibleBowl(
+  x0: number | null,
+  y0: number | null,
+  x1: number,
+  y1: number,
+  hole: HoleDef
+): boolean {
+  if (ballCenterInDisk(x1, y1, hole.cx, hole.cy, hole.r)) return true;
+  if (x0 == null || y0 == null) return false;
+  return segmentCrossesDisk(x0, y0, x1, y1, hole.cx, hole.cy, hole.r);
+}
+
+/** Terminální animace: střed v jádru nebo rychlý průlet jádrem mezi snímky. */
+export function reachesHoleCore(
+  x0: number | null,
+  y0: number | null,
+  x1: number,
+  y1: number,
+  hole: HoleDef,
+  kind: "goal" | "trap" = "trap"
+): boolean {
+  const core = holeCoreRadius(hole.r, kind);
+  if (ballCenterInDisk(x1, y1, hole.cx, hole.cy, core)) return true;
+  if (x0 == null || y0 == null) return false;
+  return segmentCrossesDisk(x0, y0, x1, y1, hole.cx, hole.cy, core);
+}
+
+export function composeBoardAndHoleTilts(
   boardAx: number,
   boardAy: number,
   ballX: number,
   ballY: number,
-  goal: GoalHole | null
+  goal: HoleDef | null,
+  extraBowls: HoleDef[]
 ): { ax: number; ay: number } {
-  if (!goal) return { ax: boardAx, ay: boardAy };
-  const local = goalLocalTilt(ballX, ballY, goal);
-  return { ax: boardAx + local.ax, ay: boardAy + local.ay };
+  let ax = boardAx;
+  let ay = boardAy;
+  if (goal && ballInHoleInfluence(ballX, ballY, goal)) {
+    const l = holeLocalTilt(ballX, ballY, goal);
+    ax += l.ax;
+    ay += l.ay;
+  }
+  for (const h of extraBowls) {
+    if (ballInHoleInfluence(ballX, ballY, h)) {
+      const l = holeLocalTilt(ballX, ballY, h);
+      ax += l.ax;
+      ay += l.ay;
+    }
+  }
+  return { ax, ay };
 }

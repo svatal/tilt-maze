@@ -11,10 +11,11 @@ import {
   type StorageLike
 } from "../sensorBannerSession";
 import {
-  ballCenterInDisk,
-  composeBoardAndGoalTilt,
-  segmentCrossesDisk,
-  type GoalHole
+  ballInHoleInfluence,
+  composeBoardAndHoleTilts,
+  entersVisibleBowl,
+  reachesHoleCore,
+  type HoleDef
 } from "../holeSlope";
 
 const WALL_FRICTION = 0.08;
@@ -25,9 +26,6 @@ const MAX_SPEED = 7;
 const GOAL_SETTLE_MS = 460;
 /** Krátký propad v pasti. */
 const TRAP_SINK_MS = 280;
-/** Zachycení cíle: střed uvnitř viditelného kotouče (před ~460ms sesazením, ne okamžitá výhra). */
-const GOAL_CAPTURE_FRAC = 1;
-
 const DESKTOP_HINT_MS = 5500;
 
 const SENSOR_HTML = `
@@ -66,7 +64,9 @@ export class GameScene extends Phaser.Scene {
   private goalSettling = false;
   private trapSinking = false;
   private terminalTween: Phaser.Tweens.Tween | null = null;
-  private goalHole: GoalHole | null = null;
+  private goalHole: HoleDef | null = null;
+  /** Past „chycená“ ve viditelné mísce — nelze odjet zpět, dokud není propad. */
+  private engagedTrap: HoleDef | null = null;
   constructor() {
     super({ key: "GameScene" });
   }
@@ -139,7 +139,8 @@ export class GameScene extends Phaser.Scene {
       w.__e2eSimulateTrapFrame = (x0, y0, x1, y1) => this.e2eSimulateTrapFrame(x0, y0, x1, y1);
       w.__e2eHoleState = () => ({
         goalSettling: this.goalSettling,
-        trapSinking: this.trapSinking
+        trapSinking: this.trapSinking,
+        ballStatic: Boolean((this.ball?.body as MatterJS.BodyType | undefined)?.isStatic)
       });
     }
 
@@ -151,6 +152,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.ball?.body) return;
     const bb = this.ball.body as MatterJS.BodyType;
     this.cancelTerminalMotion();
+    this.matter.body.setStatic(bb, false);
     this.matter.body.setPosition(bb, { x, y });
     this.matter.body.setVelocity(bb, { x: 0, y: 0 });
     this.prevBallCenter = { x, y };
@@ -165,7 +167,7 @@ export class GameScene extends Phaser.Scene {
     this.matter.body.setPosition(bb, { x: x1, y: y1 });
     this.matter.body.setVelocity(bb, { x: 0, y: 0 });
     const lvl = LEVELS[this.levelIndex];
-    this.checkTrapCrossing({ x: x1, y: y1 }, lvl);
+    this.updateTrapEngagement({ x: x1, y: y1 }, lvl);
     return this.trapSinking;
   }
 
@@ -219,7 +221,14 @@ export class GameScene extends Phaser.Scene {
 
     if (!this.goalSettling && !this.trapSinking) {
       const t = this.tilt.update(delta, 1);
-      const composed = composeBoardAndGoalTilt(t.ax, t.ay, pos.x, pos.y, this.goalHole);
+      const trapBowls: HoleDef[] = lvl.traps
+        .map((tr) => ({ cx: tr.x, cy: tr.y, r: tr.r }))
+        .filter(
+          (h) =>
+            ballInHoleInfluence(pos.x, pos.y, h) ||
+            (this.engagedTrap?.cx === h.cx && this.engagedTrap.cy === h.cy && this.engagedTrap.r === h.r)
+        );
+      const composed = composeBoardAndHoleTilts(t.ax, t.ay, pos.x, pos.y, this.goalHole, trapBowls);
       const fx = composed.ax * FORCE_MULT;
       const fy = composed.ay * FORCE_MULT;
       this.matter.body.applyForce(bb, bb.position, { x: fx, y: fy });
@@ -231,8 +240,8 @@ export class GameScene extends Phaser.Scene {
         this.matter.body.setVelocity(bb, { x: v.x * k, y: v.y * k });
       }
 
-      this.checkTrapCrossing(pos, lvl);
-      this.checkGoalCapture(pos, lvl);
+      this.updateTrapEngagement(pos, lvl);
+      this.checkGoalTerminal(pos, lvl);
     }
 
     this.prevBallCenter = { x: pos.x, y: pos.y };
@@ -240,22 +249,37 @@ export class GameScene extends Phaser.Scene {
     this.timerEl.textContent = this.formatTime(this.elapsedMs);
   }
 
-  private checkTrapCrossing(pos: { x: number; y: number }, lvl: LevelDef): void {
+  private updateTrapEngagement(pos: { x: number; y: number }, lvl: LevelDef): void {
     const prev = this.prevBallCenter;
-    for (const tr of lvl.traps) {
-      const hit = prev
-        ? segmentCrossesDisk(prev.x, prev.y, pos.x, pos.y, tr.x, tr.y, tr.r)
-        : ballCenterInDisk(pos.x, pos.y, tr.x, tr.y, tr.r);
-      if (hit) {
-        this.beginTrapSink();
-        return;
+    const px = prev?.x ?? null;
+    const py = prev?.y ?? null;
+
+    if (!this.engagedTrap) {
+      for (const tr of lvl.traps) {
+        const hole: HoleDef = { cx: tr.x, cy: tr.y, r: tr.r };
+        if (entersVisibleBowl(px, py, pos.x, pos.y, hole)) {
+          this.engagedTrap = hole;
+          break;
+        }
       }
+    }
+
+    if (!this.engagedTrap) return;
+
+    const dist = Math.hypot(pos.x - this.engagedTrap.cx, pos.y - this.engagedTrap.cy);
+    if (dist > this.engagedTrap.r + 1.5) {
+      this.beginTrapSink();
+      return;
+    }
+    if (reachesHoleCore(px, py, pos.x, pos.y, this.engagedTrap, "trap")) {
+      this.beginTrapSink();
     }
   }
 
-  private checkGoalCapture(pos: { x: number; y: number }, lvl: LevelDef): void {
-    const captureR = lvl.goal.r * GOAL_CAPTURE_FRAC;
-    if (ballCenterInDisk(pos.x, pos.y, lvl.goal.x, lvl.goal.y, captureR)) {
+  private checkGoalTerminal(pos: { x: number; y: number }, lvl: LevelDef): void {
+    const prev = this.prevBallCenter;
+    const goal: HoleDef = { cx: lvl.goal.x, cy: lvl.goal.y, r: lvl.goal.r };
+    if (reachesHoleCore(prev?.x ?? null, prev?.y ?? null, pos.x, pos.y, goal, "goal")) {
       this.beginGoalSettle();
     }
   }
@@ -263,6 +287,7 @@ export class GameScene extends Phaser.Scene {
   private cancelTerminalMotion(): void {
     this.goalSettling = false;
     this.trapSinking = false;
+    this.engagedTrap = null;
     if (this.terminalTween) {
       this.terminalTween.stop();
       this.terminalTween = null;
@@ -304,6 +329,7 @@ export class GameScene extends Phaser.Scene {
   private beginTrapSink(): void {
     if (this.trapSinking || this.goalSettling || !this.ball?.body) return;
     this.trapSinking = true;
+    this.engagedTrap = null;
     const bb = this.ball.body as MatterJS.BodyType;
     this.matter.body.setVelocity(bb, { x: 0, y: 0 });
     this.matter.body.setStatic(bb, true);
@@ -338,9 +364,11 @@ export class GameScene extends Phaser.Scene {
     this.ball.setScale(1);
     this.ball.setAlpha(1);
     this.ball.setDisplaySize(BALL_RADIUS * 2, BALL_RADIUS * 2);
+    this.matter.body.setStatic(bb, false);
     this.matter.body.setPosition(bb, { x: lvl.start.x, y: lvl.start.y });
     this.matter.body.setVelocity(bb, { x: 0, y: 0 });
     this.prevBallCenter = { x: lvl.start.x, y: lvl.start.y };
+    this.engagedTrap = null;
   }
 
   private debugWinLevel = (): void => {

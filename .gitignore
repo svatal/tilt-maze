@@ -5,3 +5,4 @@ dist/
 .vite/
 dev-dist/
 test-results/
+src/buildInfo.generated.ts

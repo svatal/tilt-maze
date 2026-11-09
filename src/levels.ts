@@ -3,7 +3,6 @@
  * Obdélníky zdí: střed + šířka/výška.
  */
 
-import { DESIGN_WIDTH } from "./constants";
 import { PERIMETER_WALLS } from "./levelGeometry";
 
 export type WallDef = { cx: number; cy: number; w: number; h: number };
@@ -19,13 +18,87 @@ export type LevelDef = {
 
 const border = () => [...PERIMETER_WALLS];
 
-const pad = 12;
-const BAR_W = 218;
-const SERP_W = 200;
-const shelfL = (cy: number, w = BAR_W) => ({ cx: pad + w / 2 + 10, cy, w, h: 14 });
-const shelfR = (cy: number, w = BAR_W) => ({ cx: DESIGN_WIDTH - pad - w / 2, cy, w, h: 14 });
-const serpL = (cy: number) => ({ cx: pad + SERP_W / 2 + 10, cy, w: SERP_W, h: 14 });
-const serpR = (cy: number) => ({ cx: DESIGN_WIDTH - pad - SERP_W / 2, cy, w: SERP_W, h: 14 });
+const INNER_TOP = 44;
+const INNER_BOTTOM = 608;
+const INNER_LEFT = 40;
+const INNER_RIGHT = 320;
+const GAP = 72;
+const DOOR = 64;
+const T = 14;
+const XS = 180;
+
+function vWallBottom(cx: number): WallDef {
+  const h = INNER_BOTTOM - INNER_TOP - GAP;
+  return { cx, cy: INNER_BOTTOM - h / 2, w: T, h };
+}
+
+function vWallTop(cx: number): WallDef {
+  const h = INNER_BOTTOM - INNER_TOP - GAP;
+  return { cx, cy: INNER_TOP + h / 2, w: T, h };
+}
+
+function slabH(cy: number, x0: number, x1: number): WallDef {
+  const w = x1 - x0;
+  return { cx: x0 + w / 2, cy, w, h: T };
+}
+
+function slabV(cx: number, y0: number, y1: number): WallDef {
+  const h = y1 - y0;
+  return { cx, cy: y0 + h / 2, w: T, h };
+}
+
+function rectRing(x0: number, y0: number, x1: number, y1: number, opening: "bl" | "tr"): WallDef[] {
+  const xr = x1 - T / 2;
+  const xl = x0 + T / 2;
+  const yt = y0 + T / 2;
+  const yb = y1 - T / 2;
+  const wTop = x1 - x0 - T;
+  const hSide = y1 - y0 - T;
+  if (opening === "bl") {
+    const leftH = hSide - GAP;
+    const botW = wTop - GAP;
+    return [
+      { cx: (x0 + x1) / 2, cy: yt, w: wTop, h: T },
+      { cx: xr, cy: (y0 + y1) / 2, w: T, h: hSide },
+      { cx: xl + GAP + botW / 2, cy: yb, w: botW, h: T },
+      { cx: xl, cy: yt + leftH / 2, w: T, h: leftH }
+    ];
+  }
+  const rightH = hSide - GAP;
+  const topW = wTop - GAP;
+  return [
+    { cx: xl + topW / 2, cy: yt, w: topW, h: T },
+    { cx: xr, cy: yt + GAP + rightH / 2, w: T, h: rightH },
+    { cx: (x0 + x1) / 2, cy: yb, w: wTop, h: T },
+    { cx: xl, cy: (y0 + y1) / 2, w: T, h: hSide }
+  ];
+}
+
+const y1 = 220;
+const y2 = 420;
+const xl0 = INNER_LEFT;
+const xl1 = XS - T / 2;
+const xr0 = XS + T / 2;
+const xr1 = INNER_RIGHT;
+const doorY = (y1 + y2) / 2;
+
+const L5_GRID: WallDef[] = [
+  slabV(XS, INNER_TOP + T, doorY - DOOR / 2),
+  slabV(XS, doorY + DOOR / 2, y2 + T / 2),
+  slabV(XS, y2 + T, INNER_BOTTOM - T),
+  slabH(y2, xl0, xl0 + 58),
+  slabH(y2, xl0 + 58 + DOOR, xl1),
+  slabH(y2, xr0, xr1),
+  slabH(y1, xr0, xr1 - 58 - DOOR),
+  slabH(y1, xr1 - 58, xr1),
+  slabH(y1, xl0, xl1),
+  slabV(xr1 - 52, y2 + 28, INNER_BOTTOM - 48),
+  slabV(xl0 + 52, INNER_TOP + T, y1 - T),
+  slabH(335, xl0 + 25, xl1 - 5),
+  slabV(xl0 + 30, 265, 325),
+  slabV(xr0 + 25, 265, 325),
+  slabV(xr0 + 58, 300, 360)
+];
 
 export const LEVELS: LevelDef[] = [
   {
@@ -47,70 +120,32 @@ export const LEVELS: LevelDef[] = [
   {
     id: 3,
     name: "Serpentína",
-    start: { x: 295, y: 562 },
-    goal: { x: 68, y: 108, r: 23 },
+    start: { x: 62, y: 578 },
+    goal: { x: 298, y: 568, r: 15 },
     traps: [],
-    walls: [
-      ...border(),
-      { cx: 88, cy: 520, w: 22, h: 118 },
-      { cx: 272, cy: 470, w: 22, h: 118 },
-      { cx: 88, cy: 370, w: 22, h: 118 },
-      { cx: 272, cy: 320, w: 22, h: 118 },
-      { cx: 88, cy: 220, w: 22, h: 105 },
-      { cx: 272, cy: 170, w: 22, h: 105 },
-      serpR(518),
-      serpL(425),
-      serpR(332),
-      serpL(239),
-      serpR(146),
-      { cx: 292, cy: 482, w: 16, h: 90 },
-      { cx: 68, cy: 388, w: 16, h: 90 },
-      { cx: 292, cy: 296, w: 16, h: 90 },
-      { cx: 68, cy: 202, w: 16, h: 72 }
-    ]
+    walls: [...border(), vWallBottom(100), vWallTop(180), vWallBottom(260)]
   },
   {
     id: 4,
     name: "Spirála",
-    start: { x: 62, y: 572 },
-    goal: { x: 288, y: 102, r: 23 },
+    start: { x: 46, y: 120 },
+    goal: { x: 180, y: 320, r: 8 },
     traps: [],
     walls: [
       ...border(),
-      shelfR(525),
-      shelfL(435),
-      shelfR(345),
-      shelfL(255),
-      shelfR(165, 205),
-      shelfL(82, 168),
-      { cx: 292, cy: 388, w: 16, h: 85 },
-      { cx: 68, cy: 478, w: 16, h: 85 },
-      { cx: 68, cy: 298, w: 16, h: 85 },
-      { cx: 292, cy: 208, w: 16, h: 70 },
-      { cx: 230, cy: 450, w: 14, h: 70 },
-      { cx: 200, cy: 415, w: 65, h: 14 }
+      ...rectRing(60, 90, 300, 550, "bl"),
+      ...rectRing(130, 200, 230, 440, "tr"),
+      { cx: 180, cy: 250, w: T, h: 68 },
+      { cx: 180, cy: 478, w: T, h: 86 }
     ]
   },
   {
     id: 5,
     name: "Komory",
-    start: { x: 58, y: 578 },
-    goal: { x: 288, y: 102, r: 23 },
+    start: { x: 72, y: 580 },
+    goal: { x: 288, y: 95, r: 16 },
     traps: [],
-    walls: [
-      ...border(),
-      shelfR(530),
-      shelfL(445),
-      shelfR(360),
-      shelfL(275),
-      shelfR(190, 205),
-      shelfL(105, 170),
-      { cx: 180, cy: 360, w: 18, h: 76 },
-      { cx: 70, cy: 487, w: 16, h: 78 },
-      { cx: 292, cy: 402, w: 16, h: 78 },
-      { cx: 70, cy: 317, w: 16, h: 78 },
-      { cx: 292, cy: 232, w: 16, h: 70 }
-    ]
+    walls: [...border(), ...L5_GRID]
   },
   {
     id: 6,

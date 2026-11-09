@@ -6,11 +6,6 @@
 import { DESIGN_WIDTH } from "./constants";
 import { PERIMETER_WALLS } from "./levelGeometry";
 
-const BAR_W = 218;
-const pad = 12;
-const shelfL = (cy: number, w = BAR_W) => ({ cx: pad + w / 2 + 10, cy, w, h: 14 });
-const shelfR = (cy: number, w = BAR_W) => ({ cx: DESIGN_WIDTH - pad - w / 2, cy, w, h: 14 });
-
 export type WallDef = { cx: number; cy: number; w: number; h: number };
 
 export type LevelDef = {
@@ -23,6 +18,14 @@ export type LevelDef = {
 };
 
 const border = () => [...PERIMETER_WALLS];
+
+const pad = 12;
+const BAR_W = 218;
+const SERP_W = 200;
+const shelfL = (cy: number, w = BAR_W) => ({ cx: pad + w / 2 + 10, cy, w, h: 14 });
+const shelfR = (cy: number, w = BAR_W) => ({ cx: DESIGN_WIDTH - pad - w / 2, cy, w, h: 14 });
+const serpL = (cy: number) => ({ cx: pad + SERP_W / 2 + 10, cy, w: SERP_W, h: 14 });
+const serpR = (cy: number) => ({ cx: DESIGN_WIDTH - pad - SERP_W / 2, cy, w: SERP_W, h: 14 });
 
 export const LEVELS: LevelDef[] = [
   {
@@ -44,16 +47,22 @@ export const LEVELS: LevelDef[] = [
   {
     id: 3,
     name: "Serpentína",
-    start: { x: 66, y: 560 },
-    goal: { x: 288, y: 102, r: 24 },
+    start: { x: 295, y: 562 },
+    goal: { x: 68, y: 108, r: 23 },
     traps: [],
     walls: [
       ...border(),
-      shelfR(518),
-      shelfL(425),
-      shelfR(332),
-      shelfL(239),
-      shelfR(146, 190),
+      { cx: 88, cy: 520, w: 22, h: 118 },
+      { cx: 272, cy: 470, w: 22, h: 118 },
+      { cx: 88, cy: 370, w: 22, h: 118 },
+      { cx: 272, cy: 320, w: 22, h: 118 },
+      { cx: 88, cy: 220, w: 22, h: 105 },
+      { cx: 272, cy: 170, w: 22, h: 105 },
+      serpR(518),
+      serpL(425),
+      serpR(332),
+      serpL(239),
+      serpR(146),
       { cx: 292, cy: 482, w: 16, h: 90 },
       { cx: 68, cy: 388, w: 16, h: 90 },
       { cx: 292, cy: 296, w: 16, h: 90 },
@@ -77,7 +86,9 @@ export const LEVELS: LevelDef[] = [
       { cx: 292, cy: 388, w: 16, h: 85 },
       { cx: 68, cy: 478, w: 16, h: 85 },
       { cx: 68, cy: 298, w: 16, h: 85 },
-      { cx: 292, cy: 208, w: 16, h: 70 }
+      { cx: 292, cy: 208, w: 16, h: 70 },
+      { cx: 230, cy: 450, w: 14, h: 70 },
+      { cx: 200, cy: 415, w: 65, h: 14 }
     ]
   },
   {

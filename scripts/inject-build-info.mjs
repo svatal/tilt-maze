@@ -20,7 +20,9 @@ const branch =
   git("git rev-parse --abbrev-ref HEAD") ||
   "unknown";
 
-const shaFull = process.env.GITHUB_SHA || git("git rev-parse HEAD") || "unknown";
+// BUILD_INFO_SHA (CI: u PR = head větve) má přednost před GITHUB_SHA (merge ref u pull_request).
+const shaFull =
+  process.env.BUILD_INFO_SHA || process.env.GITHUB_SHA || git("git rev-parse HEAD") || "unknown";
 const shaShort = shaFull.length >= 7 ? shaFull.slice(0, 7) : shaFull;
 
 let prNum = process.env.PR_NUMBER || "";
@@ -41,7 +43,7 @@ const built = new Date().toLocaleString("cs-CZ", {
 const parts = [prNum && `pr-${prNum}`, branch, shaShort, built].filter(Boolean);
 const label = parts.join(" · ");
 
-const src = `/* Automaticky generováno při buildu — neupravovat ručně */
+const src = `/* Automaticky generováno při buildu — neupravovat ručně; soubor je v .gitignore */
 export const BUILD_INFO_LABEL = ${JSON.stringify(label)};
 `;
 

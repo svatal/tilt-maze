@@ -76,8 +76,6 @@ export class GameScene extends Phaser.Scene {
   /** E2E: vzdálenost středu v okamžiku spuštění trigger animace. */
   private e2eLastTriggerDist: number | null = null;
   private lastHudBandPx = 0;
-  /** Rezerva pro dvouřádkový titul — stabilní při přepínání úrovní v E2E/CI. */
-  private static readonly HUD_BAND_MIN_PX = 120;
   constructor() {
     super({ key: "GameScene" });
   }
@@ -427,6 +425,8 @@ export class GameScene extends Phaser.Scene {
     this.levelEl.style.fontWeight = "700";
     this.levelEl.style.flex = "1 1 auto";
     this.levelEl.style.minWidth = "0";
+    this.levelEl.style.minHeight = "2.55em";
+    this.levelEl.style.lineHeight = "1.22";
     this.timerEl = document.createElement("div");
     this.timerEl.style.flex = "0 0 auto";
     this.timerEl.style.whiteSpace = "nowrap";
@@ -660,7 +660,7 @@ export class GameScene extends Phaser.Scene {
     const container = document.getElementById("game-container");
     const hudBandPx =
       this.hud.style.display !== "none"
-        ? Math.max(GameScene.HUD_BAND_MIN_PX, Math.ceil(this.hud.getBoundingClientRect().height) + 16)
+        ? Math.ceil(this.hud.getBoundingClientRect().height) + 16
         : 96;
     let refreshScale = false;
     if (container) {
@@ -702,7 +702,7 @@ export class GameScene extends Phaser.Scene {
     return (
       r.top >= pad &&
       r.left >= -pad &&
-      r.bottom <= window.innerHeight - pad &&
+      r.bottom <= window.innerHeight + pad &&
       r.right <= window.innerWidth + pad
     );
   }
@@ -746,6 +746,8 @@ export class GameScene extends Phaser.Scene {
     this.hud.style.display = "flex";
     this.running = true;
     this.elapsedMs = 0;
+    this.layoutHud(this.scale.gameSize);
+    this.game.scale.refresh();
     this.layoutHud(this.scale.gameSize);
   }
 

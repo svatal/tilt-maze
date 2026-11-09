@@ -21,7 +21,13 @@ async function screenshotLevels(
   height: number
 ) {
   await page.setViewportSize({ width, height });
-  await page.goto(`${basePath}?e2e=1&skipMenu=1&matterDebug=1`, { waitUntil: "networkidle" });
+  await page.goto(`${basePath}?e2e=1&skipMenu=1`, { waitUntil: "networkidle" });
+  await page.waitForFunction(
+    () => !!(window as unknown as { __tiltMazeScene?: { running: boolean } }).__tiltMazeScene?.running,
+    undefined,
+    { timeout: 20000 }
+  );
+  await page.evaluate(() => (window as unknown as { __e2eRelayout?: () => void }).__e2eRelayout?.());
   await page.waitForFunction(
     () => {
       const s = (window as unknown as {
@@ -30,7 +36,7 @@ async function screenshotLevels(
       return s?.verifyHudAboveBoard() === true && s?.verifyCanvasFitsViewport() === true;
     },
     undefined,
-    { timeout: 15000 }
+    { timeout: 20000 }
   );
 
   const levelCount = 10;

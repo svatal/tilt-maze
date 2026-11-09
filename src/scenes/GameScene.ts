@@ -675,7 +675,7 @@ export class GameScene extends Phaser.Scene {
     this.hud.style.paddingRight = "8px";
     this.mouseOverlay?.layout();
     if (refreshScale) {
-      requestAnimationFrame(() => this.game.scale.refresh());
+      this.game.scale.refresh();
     }
   }
 

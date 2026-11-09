@@ -26,6 +26,8 @@ import {
 import type { GameSceneStartData } from "./MenuScene";
 
 const WALL_FRICTION = 0.08;
+/** Restituce kuličky – u kolize se zdí rozhoduje Math.max(kulička, zeď). */
+const BALL_RESTITUTION = 0.5;
 const FORCE_MULT = 0.00085;
 const MAX_SPEED = 7;
 
@@ -720,7 +722,7 @@ export class GameScene extends Phaser.Scene {
       label: "ball",
       friction: 0.02,
       frictionAir: 0.012,
-      restitution: 0.15
+      restitution: BALL_RESTITUTION
     }) as Phaser.Physics.Matter.Image;
     this.ball.setDisplaySize(BALL_RADIUS * 2, BALL_RADIUS * 2);
   }

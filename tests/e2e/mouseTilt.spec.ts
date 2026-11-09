@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { dispatchDeviceOrientation, driveMouseTilt } from "./helpers/playwrightTilt";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "../..");
@@ -71,6 +72,51 @@ test("E2E: analogová myš — aktivace, indikátor, bez tiltu před zapnutím",
   await page.screenshot({ path: "/opt/cursor/artifacts/mouse-tilt-desktop.png", fullPage: true });
 
   expect(errors, errors.join("\n")).toEqual([]);
+});
+
+test("E2E: zapnutá myš ignoruje deviceorientation; po vypnutí senzor platí", async ({ page }) => {
+  await page.goto(`${basePath}?e2e=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "Start" }).click();
+
+  await dispatchDeviceOrientation(page, 28, 5);
+  const sensorTilt = await page.evaluate(() => {
+    const scene = (window as unknown as {
+      __tiltMazeScene?: { tilt: { update: (d: number, s: number) => { ax: number; ay: number } } };
+    }).__tiltMazeScene;
+    return scene?.tilt.update(16, 1) ?? { ax: 0, ay: 0 };
+  });
+  expect(Math.abs(sensorTilt.ay)).toBeGreaterThan(0.03);
+
+  await page.getByRole("button", { name: "Myš", exact: true }).click();
+  await dispatchDeviceOrientation(page, 28, 5);
+  const canvas = page.locator("#game-container canvas");
+  const box = await canvas.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.mouse.move(cx + box.width * 0.2, cy);
+  await sleep(180);
+
+  const mouseOn = await page.evaluate(() => {
+    const scene = (window as unknown as {
+      __tiltMazeScene?: { tilt: { update: (d: number, s: number) => { ax: number; ay: number } } };
+    }).__tiltMazeScene;
+    return scene?.tilt.update(16, 1) ?? { ax: 0, ay: 0 };
+  });
+  expect(mouseOn.ax).toBeGreaterThan(0.04);
+  expect(Math.abs(mouseOn.ay)).toBeLessThan(0.2);
+
+  await page.getByRole("button", { name: "Myš", exact: true }).click();
+  await sleep(100);
+  await dispatchDeviceOrientation(page, 28, 5);
+  const sensorAgain = await page.evaluate(() => {
+    const scene = (window as unknown as {
+      __tiltMazeScene?: { tilt: { update: (d: number, s: number) => { ax: number; ay: number } } };
+    }).__tiltMazeScene;
+    return scene?.tilt.update(16, 1) ?? { ax: 0, ay: 0 };
+  });
+  expect(Math.abs(sensorAgain.ay)).toBeGreaterThan(0.03);
 });
 
 test("E2E: landscape layout — ovládací plocha a overlay", async ({ browser }) => {

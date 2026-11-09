@@ -161,7 +161,7 @@ export function createMouseHelpPanel(): {
       <li>Držte kurzor <strong>uvnitř tmavé herní plochy</strong> (ne v pruhu tlačítek).</li>
       <li><strong>Zastavení:</strong> vypněte „Myš“, stiskněte <strong>Escape</strong>, přepněte okno, nebo vyjeďte kurzorem mimo plánku.</li>
     </ul>
-    <p style="margin:8px 0 0;font-size:0.78rem;opacity:0.85">Šipky, WASD a naklonění telefonu zůstávají; při senzoru má telefon přednost před myší.</p>
+    <p style="margin:8px 0 0;font-size:0.78rem;opacity:0.85">Po zapnutí Myš se senzor naklonění vypne (nelze kombinovat). Po vypnutí Myš znovu platí naklonění telefonu. Zkratka <strong>M</strong> jen přepíná režim myši.</p>
   `;
 
   toggleBtn.addEventListener("click", () => {

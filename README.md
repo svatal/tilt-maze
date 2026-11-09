@@ -1,6 +1,6 @@
 # Sklopený labyrint (tilt-maze)
 
-Hra **kulička v labyrintu** pro telefon: ovládání nakloněním (DeviceOrientation), záloha **šipkami / WASD** na počítači. Postaveno na **TypeScript**, **Phaser 3** s **Matter.js**, bundler **Vite**, nasazení jako **PWA** (manifest, service worker, offline, celá obrazovka, portrét).
+Hra **kulička v labyrintu** pro telefon: ovládání **nakloněním** (DeviceOrientation). Na počítači **analogová myš** od středu herní plochy (režimy myš ↔ senzor jsou vzájemně výlučné). Postaveno na **TypeScript**, **Phaser 3** s **Matter.js**, bundler **Vite**, nasazení jako **PWA** (manifest, service worker, offline, celá obrazovka, portrét).
 
 ## Požadavky
 
@@ -47,7 +47,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Scénáře: úroveň 1 **šipkami nahoru/vpravo** (s `?e2e=1&matterDebug=1` je vidět overlay Matter.js), a regresní test s `__debugCompleteLevel()`. Společně s `npm run test:unit` ověří BFS průchodnost úrovní.
+Scénáře: pohyb kuličky **myší** nebo simulovaným `deviceorientation` (s `?e2e=1&matterDebug=1` je vidět overlay Matter.js), regresní test s `__debugCompleteLevel()`. Společně s `npm run test:unit` ověří BFS průchodnost úrovní.
 
 ## Ladění fyziky v prohlížeči
 

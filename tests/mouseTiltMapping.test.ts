@@ -25,8 +25,6 @@ const baseTiltSample = {
   calGsX: 0,
   calGsY: 0,
   calGsZ: 0,
-  keyX: 0,
-  keyY: 0,
   mouseX: 0,
   mouseY: 0,
   mouseArmed: false,
@@ -93,38 +91,12 @@ describe("mouseTiltMapping", () => {
     expect(p.ny).toBeCloseTo(0, 5);
   });
 
-  it("arbitráž: senzor blokuje myš", () => {
-    expect(
-      shouldApplyMouseTilt({
-        mouseArmed: true,
-        pointerInside: true,
-        windowFocused: true,
-        keyboardActive: false,
-        sensorRecent: true
-      })
-    ).toBe(false);
-  });
-
-  it("arbitráž: klávesnice blokuje myš", () => {
-    expect(
-      shouldApplyMouseTilt({
-        mouseArmed: true,
-        pointerInside: true,
-        windowFocused: true,
-        keyboardActive: true,
-        sensorRecent: false
-      })
-    ).toBe(false);
-  });
-
   it("arbitráž: bez fokusu myš neaktivní", () => {
     expect(
       shouldApplyMouseTilt({
         mouseArmed: true,
         pointerInside: true,
-        windowFocused: false,
-        keyboardActive: false,
-        sensorRecent: false
+        windowFocused: false
       })
     ).toBe(false);
   });
@@ -141,7 +113,7 @@ describe("mouseTiltMapping", () => {
     expect(out.rawY).toBeCloseTo(-0.5, 2);
   });
 
-  it("integrace: čerstvý senzor přebije myš", () => {
+  it("integrace: zapnutá myš ignoruje čerstvý senzor", () => {
     const out = computeRawTiltAxes({
       ...baseTiltSample,
       lastGamma: 0,
@@ -150,10 +122,41 @@ describe("mouseTiltMapping", () => {
       mouseArmed: true,
       mousePointerInside: true,
       mouseX: 1.1,
+      mouseY: -0.4,
+      now: 500
+    });
+    expect(out.rawX).toBeCloseTo(1.1, 2);
+    expect(out.rawY).toBeCloseTo(-0.4, 2);
+  });
+
+  it("integrace: po vypnutí myši senzor znovu platí", () => {
+    const out = computeRawTiltAxes({
+      ...baseTiltSample,
+      lastGamma: 0,
+      lastBeta: 25,
+      lastOrientTs: 400,
+      mouseArmed: false,
+      mousePointerInside: false,
+      mouseX: 1.1,
       mouseY: 1.1,
       now: 500
     });
     expect(out.rawY).toBeGreaterThan(0);
-    expect(out.rawX).toBeLessThan(0.5);
+  });
+
+  it("integrace: myš zapnutá, kurzor mimo plochu — bez senzoru", () => {
+    const out = computeRawTiltAxes({
+      ...baseTiltSample,
+      lastGamma: 0,
+      lastBeta: 25,
+      lastOrientTs: 400,
+      mouseArmed: true,
+      mousePointerInside: false,
+      mouseX: 0,
+      mouseY: 0,
+      now: 500
+    });
+    expect(out.rawX).toBe(0);
+    expect(out.rawY).toBe(0);
   });
 });

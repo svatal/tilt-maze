@@ -50,7 +50,7 @@ export class SensorMonitor {
   gravityConstructorFailed = false;
   lastGravityError: string | null = null;
 
-  /** Byla někdy přijata použitelná data ze skutečného senzoru (ne klávesnicí). */
+  /** Byla někdy přijata použitelná data ze skutečného senzoru (ne manuální myší). */
   hadRealSensorValid = false;
 
   lastGamma: number | null = null;
@@ -80,7 +80,7 @@ export class SensorMonitor {
     this.hadRealSensorValid = false;
   }
 
-  markKeyboardOverride(at: number): void {
+  markManualInputOverride(at: number): void {
     this.lastValidSampleAt = at;
   }
 
@@ -238,8 +238,8 @@ export class SensorMonitor {
     return "no_sensors_desktop";
   }
 
-  shouldWarnNoValidData(now: number, keyboardActive: boolean): boolean {
-    if (keyboardActive) return false;
+  shouldWarnNoValidData(now: number, manualInputActive: boolean): boolean {
+    if (manualInputActive) return false;
     return this.classifySensorIssue(now) !== "ok";
   }
 

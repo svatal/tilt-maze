@@ -107,14 +107,16 @@ export type MouseArbitrationInput = {
   mouseArmed: boolean;
   pointerInside: boolean;
   windowFocused: boolean;
-  keyboardActive: boolean;
-  sensorRecent: boolean;
 };
 
-/** Myš jen při aktivaci, fokusu, kurzoru v ploše; senzor a klávesnice mají prioritu. */
+/** Zapnutá myš v běžícím okně = režim bez senzoru (vzájemně výlučné). */
+export function mouseModeSuppressesSensor(mouseArmed: boolean, windowFocused: boolean): boolean {
+  return mouseArmed && windowFocused;
+}
+
+/** Myš jen při aktivaci, fokusu a kurzoru v ploše. */
 export function shouldApplyMouseTilt(a: MouseArbitrationInput): boolean {
-  if (!a.mouseArmed || !a.pointerInside || !a.windowFocused) return false;
-  if (a.keyboardActive) return false;
-  if (a.sensorRecent) return false;
+  if (!mouseModeSuppressesSensor(a.mouseArmed, a.windowFocused)) return false;
+  if (!a.pointerInside) return false;
   return true;
 }

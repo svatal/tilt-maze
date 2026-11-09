@@ -41,7 +41,7 @@ const SENSOR_HTML = `
     <strong>Brave Shields</strong> neblokují senzory. V <strong>Chrome</strong> musí být stránka na <strong>HTTPS</strong>.
     Na iOS povolte přístup v dialogu. Můžete použít tlačítka <strong>Kalibrovat</strong> po položení telefonu rovně.
   </p>
-  <button type="button" id="sensor-dismiss" style="padding:10px 20px;border-radius:10px;border:1px solid #c9a227;background:#3d2918;color:#f5e6d3;cursor:pointer;font-size:0.9rem">Rozumím, použiju klávesnici</button>
+  <button type="button" id="sensor-dismiss" style="padding:10px 20px;border-radius:10px;border:1px solid #c9a227;background:#3d2918;color:#f5e6d3;cursor:pointer;font-size:0.9rem">Rozumím, použiju myš</button>
 `;
 
 export class GameScene extends Phaser.Scene {
@@ -419,7 +419,7 @@ export class GameScene extends Phaser.Scene {
       <h1 style="margin:0 0 12px;font-size:1.5rem;font-weight:700">Sklopený labyrint</h1>
       <p style="margin:0 0 20px;max-width:320px;line-height:1.45;font-size:0.95rem">
         Nakloňte telefon a doveďte kuličku do cílové díry. Vyhněte se pastem.
-        Na ploše: šipky/WASD, nebo myš od středu herní plochy (tlačítko Myš).
+        Na ploše zapněte myš a táhněte kurzor od středu herní plochy (tlačítko Myš).
       </p>
       <button id="btn-start" type="button" style="padding:14px 28px;font-size:1.05rem;border-radius:12px;border:none;background:#c9a227;color:#1a120a;font-weight:700;cursor:pointer">
         Start
@@ -620,7 +620,7 @@ export class GameScene extends Phaser.Scene {
       "box-shadow:0 3px 12px rgba(0,0,0,0.35)"
     ].join(";");
     el.textContent =
-      "Na tomto zařízení: šipky/WASD, nebo zapni Myš a táhni kurzor od středu herní plochy (viz nápověda).";
+      "Na tomto zařízení zapněte Myš a táhněte kurzor od středu herní plochy (viz nápověda).";
     document.body.appendChild(el);
     this.sensorBanner = el;
     this.desktopHintTimer = setTimeout(() => {

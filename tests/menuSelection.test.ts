@@ -12,6 +12,8 @@ describe("úvodní menu — data", () => {
   it("nápověda obsahuje myš, senzory a bez ovládání kuličky šipkami", () => {
     const text = HELP_SECTIONS.map((s) => s.title + s.bodyHtml).join(" ");
     expect(text).toMatch(/Myš/i);
+    expect(text).toMatch(/hnědočern/i);
+    expect(text).not.toMatch(/červeným pastem|červených past/i);
     expect(text).not.toMatch(/WASD/i);
     expect(text).not.toMatch(/šipky nebo/i);
     expect(text).toMatch(/Brave/i);

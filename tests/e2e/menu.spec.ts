@@ -154,6 +154,19 @@ test("E2E: nápověda senzorů v menu", async ({ page }) => {
   await page.locator("#menu-btn-help").click();
   await expect(page.getByTestId("help-overlay")).toBeVisible();
   await expect(page.getByTestId("help-overlay").getByText("Ovládání myší", { exact: false })).toBeVisible();
+  await expect(page.getByTestId("help-overlay").getByText("červeným pastem", { exact: false })).toHaveCount(0);
+
+  const fonts = await page.evaluate(() => {
+    const card = document.querySelector("#tilt-maze-help > div");
+    const menu = document.getElementById("tilt-maze-menu");
+    if (!card || !menu) return null;
+    return {
+      help: getComputedStyle(card).fontFamily,
+      menu: getComputedStyle(menu).fontFamily
+    };
+  });
+  expect(fonts).not.toBeNull();
+  expect(fonts!.help).toBe(fonts!.menu);
   await page.locator("#help-btn-close").click();
   await expect(page.getByTestId("help-overlay")).toHaveCount(0);
 });

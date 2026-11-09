@@ -4,7 +4,14 @@ import { LEVELS } from "../levels";
 import { querySensorPermissions } from "../sensorMonitor";
 import { requestIOSMotionPermission } from "../tilt";
 import { attachBuildInfoLabel } from "../ui/attachBuildInfo";
-import { BTN_LEVEL, BTN_LEVEL_SELECTED, BTN_PRIMARY, BTN_SECONDARY, PANEL_OVERLAY } from "../ui/domTheme";
+import {
+  BTN_LEVEL,
+  BTN_LEVEL_SELECTED,
+  BTN_PRIMARY,
+  BTN_SECONDARY,
+  PANEL_OVERLAY,
+  UI_FONT_FAMILY
+} from "../ui/domTheme";
 import { HELP_SECTIONS } from "../ui/sensorHelpContent";
 
 export type GameSceneStartData = {
@@ -82,7 +89,7 @@ export class MenuScene extends Phaser.Scene {
       "position:fixed",
       "z-index:20",
       "pointer-events:auto",
-      "font-family:system-ui,Segoe UI,Roboto,sans-serif",
+      `font-family:${UI_FONT_FAMILY}`,
       "color:#f5e6d3",
       "display:flex",
       "flex-direction:column",
@@ -276,7 +283,8 @@ export class MenuScene extends Phaser.Scene {
       "padding:16px 18px",
       "max-height:min(85vh,640px)",
       "overflow-y:auto",
-      "box-shadow:0 4px 20px rgba(0,0,0,0.45)"
+      "box-shadow:0 4px 20px rgba(0,0,0,0.45)",
+      `font-family:${UI_FONT_FAMILY}`
     ].join(";");
 
     const sections = HELP_SECTIONS.map(

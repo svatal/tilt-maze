@@ -21,8 +21,8 @@ test.beforeAll(() => {
 });
 
 async function startLevel1(page: import("@playwright/test").Page) {
-  await page.goto(`${basePath}?e2e=1`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "Start" }).click();
+  await page.goto(`${basePath}?e2e=1&skipMenu=1`, { waitUntil: "networkidle" });
+  await expect(page.locator("#tilt-maze-ui")).toBeVisible();
 }
 
 test("E2E past: okraj viditelné díry (dist≈r) nespustí animaci", async ({ page }) => {

@@ -75,6 +75,7 @@ export class GameScene extends Phaser.Scene {
   private goalHole: HoleDef | null = null;
   /** E2E: vzdálenost středu v okamžiku spuštění trigger animace. */
   private e2eLastTriggerDist: number | null = null;
+  private lastHudBandPx = 0;
   constructor() {
     super({ key: "GameScene" });
   }
@@ -655,9 +656,16 @@ export class GameScene extends Phaser.Scene {
       this.hud.style.display !== "none"
         ? Math.ceil(this.hud.getBoundingClientRect().height) + 16
         : 96;
+    let refreshScale = false;
     if (container) {
-      container.style.paddingTop = `${hudBandPx}px`;
       container.style.boxSizing = "border-box";
+      if (hudBandPx !== this.lastHudBandPx) {
+        this.lastHudBandPx = hudBandPx;
+        container.style.paddingTop = "0";
+        container.style.marginTop = `${hudBandPx}px`;
+        container.style.height = `calc(100% - ${hudBandPx}px)`;
+        refreshScale = true;
+      }
     }
     const bounds = this.game.scale.canvasBounds;
     this.hud.style.top = "6px";
@@ -666,6 +674,9 @@ export class GameScene extends Phaser.Scene {
     this.hud.style.paddingLeft = "8px";
     this.hud.style.paddingRight = "8px";
     this.mouseOverlay?.layout();
+    if (refreshScale) {
+      requestAnimationFrame(() => this.game.scale.refresh());
+    }
   }
 
   /** E2E: HUD je celý nad horním okrajem herní desky (nebo v horním letterboxu). */
@@ -677,13 +688,31 @@ export class GameScene extends Phaser.Scene {
     return hb.bottom <= cb.top + 2;
   }
 
+  /** E2E: celý canvas (včetně spodního rámu) je v okně bez ořezu. */
+  verifyCanvasFitsViewport(): boolean {
+    const canvas = this.game.canvas as HTMLCanvasElement;
+    const r = canvas.getBoundingClientRect();
+    const pad = 1;
+    return (
+      r.top >= pad &&
+      r.left >= -pad &&
+      r.bottom <= window.innerHeight - pad &&
+      r.right <= window.innerWidth + pad
+    );
+  }
+
   private returnToMenu(): void {
     this.running = false;
     this.tilt?.setMouseArmed(false);
     this.cancelTerminalMotion();
     this.removeSensorBanner();
     const container = document.getElementById("game-container");
-    if (container) container.style.paddingTop = "";
+    if (container) {
+      container.style.paddingTop = "";
+      container.style.marginTop = "";
+      container.style.height = "";
+      this.lastHudBandPx = 0;
+    }
     this.scene.start("MenuScene");
   }
 

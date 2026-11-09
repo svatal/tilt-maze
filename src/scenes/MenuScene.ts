@@ -107,6 +107,20 @@ export class MenuScene extends Phaser.Scene {
             grid-template-columns: repeat(3, minmax(0, 1fr));
           }
         }
+        #tilt-maze-level-list button[role="option"] {
+          overflow: hidden;
+          max-width: 100%;
+        }
+        .tilt-maze-level-card-label {
+          display: block;
+          font-weight: 700;
+          line-height: 1.22;
+          font-size: clamp(0.68rem, 1.45vw, 0.8rem);
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          hyphens: auto;
+          max-width: 100%;
+        }
       `;
       document.head.appendChild(style);
     }
@@ -200,7 +214,7 @@ export class MenuScene extends Phaser.Scene {
         b.setAttribute("role", "option");
         b.dataset.levelIndex = String(i);
         b.dataset.levelGroup = group.id;
-        b.innerHTML = `<span style="font-weight:700;display:block;line-height:1.25">${i + 1}. ${lvl.name}</span>`;
+        b.innerHTML = `<span class="tilt-maze-level-card-label" lang="cs">${i + 1}. ${lvl.name}</span>`;
         b.style.cssText = this.levelButtonStyle(i, i === 0);
         b.addEventListener("click", () => this.setSelectedLevel(i));
         grid.append(b);

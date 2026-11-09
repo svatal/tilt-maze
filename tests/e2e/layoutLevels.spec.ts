@@ -22,12 +22,23 @@ async function screenshotLevels(page: import("@playwright/test").Page, view: str
     await page.evaluate((n) => {
       (window as unknown as { __loadLevel?: (x: number) => void }).__loadLevel?.(n);
     }, i);
+    await page.waitForFunction(
+      () => (window as unknown as { __tiltMazeScene?: { verifyHudAboveBoard: () => boolean } }).__tiltMazeScene?.verifyHudAboveBoard() === true,
+      undefined,
+      { timeout: 3000 }
+    );
 
     const ok = await page.evaluate(() => {
-      const s = (window as unknown as { __tiltMazeScene?: { verifyWallsFitDesignBoard: () => boolean } }).__tiltMazeScene;
-      return s?.verifyWallsFitDesignBoard() ?? false;
+      const s = (window as unknown as {
+        __tiltMazeScene?: { verifyWallsFitDesignBoard: () => boolean; verifyHudAboveBoard: () => boolean };
+      }).__tiltMazeScene;
+      return {
+        walls: s?.verifyWallsFitDesignBoard() ?? false,
+        hud: s?.verifyHudAboveBoard() ?? false
+      };
     });
-    expect(ok, `úroveň ${i + 1} má zeď mimo desku`).toBe(true);
+    expect(ok.walls, `úroveň ${i + 1} má zeď mimo desku`).toBe(true);
+    expect(ok.hud, `úroveň ${i + 1}: HUD překrývá desku`).toBe(true);
 
     await fs.promises.mkdir("/opt/cursor/artifacts", { recursive: true });
     await page.screenshot({

@@ -1,6 +1,6 @@
 # Sklopený labyrint (tilt-maze)
 
-Hra **kulička v labyrintu** pro telefon: ovládání nakloněním (DeviceOrientation), záloha **šipkami / WASD** na počítači. Postaveno na **TypeScript**, **Phaser 3** s **Matter.js**, bundler **Vite**, nasazení jako **PWA** (manifest, service worker, offline, celá obrazovka, portrét).
+Hra **kulička v labyrintu** pro telefon: ovládání **nakloněním** (DeviceOrientation). Na počítači **analogová myš** od středu herní plochy (režimy myš ↔ senzor jsou vzájemně výlučné). Postaveno na **TypeScript**, **Phaser 3** s **Matter.js**, bundler **Vite**, nasazení jako **PWA** (manifest, service worker, offline, celá obrazovka, portrét).
 
 ## Požadavky
 
@@ -47,7 +47,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Scénáře: úroveň 1 **šipkami nahoru/vpravo** (s `?e2e=1&matterDebug=1` je vidět overlay Matter.js), a regresní test s `__debugCompleteLevel()`. Společně s `npm run test:unit` ověří BFS průchodnost úrovní.
+Scénáře: pohyb kuličky **myší** nebo simulovaným `deviceorientation` (s `?e2e=1&matterDebug=1` je vidět overlay Matter.js), regresní test s `__debugCompleteLevel()`. Společně s `npm run test:unit` ověří BFS průchodnost úrovní.
 
 ## Ladění fyziky v prohlížeči
 
@@ -58,9 +58,9 @@ Přidejte do URL **`?matterDebug=1`** — zobrazí se kontury Matter těles (mě
 1. Nahrajte `dist/` na HTTPS hosting nebo použijte GitHub Pages po zapnutí workflow (viz níže).
 2. V Chrome na telefonu otevřete nasazenou adresu.
 3. Přihlaste se přes **„Přidat na plochu“** / PWA (volitelné).
-4. Klepněte **Start** — aplikace může vyžádat celoobrazovkový režim a zámek na výšku.
+4. Vyberte úroveň a **Hrát vybranou úroveň** — aplikace může vyžádat celoobrazovkový režim a zámek na výšku. Nápověda je v menu (**H** nebo tlačítko).
 
-**Brave (Android):** pokud se po Start do ~1,5 s neobjeví žádná data ze senzorů, zobrazí se česká nápověda — zkontrolujte oprávnění **Motion sensors** u stránky a vypněte **Shields** pro tento web; Chrome vyžaduje HTTPS. (Některé buildy Brave události de/facto blokují nebo vracejí nuly.)
+**Brave (Android):** pokud se po startu hry do ~1,5 s neobjeví žádná data ze senzorů, zobrazí se česká nápověda — zkontrolujte oprávnění **Motion sensors** u stránky a vypněte **Shields** pro tento web; Chrome vyžaduje HTTPS. (Některé buildy Brave události de/facto blokují nebo vracejí nuly.)
 
 **Poznámka:** skutečné naklonění se na stolním Chromium netestuje; vyžaduje fyzické zařízení s gyroskopem.
 

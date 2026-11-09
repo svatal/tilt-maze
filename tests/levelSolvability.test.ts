@@ -8,7 +8,7 @@ import {
   validateLevelSet,
   validateWallsOnlyBand
 } from "../src/levelGeometry";
-import { isLevelSolvable } from "../src/levelSolvability";
+import { isLevelSolvable, pathToGoalLengthRatio } from "../src/levelSolvability";
 import { LEVELS } from "../src/levels";
 import { BALL_RADIUS } from "../src/constants";
 
@@ -55,6 +55,14 @@ describe("levelSolvability", () => {
   it("start a cíl nekolidují se zdmi ani pastmi", () => {
     for (const lvl of LEVELS) {
       expect(isSpawnAndGoalClear(lvl, BALL_RADIUS), `úroveň ${lvl.id}`).toBe(true);
+    }
+  });
+
+  it("úrovně 3–5: poměr délky cesty k přímce ≥ 1.6", () => {
+    for (const lvl of LEVELS.filter((x) => x.id >= 3 && x.id <= 5)) {
+      const ratio = pathToGoalLengthRatio(lvl);
+      expect(ratio, `úroveň ${lvl.id}`).not.toBeNull();
+      expect(ratio!, `úroveň ${lvl.id}`).toBeGreaterThanOrEqual(1.6);
     }
   });
 

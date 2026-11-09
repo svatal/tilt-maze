@@ -3,6 +3,15 @@
  * Osa Y: záporné rawY = síla nahoru na obrazovce (menší world y v Phaseru).
  */
 
+import { mouseModeSuppressesSensor } from "./mouseTiltMapping";
+
+function clampRawTilt(rawX: number, rawY: number): { rawX: number; rawY: number } {
+  return {
+    rawX: Math.max(-2.8, Math.min(2.8, rawX)),
+    rawY: Math.max(-2.8, Math.min(2.8, rawY))
+  };
+}
+
 export type TiltSampleInput = {
   lastGamma: number | null;
   lastBeta: number | null;
@@ -18,8 +27,11 @@ export type TiltSampleInput = {
   calGsX: number;
   calGsY: number;
   calGsZ: number;
-  keyX: number;
-  keyY: number;
+  mouseX: number;
+  mouseY: number;
+  mouseArmed: boolean;
+  mousePointerInside: boolean;
+  mouseWindowFocused: boolean;
   lastOrientTs: number;
   lastMotionTs: number;
   lastGravSensorTs: number;
@@ -31,8 +43,13 @@ export type TiltSampleInput = {
  * Vrací hrubé složky tiltu (před klipnutím a SMOOTH).
  */
 export function computeRawTiltAxes(s: TiltSampleInput): { rawX: number; rawY: number } {
-  let rawX = s.keyX;
-  let rawY = s.keyY;
+  if (mouseModeSuppressesSensor(s.mouseArmed, s.mouseWindowFocused)) {
+    if (s.mousePointerInside) return clampRawTilt(s.mouseX, s.mouseY);
+    return clampRawTilt(0, 0);
+  }
+
+  let rawX = 0;
+  let rawY = 0;
 
   const recentOrient = s.lastOrientTs > 0 && s.now - s.lastOrientTs < 550;
   const recentMotion = s.lastMotionTs > 0 && s.now - s.lastMotionTs < 550;
@@ -74,10 +91,7 @@ export function computeRawTiltAxes(s: TiltSampleInput): { rawX: number; rawY: nu
     }
   }
 
-  rawX = Math.max(-2.8, Math.min(2.8, rawX));
-  rawY = Math.max(-2.8, Math.min(2.8, rawY));
-
-  return { rawX, rawY };
+  return clampRawTilt(rawX, rawY);
 }
 
 /**
@@ -101,8 +115,11 @@ export function rawTiltFromBetaOnly(betaDeg: number, calBetaDeg = 0): number {
     calGsX: 0,
     calGsY: 0,
     calGsZ: 0,
-    keyX: 0,
-    keyY: 0,
+    mouseX: 0,
+    mouseY: 0,
+    mouseArmed: false,
+    mousePointerInside: false,
+    mouseWindowFocused: true,
     lastOrientTs: 1,
     lastMotionTs: 0,
     lastGravSensorTs: 0,

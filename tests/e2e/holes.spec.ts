@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { HOLE_TRIGGER_FRAC, holeTriggerRadius } from "../../src/holeSlope";
 import { LEVELS } from "../../src/levels";
+import { driveMouseTilt } from "./helpers/playwrightTilt";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "../..");
@@ -151,7 +152,7 @@ test("E2E past: rychlý průlet mimo trigger — bez propadu", async ({ page }) 
   expect(st?.lastTriggerDist).toBeNull();
 });
 
-test("E2E past: po propadu klávesnice bez restart", async ({ page }) => {
+test("E2E past: po propadu myší bez restart", async ({ page }) => {
   await startHoleLevel(page);
   await page.evaluate(
     ({ px, py }) => {
@@ -168,9 +169,7 @@ test("E2E past: po propadu klávesnice bez restart", async ({ page }) => {
     return { x: scene?.ball?.x ?? 0, static: st?.ballStatic ?? true };
   });
   expect(before.static).toBe(false);
-  await page.keyboard.down("ArrowRight");
-  await sleep(600);
-  await page.keyboard.up("ArrowRight");
+  await driveMouseTilt(page, { nx: 1, ny: 0 }, 650);
   const afterX = await page.evaluate(() => (window as unknown as { __tiltMazeScene?: { ball?: { x: number } } }).__tiltMazeScene?.ball?.x ?? 0);
   expect(afterX).toBeGreaterThan(before.x + 2);
 });
@@ -224,7 +223,7 @@ test("E2E cíl: okraj bez výhry, trigger až v 0.25r", async ({ page }) => {
   await expect(page.getByText("Výhra!", { exact: false })).toBeVisible({ timeout: 4000 });
 });
 
-test("E2E cíl: mezikruh + klávesnice → výhra až u středu", async ({ page }) => {
+test("E2E cíl: mezikruh + myš → výhra až u středu", async ({ page }) => {
   await startHoleLevel(page);
   await page.evaluate(
     ({ px, py }) => {
@@ -235,8 +234,6 @@ test("E2E cíl: mezikruh + klávesnice → výhra až u středu", async ({ page 
   );
   await sleep(150);
   expect(await page.getByText("Výhra!", { exact: false }).isVisible()).toBe(false);
-  await page.keyboard.down("ArrowUp");
-  await sleep(1400);
-  await page.keyboard.up("ArrowUp");
+  await driveMouseTilt(page, { nx: 0, ny: -1 }, 1400);
   await expect(page.getByText("Výhra!", { exact: false })).toBeVisible({ timeout: 8000 });
 });

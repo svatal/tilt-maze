@@ -17,6 +17,8 @@ import {
   holeLocalTilt,
   type HoleDef
 } from "../holeSlope";
+import { playAreaFromCanvasBounds, type PlayAreaRect } from "../mouseTiltMapping";
+import { MouseTiltOverlay } from "../mouseTiltOverlay";
 import { attachBuildInfoLabel } from "../ui/attachBuildInfo";
 import {
   DESKTOP_SENSOR_HINT_TEXT,
@@ -61,6 +63,8 @@ export class GameScene extends Phaser.Scene {
   private pendingStartPlay = false;
   private initialLevelIndex = 0;
   private desktopHintTimer: ReturnType<typeof setTimeout> | null = null;
+  private mouseOverlay: MouseTiltOverlay | null = null;
+  private btnMouseToggle: HTMLButtonElement | null = null;
   private sensorDebugEl: HTMLElement | null = null;
   private sensorDebugTimer: ReturnType<typeof setInterval> | null = null;
   private lastVibrateAt = 0;
@@ -84,16 +88,6 @@ export class GameScene extends Phaser.Scene {
     const qs = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
     const skipSensorBanner = qs.get("e2e") === "1";
     this.sensorStorage = typeof sessionStorage !== "undefined" ? sessionStorage : { getItem: () => null, setItem: () => undefined };
-    this.tilt = new TiltController(
-      skipSensorBanner
-        ? {}
-        : {
-            onSensorDesktopHint: () => this.maybeShowDesktopSensorHint(),
-            onSensorDataStale: () => this.maybeShowFullSensorWarning(),
-            onSensorDataRecovered: () => this.onSensorValidDataRecovered()
-          }
-    );
-
     this.ensureTextures();
     this.matter.world.setBounds(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT, 32, true, true, true, true);
     this.matter.world.setGravity(0, 0);
@@ -104,6 +98,22 @@ export class GameScene extends Phaser.Scene {
 
     this.buildBackground();
     this.buildHud();
+
+    this.mouseOverlay = new MouseTiltOverlay({ getPlayArea: () => this.getPlayArea() });
+
+    this.tilt = new TiltController({
+      getPlayArea: () => this.getPlayArea(),
+      isUiTarget: (el) => this.isOverlayUiTarget(el),
+      onMouseArmedChange: (armed) => this.onMouseArmedChanged(armed),
+      onMouseTiltVisual: (nx, ny, active) => this.mouseOverlay?.updateTilt(nx, ny, active),
+      ...(skipSensorBanner
+        ? {}
+        : {
+            onSensorDesktopHint: () => this.maybeShowDesktopSensorHint(),
+            onSensorDataStale: () => this.maybeShowFullSensorWarning(),
+            onSensorDataRecovered: () => this.onSensorValidDataRecovered()
+          })
+    });
 
     this.scale.on("resize", this.layoutHud, this);
     this.layoutHud(this.scale.gameSize);
@@ -123,6 +133,9 @@ export class GameScene extends Phaser.Scene {
       }
       this.sensorDebugEl?.remove();
       this.sensorDebugEl = null;
+      this.tilt?.setMouseArmed(false);
+      this.mouseOverlay?.destroy();
+      this.mouseOverlay = null;
       this.removeSensorBanner();
       this.uiRoot?.remove();
       this.removeBuildInfo?.();
@@ -390,23 +403,30 @@ export class GameScene extends Phaser.Scene {
       "left:0",
       "right:0",
       "display:none",
-      "flex-wrap:wrap",
-      "gap:8px",
-      "padding:12px",
+      "flex-direction:column",
+      "gap:6px",
+      "padding:8px 12px",
       "pointer-events:auto",
-      "align-items:center",
-      "justify-content:space-between",
       "color:#fff",
-      "text-shadow:0 1px 2px #000"
+      "text-shadow:0 1px 2px #000",
+      "box-sizing:border-box"
     ].join(";");
     this.hud = hud;
 
+    const titleRow = document.createElement("div");
+    titleRow.style.cssText = "display:flex;justify-content:space-between;align-items:baseline;gap:12px;width:100%";
+
     this.levelEl = document.createElement("div");
     this.levelEl.style.fontWeight = "700";
+    this.levelEl.style.flex = "1 1 auto";
+    this.levelEl.style.minWidth = "0";
     this.timerEl = document.createElement("div");
+    this.timerEl.style.flex = "0 0 auto";
+    this.timerEl.style.whiteSpace = "nowrap";
+    titleRow.append(this.levelEl, this.timerEl);
 
     const actions = document.createElement("div");
-    actions.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-left:auto";
+    actions.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;justify-content:center;width:100%";
 
     const mkBtn = (id: string, label: string) => {
       const b = document.createElement("button");
@@ -421,9 +441,14 @@ export class GameScene extends Phaser.Scene {
     const btnMenu = mkBtn("btn-menu", "Menu");
     const btnCal = mkBtn("btn-cal", "Kalibrovat");
     const btnRestart = mkBtn("btn-restart", "Restart");
-    actions.append(btnMenu, btnCal, btnRestart);
+    const btnMouse = mkBtn("btn-mouse", "Myš");
+    btnMouse.setAttribute("aria-pressed", "false");
+    btnMouse.title = "Zapnout/vypnout analogové ovládání myší (klávesa M)";
+    this.btnMouseToggle = btnMouse;
 
-    hud.append(this.levelEl, this.timerEl, actions);
+    actions.append(btnMenu, btnCal, btnRestart, btnMouse);
+
+    hud.append(titleRow, actions);
 
     this.winLayer = document.createElement("div");
     this.winLayer.style.cssText = [
@@ -453,6 +478,37 @@ export class GameScene extends Phaser.Scene {
     btnRestart.addEventListener("click", () => {
       this.restartLevel();
     });
+
+    btnMouse.addEventListener("click", () => {
+      this.tilt.toggleMouseArmed();
+    });
+  }
+
+  private getPlayArea(): PlayAreaRect {
+    const b = this.game.scale.canvasBounds;
+    return playAreaFromCanvasBounds({ x: b.x, y: b.y, width: b.width, height: b.height });
+  }
+
+  private isOverlayUiTarget(el: EventTarget | null): boolean {
+    if (!(el instanceof Node)) return false;
+    const ui = document.getElementById("tilt-maze-ui");
+    if (ui?.contains(el)) return true;
+    if (this.sensorBanner?.contains(el)) return true;
+    const menuHelp = document.getElementById("tilt-maze-help");
+    if (menuHelp?.contains(el)) return true;
+    return false;
+  }
+
+  private onMouseArmedChanged(armed: boolean): void {
+    this.btnMouseToggle?.setAttribute("aria-pressed", String(armed));
+    this.btnMouseToggle?.classList.toggle("mouse-armed-active", armed);
+    if (armed) {
+      this.btnMouseToggle!.style.outline = "2px solid rgba(201,162,39,0.85)";
+    } else {
+      this.btnMouseToggle!.style.outline = "";
+    }
+    this.mouseOverlay?.setArmed(armed);
+    this.mouseOverlay?.layout();
   }
 
   private setupSensorDebugOverlay(): void {
@@ -480,7 +536,7 @@ export class GameScene extends Phaser.Scene {
     const tick = (): void => {
       const s = this.tilt.getSensorSnapshot();
       const issue = this.tilt.monitor.classifySensorIssue(performance.now());
-      const warn = issue !== "ok" && !this.tilt.isKeyboardActive();
+      const warn = issue !== "ok" && !this.tilt.isDesktopInputOverride();
       el.textContent = [
         `[sensorDebug] issue=${issue} warn=${warn}`,
         `perm A/G/M: ${s.permAccel}/${s.permGyro}/${s.permMag} denied=${s.permissionDenied}`,
@@ -593,18 +649,41 @@ export class GameScene extends Phaser.Scene {
   }
 
   private layoutHud(_size: Phaser.Structs.Size): void {
-    // Režim Scale.FIT v main.ts — kamera zůstává 1:1 ve světě DESIGN_WIDTH×DESIGN_HEIGHT, mezery jsou mimo canvas
-    const bounds = this.game.scale.canvasBounds;
-    if (this.hud) {
-      this.hud.style.paddingLeft = `${Math.max(8, Math.round(bounds.left))}px`;
-      this.hud.style.paddingRight = `${Math.max(8, Math.round(window.innerWidth - bounds.right))}px`;
+    if (!this.hud) return;
+    const container = document.getElementById("game-container");
+    const hudBandPx =
+      this.hud.style.display !== "none"
+        ? Math.ceil(this.hud.getBoundingClientRect().height) + 16
+        : 96;
+    if (container) {
+      container.style.paddingTop = `${hudBandPx}px`;
+      container.style.boxSizing = "border-box";
     }
+    const bounds = this.game.scale.canvasBounds;
+    this.hud.style.top = "6px";
+    this.hud.style.left = `${Math.max(0, Math.round(bounds.left))}px`;
+    this.hud.style.width = `${Math.max(0, Math.round(bounds.width))}px`;
+    this.hud.style.paddingLeft = "8px";
+    this.hud.style.paddingRight = "8px";
+    this.mouseOverlay?.layout();
+  }
+
+  /** E2E: HUD je celý nad horním okrajem herní desky (nebo v horním letterboxu). */
+  verifyHudAboveBoard(): boolean {
+    if (!this.hud || this.hud.style.display === "none") return true;
+    const hb = this.hud.getBoundingClientRect();
+    const canvas = this.game.canvas as HTMLCanvasElement;
+    const cb = canvas.getBoundingClientRect();
+    return hb.bottom <= cb.top + 2;
   }
 
   private returnToMenu(): void {
     this.running = false;
+    this.tilt?.setMouseArmed(false);
     this.cancelTerminalMotion();
     this.removeSensorBanner();
+    const container = document.getElementById("game-container");
+    if (container) container.style.paddingTop = "";
     this.scene.start("MenuScene");
   }
 
@@ -632,6 +711,7 @@ export class GameScene extends Phaser.Scene {
     this.hud.style.display = "flex";
     this.running = true;
     this.elapsedMs = 0;
+    this.layoutHud(this.scale.gameSize);
   }
 
   private clearDecor(): void {
@@ -669,6 +749,8 @@ export class GameScene extends Phaser.Scene {
     this.elapsedMs = 0;
     this.winLayer.style.display = "none";
     this.winLayer.innerHTML = "";
+    this.layoutHud(this.scale.gameSize);
+    requestAnimationFrame(() => this.layoutHud(this.scale.gameSize));
   }
 
   private spawnLevel(lvl: LevelDef): void {

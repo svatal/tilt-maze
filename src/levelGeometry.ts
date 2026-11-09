@@ -3,13 +3,24 @@
  */
 
 import { BALL_RADIUS, DESIGN_HEIGHT, DESIGN_WIDTH } from "./constants";
+import {
+  hasClearStraightCorridor,
+  isFreePoint,
+  maxFreeVerticalRun,
+  pathToGoalLengthRatio
+} from "./levelSolvability";
 import type { LevelDef, WallDef } from "./levels";
 
+/** Vnitřní hrany obvodu (souřadnice odpovídají středům segmentů). */
+const FRAME_TOP = 32;
+const FRAME_BOTTOM = 608;
+const FRAME_H_SPAN = FRAME_BOTTOM - FRAME_TOP;
+
 export const PERIMETER_WALLS: WallDef[] = [
-  { cx: 180, cy: 20, w: 340, h: 24 },
-  { cx: 180, cy: 620, w: 340, h: 24 },
-  { cx: 20, cy: 320, w: 24, h: 580 },
-  { cx: 340, cy: 320, w: 24, h: 580 }
+  { cx: 180, cy: 20, w: 296, h: 24 },
+  { cx: 180, cy: 620, w: 296, h: 24 },
+  { cx: 20, cy: 320, w: 24, h: FRAME_H_SPAN },
+  { cx: 340, cy: 320, w: 24, h: FRAME_H_SPAN }
 ];
 
 const WALL_EPS = 0.5;
@@ -153,6 +164,32 @@ export function validateLevelSet(levels: LevelDef[]): void {
     }
     if (trapOverlapsAnyWall(lvl)) {
       throw new Error(`Úroveň ${lvl.id}: past protíná zeď.`);
+    }
+    if (lvl.id >= 2 && hasClearStraightCorridor(lvl)) {
+      throw new Error(`Úroveň ${lvl.id}: přímá start–cíl trajektorie není blokovaná.`);
+    }
+    if (lvl.id >= 3 && lvl.id <= 5) {
+      const ratio = pathToGoalLengthRatio(lvl);
+      if (ratio == null || ratio < 1.6) {
+        throw new Error(`Úroveň ${lvl.id}: BFS cesta / přímka ${ratio?.toFixed(2) ?? "—"} < 1.6.`);
+      }
+      let centerFree = 0;
+      for (let y = 130; y <= 580; y += 22) {
+        if (isFreePoint(DESIGN_WIDTH / 2, y, BALL_RADIUS, lvl)) centerFree++;
+      }
+      if (centerFree > 12) {
+        throw new Error(`Úroveň ${lvl.id}: příliš volná středová svislá šachta (${centerFree} vzorků).`);
+      }
+    }
+    if (lvl.id === 10) {
+      const maxEdge = Math.max(
+        maxFreeVerticalRun(lvl, 51, 165, 500, BALL_RADIUS, 2),
+        maxFreeVerticalRun(lvl, 309, 165, 500, BALL_RADIUS, 2)
+      );
+      const ballPass = 2 * BALL_RADIUS + 4;
+      if (maxEdge >= ballPass) {
+        throw new Error(`Úroveň 10: volný úsek u kraje ${maxEdge.toFixed(0)}px ≥ ${ballPass}px.`);
+      }
     }
   }
 }

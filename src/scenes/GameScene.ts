@@ -1,8 +1,7 @@
 import Phaser from "phaser";
-import { BUILD_INFO_LABEL } from "../buildInfo.generated";
 import { BALL_RADIUS, DESIGN_HEIGHT, DESIGN_WIDTH } from "../constants";
 import { LEVELS, type LevelDef } from "../levels";
-import { requestIOSMotionPermission, TiltController } from "../tilt";
+import { TiltController } from "../tilt";
 import {
   markUserDismissedSensorBanner,
   markValidSensorRecovery,
@@ -19,7 +18,14 @@ import {
   type HoleDef
 } from "../holeSlope";
 import { playAreaFromCanvasBounds, type PlayAreaRect } from "../mouseTiltMapping";
-import { MouseTiltOverlay, createMouseHelpPanel } from "../mouseTiltOverlay";
+import { MouseTiltOverlay } from "../mouseTiltOverlay";
+import { attachBuildInfoLabel } from "../ui/attachBuildInfo";
+import {
+  DESKTOP_SENSOR_HINT_TEXT,
+  SENSOR_DISMISS_BUTTON_LABEL,
+  SENSOR_WARNING_INNER_HTML
+} from "../ui/sensorHelpContent";
+import type { GameSceneStartData } from "./MenuScene";
 
 const WALL_FRICTION = 0.08;
 /** Restituce kuličky – u kolize se zdí rozhoduje Math.max(kulička, zeď). */
@@ -33,15 +39,8 @@ const GOAL_SETTLE_MS = 460;
 const TRAP_SINK_MS = 280;
 const DESKTOP_HINT_MS = 5500;
 
-const SENSOR_HTML = `
-  <div style="margin-bottom:12px;font-size:1.05rem;font-weight:700">Senzory nepřijímají data</div>
-  <p style="margin:0 0 10px;max-width:340px;line-height:1.45;font-size:0.9rem">
-    Prohlížeč neposílá údaje o naklonění. Na <strong>Androidu v Brave</strong> zkontrolujte stránkové oprávnění
-    <strong>Pohybové senzory</strong> (ikonka zámku v adresním řádku → oprávnění) a že
-    <strong>Brave Shields</strong> neblokují senzory. V <strong>Chrome</strong> musí být stránka na <strong>HTTPS</strong>.
-    Na iOS povolte přístup v dialogu. Můžete použít tlačítka <strong>Kalibrovat</strong> po položení telefonu rovně.
-  </p>
-  <button type="button" id="sensor-dismiss" style="padding:10px 20px;border-radius:10px;border:1px solid #c9a227;background:#3d2918;color:#f5e6d3;cursor:pointer;font-size:0.9rem">Rozumím, použiju myš</button>
+const SENSOR_HTML = `${SENSOR_WARNING_INNER_HTML}
+  <button type="button" id="sensor-dismiss" style="padding:10px 20px;border-radius:10px;border:1px solid #c9a227;background:#3d2918;color:#f5e6d3;cursor:pointer;font-size:0.9rem;min-height:44px">${SENSOR_DISMISS_BUTTON_LABEL}</button>
 `;
 
 export class GameScene extends Phaser.Scene {
@@ -58,8 +57,11 @@ export class GameScene extends Phaser.Scene {
   private timerEl!: HTMLElement;
   private levelEl!: HTMLElement;
   private winLayer!: HTMLElement;
-  private startScreen!: HTMLElement;
+  private uiRoot!: HTMLElement;
   private sensorBanner: HTMLElement | null = null;
+  private removeBuildInfo: (() => void) | null = null;
+  private pendingStartPlay = false;
+  private initialLevelIndex = 0;
   private desktopHintTimer: ReturnType<typeof setTimeout> | null = null;
   private mouseOverlay: MouseTiltOverlay | null = null;
   private btnMouseToggle: HTMLButtonElement | null = null;
@@ -75,6 +77,11 @@ export class GameScene extends Phaser.Scene {
   private e2eLastTriggerDist: number | null = null;
   constructor() {
     super({ key: "GameScene" });
+  }
+
+  init(data?: GameSceneStartData): void {
+    this.initialLevelIndex = data?.levelIndex ?? 0;
+    this.pendingStartPlay = data?.startPlay === true;
   }
 
   create(): void {
@@ -126,14 +133,23 @@ export class GameScene extends Phaser.Scene {
       }
       this.sensorDebugEl?.remove();
       this.sensorDebugEl = null;
+      this.tilt?.setMouseArmed(false);
       this.mouseOverlay?.destroy();
       this.mouseOverlay = null;
-      this.tilt.destroy();
+      this.removeSensorBanner();
+      this.uiRoot?.remove();
+      this.removeBuildInfo?.();
+      this.removeBuildInfo = null;
+      this.running = false;
+      this.scale.off("resize", this.layoutHud, this);
+      this.tilt?.destroy();
       this.game.events.off("debug-complete-level", this.debugWinLevel, this);
-      this.matter.world.off("collisionstart", this.onCollisionStart, this);
+      if (this.matter?.world) {
+        this.matter.world.off("collisionstart", this.onCollisionStart, this);
+      }
     });
 
-    this.loadLevel(0);
+    this.loadLevel(this.initialLevelIndex);
 
     if (qs.get("sensorDebug") === "1") {
       this.setupSensorDebugOverlay();
@@ -173,7 +189,11 @@ export class GameScene extends Phaser.Scene {
       };
     }
 
-    this.attachBuildInfoLabel();
+    this.removeBuildInfo = attachBuildInfoLabel();
+
+    if (this.pendingStartPlay) {
+      void this.beginPlay();
+    }
   }
 
   /** E2E: přesun kuličky a reset rychlosti. */
@@ -208,30 +228,6 @@ export class GameScene extends Phaser.Scene {
       }
     }
     return true;
-  }
-
-  private attachBuildInfoLabel(): void {
-    const el = document.createElement("div");
-    el.id = "tilt-maze-build-info";
-    el.textContent = BUILD_INFO_LABEL;
-    el.style.cssText = [
-      "position:fixed",
-      "right:10px",
-      "bottom:8px",
-      "z-index:2147483645",
-      "font:10px/1.3 system-ui,sans-serif",
-      "color:rgba(245,230,211,0.72)",
-      "text-shadow:0 1px 2px #000",
-      "pointer-events:none",
-      "max-width:min(90vw,420px)",
-      "text-align:right",
-      "white-space:pre-wrap",
-      "word-break:break-word"
-    ].join(";");
-    document.body.appendChild(el);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      el.remove();
-    });
   }
 
   update(_time: number, delta: number): void {
@@ -400,36 +396,6 @@ export class GameScene extends Phaser.Scene {
       "z-index:10"
     ].join(";");
 
-    this.startScreen = document.createElement("div");
-    this.startScreen.style.cssText = [
-      "position:absolute",
-      "inset:0",
-      "display:flex",
-      "flex-direction:column",
-      "align-items:center",
-      "justify-content:center",
-      "background:rgba(15,10,6,0.88)",
-      "pointer-events:auto",
-      "padding:24px",
-      "box-sizing:border-box",
-      "text-align:center",
-      "color:#f5e6d3"
-    ].join(";");
-    this.startScreen.innerHTML = `
-      <h1 style="margin:0 0 12px;font-size:1.5rem;font-weight:700">Sklopený labyrint</h1>
-      <p style="margin:0 0 20px;max-width:320px;line-height:1.45;font-size:0.95rem">
-        Nakloňte telefon a doveďte kuličku do cílové díry. Vyhněte se pastem.
-        Na ploše zapněte myš a táhněte kurzor od středu herní plochy (tlačítko Myš).
-      </p>
-      <button id="btn-start" type="button" style="padding:14px 28px;font-size:1.05rem;border-radius:12px;border:none;background:#c9a227;color:#1a120a;font-weight:700;cursor:pointer">
-        Start
-      </button>
-      <p style="margin:16px 0 0;font-size:0.75rem;opacity:0.75">
-        Vyžaduje HTTPS (Chrome na Androidu). iOS: po Start může systém vyžádat přístup k pohybu.
-        Brave: povolte „Motion sensors“ u stránky; Shields může senzory blokovat.
-      </p>
-    `;
-
     const hud = document.createElement("div");
     hud.style.cssText = [
       "position:absolute",
@@ -465,6 +431,7 @@ export class GameScene extends Phaser.Scene {
       return b;
     };
 
+    const btnMenu = mkBtn("btn-menu", "Menu");
     const btnCal = mkBtn("btn-cal", "Kalibrovat");
     const btnRestart = mkBtn("btn-restart", "Restart");
     const btnMouse = mkBtn("btn-mouse", "Myš");
@@ -472,8 +439,7 @@ export class GameScene extends Phaser.Scene {
     btnMouse.title = "Zapnout/vypnout analogové ovládání myší (klávesa M)";
     this.btnMouseToggle = btnMouse;
 
-    const mouseHelp = createMouseHelpPanel();
-    actions.append(btnCal, btnRestart, btnMouse, mouseHelp.root);
+    actions.append(btnMenu, btnCal, btnRestart, btnMouse);
 
     hud.append(this.levelEl, this.timerEl, actions);
 
@@ -492,11 +458,11 @@ export class GameScene extends Phaser.Scene {
       "padding:24px"
     ].join(";");
 
-    root.append(this.startScreen, hud, this.winLayer);
+    root.append(hud, this.winLayer);
     document.body.appendChild(root);
+    this.uiRoot = root;
 
-    const btnStart = this.startScreen.querySelector("#btn-start") as HTMLButtonElement;
-    btnStart.addEventListener("click", () => void this.onStartClick());
+    btnMenu.addEventListener("click", () => this.returnToMenu());
 
     btnCal.addEventListener("click", () => {
       this.tilt.calibrate();
@@ -521,8 +487,8 @@ export class GameScene extends Phaser.Scene {
     const ui = document.getElementById("tilt-maze-ui");
     if (ui?.contains(el)) return true;
     if (this.sensorBanner?.contains(el)) return true;
-    const help = document.getElementById("tilt-maze-mouse-help");
-    if (help?.contains(el)) return true;
+    const menuHelp = document.getElementById("tilt-maze-help");
+    if (menuHelp?.contains(el)) return true;
     return false;
   }
 
@@ -619,8 +585,7 @@ export class GameScene extends Phaser.Scene {
       "line-height:1.4",
       "box-shadow:0 3px 12px rgba(0,0,0,0.35)"
     ].join(";");
-    el.textContent =
-      "Na tomto zařízení zapněte Myš a táhněte kurzor od středu herní plochy (viz nápověda).";
+    el.textContent = DESKTOP_SENSOR_HINT_TEXT;
     document.body.appendChild(el);
     this.sensorBanner = el;
     this.desktopHintTimer = setTimeout(() => {
@@ -686,8 +651,15 @@ export class GameScene extends Phaser.Scene {
     this.mouseOverlay?.layout();
   }
 
-  private async onStartClick(): Promise<void> {
-    await requestIOSMotionPermission();
+  private returnToMenu(): void {
+    this.running = false;
+    this.tilt?.setMouseArmed(false);
+    this.cancelTerminalMotion();
+    this.removeSensorBanner();
+    this.scene.start("MenuScene");
+  }
+
+  private async beginPlay(): Promise<void> {
     await this.tilt.startSensors();
     this.tilt.calibrate();
 
@@ -708,7 +680,6 @@ export class GameScene extends Phaser.Scene {
       }
     })();
 
-    this.startScreen.style.display = "none";
     this.hud.style.display = "flex";
     this.running = true;
     this.elapsedMs = 0;
@@ -869,9 +840,12 @@ export class GameScene extends Phaser.Scene {
       <h2 style="margin:0 0 12px;font-size:1.4rem">Výhra!</h2>
       <p style="margin:0 0 8px">Čas: <strong>${this.formatTime(this.elapsedMs)}</strong></p>
       <p style="margin:0 0 20px">${finishedAll ? "Gratulujeme, zvládli jste všechny úrovně!" : "Připravte se na další úroveň."}</p>
-      <button id="btn-next" type="button" style="padding:12px 24px;font-size:1rem;border-radius:12px;border:none;background:#c9a227;color:#1a120a;font-weight:700;cursor:pointer">
-        ${finishedAll ? "Hrát znovu od začátku" : "Další úroveň"}
-      </button>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center">
+        <button id="btn-next" type="button" style="padding:12px 24px;font-size:1rem;border-radius:12px;border:none;background:#c9a227;color:#1a120a;font-weight:700;cursor:pointer;min-height:44px">
+          ${finishedAll ? "Hrát znovu od začátku" : "Další úroveň"}
+        </button>
+        <button id="btn-win-menu" type="button" style="padding:12px 24px;font-size:1rem;border-radius:12px;border:1px solid #c9a227;background:#3d2918;color:#f5e6d3;font-weight:600;cursor:pointer;min-height:44px">Menu</button>
+      </div>
     `;
     this.winLayer.style.display = "flex";
     const btn = this.winLayer.querySelector("#btn-next") as HTMLButtonElement;
@@ -881,6 +855,13 @@ export class GameScene extends Phaser.Scene {
         if (finishedAll) this.loadLevel(0);
         else this.loadLevel(next);
         this.running = true;
+      },
+      { once: true }
+    );
+    this.winLayer.querySelector("#btn-win-menu")?.addEventListener(
+      "click",
+      () => {
+        this.returnToMenu();
       },
       { once: true }
     );

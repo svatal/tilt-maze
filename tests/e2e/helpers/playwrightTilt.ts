@@ -1,6 +1,16 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+export async function startGameFromMenu(page: Page, levelIndex = 0): Promise<void> {
+  await page.goto(`${(process.env.E2E_BASE_PATH ?? "/tilt-maze/").replace(/\/?$/, "/")}?e2e=1`, {
+    waitUntil: "domcontentloaded"
+  });
+  await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 15000 });
+  await page.locator(`button[data-level-index="${levelIndex}"]`).click();
+  await page.locator("#menu-btn-play").click();
+  await expect(page.locator("#tilt-maze-ui")).toBeVisible({ timeout: 10000 });
+}
 
 /** Zapne režim Myš a drží kurzor v normalizovaném směru (−1…1) uvnitř canvasu. */
 export async function driveMouseTilt(

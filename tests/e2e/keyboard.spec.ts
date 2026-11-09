@@ -22,9 +22,7 @@ test("E2E: myš posune kuličku + Matter debug bez chyb", async ({ page }) => {
   });
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 
-  await page.goto(`${basePath}?e2e=1&matterDebug=1`, { waitUntil: "networkidle" });
-
-  await page.getByRole("button", { name: "Start" }).click();
+  await page.goto(`${basePath}?e2e=1&skipMenu=1&matterDebug=1`, { waitUntil: "networkidle" });
   await expect(page.locator("#tilt-maze-ui")).toBeVisible();
 
   const x0 = await page.evaluate(() => (window as unknown as { __tiltMazeScene?: { ball?: { x: number } } }).__tiltMazeScene?.ball?.x ?? 0);
@@ -37,8 +35,7 @@ test("E2E: myš posune kuličku + Matter debug bez chyb", async ({ page }) => {
 });
 
 test("E2E: myš + lokální sklon cíle → výhra (stejný flow jako holes)", async ({ page }) => {
-  await page.goto(`${basePath}?e2e=1`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "Start" }).click();
+  await page.goto(`${basePath}?e2e=1&skipMenu=1`, { waitUntil: "networkidle" });
 
   await page.evaluate(() => {
     const w = window as unknown as { __e2ePlaceBall?: (x: number, y: number) => void };
@@ -59,8 +56,7 @@ test("E2E: debug hook dokončí úroveň (regrese)", async ({ page }) => {
   });
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 
-  await page.goto(`${basePath}?e2e=1`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "Start" }).click();
+  await page.goto(`${basePath}?e2e=1&skipMenu=1`, { waitUntil: "networkidle" });
   await page.evaluate(() => {
     (window as unknown as { __debugCompleteLevel?: () => void }).__debugCompleteLevel?.();
   });

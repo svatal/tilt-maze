@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { dispatchDeviceOrientation, driveMouseTilt } from "./helpers/playwrightTilt";
+import { dispatchDeviceOrientation, driveMouseTilt, startGameFromMenu } from "./helpers/playwrightTilt";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "../..");
@@ -26,8 +26,7 @@ test("E2E: analogová myš — aktivace, indikátor, bez tiltu před zapnutím",
   });
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 
-  await page.goto(`${basePath}?e2e=1`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "Start" }).click();
+  await startGameFromMenu(page, 0);
 
   await expect(page.locator("#tilt-maze-mouse-overlay")).toBeHidden();
 
@@ -75,8 +74,7 @@ test("E2E: analogová myš — aktivace, indikátor, bez tiltu před zapnutím",
 });
 
 test("E2E: zapnutá myš ignoruje deviceorientation; po vypnutí senzor platí", async ({ page }) => {
-  await page.goto(`${basePath}?e2e=1`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "Start" }).click();
+  await startGameFromMenu(page, 0);
 
   await dispatchDeviceOrientation(page, 28, 5);
   const sensorTilt = await page.evaluate(() => {
@@ -122,8 +120,7 @@ test("E2E: zapnutá myš ignoruje deviceorientation; po vypnutí senzor platí",
 test("E2E: landscape layout — ovládací plocha a overlay", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 900, height: 520 } });
   const page = await context.newPage();
-  await page.goto(`${basePath}?e2e=1`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "Start" }).click();
+  await startGameFromMenu(page, 0);
   await page.getByRole("button", { name: "Myš", exact: true }).click();
   const canvas = page.locator("#game-container canvas");
   await expect(canvas).toBeVisible();

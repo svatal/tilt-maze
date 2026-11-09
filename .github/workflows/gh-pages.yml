@@ -23,6 +23,8 @@ jobs:
       VITE_BASE_PATH: ${{ github.event_name == 'pull_request' && format('/tilt-maze/pr-{0}/', github.event.pull_request.number) || '/tilt-maze/' }}
       E2E_BASE_PATH: ${{ github.event_name == 'pull_request' && format('/tilt-maze/pr-{0}/', github.event.pull_request.number) || '/tilt-maze/' }}
       PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+      # Štítek v aplikaci: u PR head commit větve (ne ephemeral merge SHA z GITHUB_SHA).
+      BUILD_INFO_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       VITE_IS_PR_PREVIEW: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
       VITE_DISABLE_PWA: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
     steps:
@@ -95,8 +97,8 @@ jobs:
         with:
           script: |
             const pr = context.payload.pull_request.number;
+            const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const owner = context.repo.owner.login;
             const url = `https://${owner}.github.io/${repo}/tilt-maze/pr-${pr}/`;
             const marker = '<!-- pr-preview-bot -->';
             const body = `${marker}
@@ -106,22 +108,28 @@ jobs:
 
             Po zavření nebo sloučení PR se složka \`pr-${pr}\` z \`gh-pages\` smaže. Produkce zůstává na \`https://${owner}.github.io/${repo}/tilt-maze/\`.`;
 
-            const { data: comments } = await github.rest.issues.listComments({
-              owner,
-              repo,
-              issue_number: pr,
-              per_page: 100
-            });
-            const existing = comments.find(c => c.body && c.body.includes(marker));
-            if (existing) {
-              await github.rest.issues.updateComment({
+            try {
+              const { data: comments } = await github.rest.issues.listComments({
                 owner,
                 repo,
-                comment_id: existing.id,
-                body
+                issue_number: pr,
+                per_page: 100
               });
-            } else {
-              await github.rest.issues.createComment({ owner, repo, issue_number: pr, body });
+              const existing = comments.find(c => c.body && c.body.includes(marker));
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: existing.id,
+                  body
+                });
+              } else {
+                await github.rest.issues.createComment({ owner, repo, issue_number: pr, body });
+              }
+            } catch (err) {
+              core.warning(
+                `Nasazení náhledu proběhlo, ale komentář na PR #${pr} se nepodařilo zapsat: ${err.message}`
+              );
             }
 
   pr-cleanup:
@@ -159,7 +167,7 @@ jobs:
         with:
           script: |
             const pr = context.payload.pull_request.number;
-            const owner = context.repo.owner.login;
+            const owner = context.repo.owner;
             const repo = context.repo.repo;
             const marker = '<!-- pr-preview-bot -->';
             const body = `${marker}
@@ -167,14 +175,20 @@ jobs:
 
             Složka \`pr-${pr}\` byla po zavření PR odstraněna z větve \`gh-pages\`.`;
 
-            const { data: comments } = await github.rest.issues.listComments({
-              owner, repo, issue_number: pr, per_page: 100
-            });
-            const existing = comments.find(c => c.body && c.body.includes(marker));
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner, repo, comment_id: existing.id, body
+            try {
+              const { data: comments } = await github.rest.issues.listComments({
+                owner, repo, issue_number: pr, per_page: 100
               });
-            } else {
-              await github.rest.issues.createComment({ owner, repo, issue_number: pr, body });
+              const existing = comments.find(c => c.body && c.body.includes(marker));
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner, repo, comment_id: existing.id, body
+                });
+              } else {
+                await github.rest.issues.createComment({ owner, repo, issue_number: pr, body });
+              }
+            } catch (err) {
+              core.warning(
+                `Složka pr-${pr} byla z gh-pages odstraněna (nebo už neexistovala), ale komentář na PR se nepodařilo aktualizovat: ${err.message}`
+              );
             }

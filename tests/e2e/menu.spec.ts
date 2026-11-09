@@ -65,6 +65,72 @@ test("E2E: desktop — karty úrovní kompaktní a v panelu", async ({ page }) =
   expect(layout!.listInsideMenu).toBe(true);
 });
 
+test("E2E: desktop — menu uvnitř hracího panelu (kromě build info)", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${basePath}?e2e=1`, { waitUntil: "domcontentloaded" });
+  await expect(page.getByTestId("main-menu")).toBeVisible();
+  await page.waitForFunction(
+    () => {
+      const g = (window as unknown as { __tiltMazeGame?: { scale: { canvasBounds: { width: number } } } })
+        .__tiltMazeGame;
+      return (g?.scale.canvasBounds.width ?? 0) > 0;
+    },
+    { timeout: 10000 }
+  );
+
+  const result = await page.evaluate(() => {
+    const game = (window as unknown as {
+      __tiltMazeGame?: { scale: { canvasBounds: { x: number; y: number; width: number; height: number } } };
+    }).__tiltMazeGame;
+    if (!game) return { ok: false, reason: "chybí __tiltMazeGame" as const };
+    const cb = game.scale.canvasBounds;
+    const pad = 3;
+    const panel = {
+      left: cb.x - pad,
+      top: cb.y - pad,
+      right: cb.x + cb.width + pad,
+      bottom: cb.y + cb.height + pad
+    };
+
+    const inside = (r: DOMRect) =>
+      r.left >= panel.left && r.right <= panel.right && r.top >= panel.top && r.bottom <= panel.bottom;
+
+    const targets: { label: string; el: Element | null }[] = [
+      { label: "header", el: document.querySelector("#tilt-maze-menu header") },
+      { label: "level-list", el: document.getElementById("tilt-maze-level-list") },
+      { label: "play", el: document.getElementById("menu-btn-play") },
+      { label: "help", el: document.getElementById("menu-btn-help") },
+      { label: "hint", el: document.querySelector("#tilt-maze-menu > p") }
+    ];
+
+    document.querySelectorAll("#tilt-maze-level-list button").forEach((btn, i) => {
+      targets.push({ label: `level-${i}`, el: btn });
+    });
+
+    const outside: string[] = [];
+    for (const t of targets) {
+      if (!t.el) {
+        outside.push(`chybí: ${t.label}`);
+        continue;
+      }
+      if (!inside(t.el.getBoundingClientRect())) outside.push(t.label);
+    }
+
+    const buildEl = document.getElementById("tilt-maze-build-info");
+    const buildInPanel = buildEl ? inside(buildEl.getBoundingClientRect()) : null;
+
+    return {
+      ok: outside.length === 0,
+      outside,
+      panel: { w: cb.width, h: cb.height, x: cb.x, y: cb.y },
+      buildInPanel
+    };
+  });
+
+  expect(result.outside, JSON.stringify(result)).toEqual([]);
+  expect(result.buildInPanel, "build info má být mimo panel").toBe(false);
+});
+
 test("E2E: nápověda senzorů v menu", async ({ page }) => {
   await page.goto(`${basePath}?e2e=1`, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 15000 });

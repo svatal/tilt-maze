@@ -35,8 +35,11 @@ export class MenuScene extends Phaser.Scene {
     this.buildBackground();
     this.removeBuildInfo = attachBuildInfoLabel();
     this.buildDomMenu();
+    this.scale.on("resize", this.layoutMenu, this);
+    this.layoutMenu();
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off("resize", this.layoutMenu, this);
       this.detachKeyboard();
       this.helpLayer?.remove();
       this.helpLayer = null;
@@ -47,6 +50,19 @@ export class MenuScene extends Phaser.Scene {
       this.levelButtons = [];
     });
   }
+
+  private layoutMenu = (): void => {
+    if (!this.rootEl) return;
+    const b = this.game.scale.canvasBounds;
+    const left = Math.round(b.left);
+    const top = Math.round(b.top);
+    const w = Math.max(1, Math.round(b.width));
+    const h = Math.max(1, Math.round(b.height));
+    this.rootEl.style.left = `${left}px`;
+    this.rootEl.style.top = `${top}px`;
+    this.rootEl.style.width = `${w}px`;
+    this.rootEl.style.height = `${h}px`;
+  };
 
   private buildBackground(): void {
     const g = this.add.graphics();
@@ -64,7 +80,6 @@ export class MenuScene extends Phaser.Scene {
     root.dataset.testid = "main-menu";
     root.style.cssText = [
       "position:fixed",
-      "inset:0",
       "z-index:20",
       "pointer-events:auto",
       "font-family:system-ui,Segoe UI,Roboto,sans-serif",
@@ -78,8 +93,7 @@ export class MenuScene extends Phaser.Scene {
     ].join(";");
 
     const header = document.createElement("header");
-    header.style.cssText =
-      "text-align:center;flex-shrink:0;margin-bottom:12px;width:min(640px,100%);box-sizing:border-box";
+    header.style.cssText = "text-align:center;flex-shrink:0;margin-bottom:12px;width:100%;box-sizing:border-box";
     header.innerHTML = `
       <h1 style="margin:0 0 6px;font-size:clamp(1.35rem,4vw,1.75rem);font-weight:700">Sklopený labyrint</h1>
       <p style="margin:0;font-size:0.9rem;line-height:1.4;opacity:0.88;max-width:520px;margin-left:auto;margin-right:auto">
@@ -94,9 +108,8 @@ export class MenuScene extends Phaser.Scene {
       "display:flex",
       "flex-direction:column",
       "gap:12px",
-      "width:min(640px,100%)",
-      "box-sizing:border-box",
-      "align-self:center"
+      "width:100%",
+      "box-sizing:border-box"
     ].join(";");
 
     const levelLabel = document.createElement("div");
@@ -157,7 +170,7 @@ export class MenuScene extends Phaser.Scene {
 
     const hint = document.createElement("p");
     hint.style.cssText =
-      "margin:0;font-size:0.75rem;opacity:0.75;text-align:center;flex-shrink:0;width:min(640px,100%);box-sizing:border-box";
+      "margin:0;font-size:0.75rem;opacity:0.75;text-align:center;flex-shrink:0;width:100%;box-sizing:border-box";
     hint.textContent = "Šipky / Tab: výběr úrovně · Enter: hrát · H: nápověda";
 
     main.append(levelLabel, levelScroll, actions);

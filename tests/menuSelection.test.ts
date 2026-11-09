@@ -9,9 +9,13 @@ describe("úvodní menu — data", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("nápověda obsahuje ovládání klávesnicí a senzory", () => {
+  it("nápověda obsahuje myš, senzory a bez ovládání kuličky šipkami", () => {
     const text = HELP_SECTIONS.map((s) => s.title + s.bodyHtml).join(" ");
-    expect(text).toMatch(/WASD|šipky/i);
+    expect(text).toMatch(/Myš/i);
+    expect(text).toMatch(/hnědočern/i);
+    expect(text).not.toMatch(/červeným pastem|červených past/i);
+    expect(text).not.toMatch(/WASD/i);
+    expect(text).not.toMatch(/šipky nebo/i);
     expect(text).toMatch(/Brave/i);
     expect(text).toMatch(/HTTPS/i);
     expect(text).toMatch(/Kalibr/i);

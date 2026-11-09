@@ -136,12 +136,37 @@ for (const viewport of [
   });
 }
 
+test("E2E: návrat do menu vypne režim myši", async ({ page }) => {
+  await page.goto(`${basePath}?e2e=1`, { waitUntil: "domcontentloaded" });
+  await page.locator("#menu-btn-play").click();
+  await expect(page.locator("#tilt-maze-ui")).toBeVisible();
+  await page.getByRole("button", { name: "Myš", exact: true }).click();
+  await expect(page.locator("#tilt-maze-mouse-overlay")).toBeVisible();
+  await page.locator("#btn-menu").click();
+  await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 10000 });
+  await page.locator("#menu-btn-play").click();
+  await expect(page.locator("#tilt-maze-mouse-overlay")).toBeHidden();
+});
+
 test("E2E: nápověda senzorů v menu", async ({ page }) => {
   await page.goto(`${basePath}?e2e=1`, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 15000 });
   await page.locator("#menu-btn-help").click();
   await expect(page.getByTestId("help-overlay")).toBeVisible();
-  await expect(page.getByTestId("help-overlay").getByText("WASD")).toBeVisible();
+  await expect(page.getByTestId("help-overlay").getByText("Ovládání myší", { exact: false })).toBeVisible();
+  await expect(page.getByTestId("help-overlay").getByText("červeným pastem", { exact: false })).toHaveCount(0);
+
+  const fonts = await page.evaluate(() => {
+    const card = document.querySelector("#tilt-maze-help > div");
+    const menu = document.getElementById("tilt-maze-menu");
+    if (!card || !menu) return null;
+    return {
+      help: getComputedStyle(card).fontFamily,
+      menu: getComputedStyle(menu).fontFamily
+    };
+  });
+  expect(fonts).not.toBeNull();
+  expect(fonts!.help).toBe(fonts!.menu);
   await page.locator("#help-btn-close").click();
   await expect(page.getByTestId("help-overlay")).toHaveCount(0);
 });

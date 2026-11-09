@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   interiorWalls,
   isSpawnAndGoalClear,
+  trapOverlapsAnyWall,
   validateLevel1Shape,
   validateLevel10Slalom,
   validateLevelSet,
@@ -43,6 +44,12 @@ describe("levelSolvability", () => {
     const l = LEVELS[9];
     expect(interiorWalls(l)).toHaveLength(0);
     expect(l.traps.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("žádná past neprotíná zeď", () => {
+    for (const lvl of LEVELS) {
+      expect(trapOverlapsAnyWall(lvl), `úroveň ${lvl.id}`).toBe(false);
+    }
   });
 
   it("start a cíl nekolidují se zdmi ani pastmi", () => {

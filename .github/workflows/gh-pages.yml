@@ -99,14 +99,14 @@ jobs:
             const pr = context.payload.pull_request.number;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const url = `https://${owner}.github.io/${repo}/tilt-maze/pr-${pr}/`;
+            const url = `https://${owner}.github.io/${repo}/pr-${pr}/`;
             const marker = '<!-- pr-preview-bot -->';
             const body = `${marker}
             ### Náhled nasazení (PR #${pr})
 
             Otevřít na telefonu (HTTPS kvůli senzorům): **${url}**
 
-            Po zavření nebo sloučení PR se složka \`pr-${pr}\` z \`gh-pages\` smaže. Produkce zůstává na \`https://${owner}.github.io/${repo}/tilt-maze/\`.`;
+            Po zavření nebo sloučení PR se složka \`pr-${pr}\` z \`gh-pages\` smaže. Produkce zůstává na \`https://${owner}.github.io/${repo}/\`.`;
 
             try {
               const { data: comments } = await github.rest.issues.listComments({

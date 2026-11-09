@@ -35,8 +35,8 @@ test.beforeAll(() => {
 });
 
 async function startHoleLevel(page: import("@playwright/test").Page) {
-  await page.goto(`${basePath}?e2e=1`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "Start" }).click();
+  await page.goto(`${basePath}?e2e=1&skipMenu=1`, { waitUntil: "networkidle" });
+  await expect(page.locator("#tilt-maze-ui")).toBeVisible();
   await page.evaluate((idx) => {
     (window as unknown as { __loadLevel?: (n: number) => void }).__loadLevel?.(idx);
   }, E2E_HOLE_LEVEL_INDEX);

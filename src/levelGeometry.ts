@@ -13,6 +13,8 @@ export const PERIMETER_WALLS: WallDef[] = [
 ];
 
 const WALL_EPS = 0.5;
+/** Min. mezera mezi obrysem pasti a obdélníkem zdi (logická kolize — ne vizuální halo). */
+const TRAP_WALL_CLEARANCE = 1;
 
 export function wallKey(w: WallDef): string {
   return `${w.cx}|${w.cy}|${w.w}|${w.h}`;
@@ -47,6 +49,30 @@ export function pointInWall(px: number, py: number, radius: number, walls: WallD
     const adx = Math.max(0, dx);
     const ady = Math.max(0, dy);
     if (Math.hypot(adx, ady) < rBall) return true;
+  }
+  return false;
+}
+
+/** Past (kruh) protíná obdélník zdi, pokud vzdálenost středů < r + tolerance. */
+export function trapOverlapsWall(
+  trap: { x: number; y: number; r: number },
+  wall: WallDef,
+  clearance: number = TRAP_WALL_CLEARANCE
+): boolean {
+  const hw = wall.w / 2;
+  const hh = wall.h / 2;
+  const dx = Math.abs(trap.x - wall.cx) - hw;
+  const dy = Math.abs(trap.y - wall.cy) - hh;
+  const adx = Math.max(0, dx);
+  const ady = Math.max(0, dy);
+  return Math.hypot(adx, ady) < trap.r + clearance;
+}
+
+export function trapOverlapsAnyWall(lvl: LevelDef, clearance: number = TRAP_WALL_CLEARANCE): boolean {
+  for (const t of lvl.traps) {
+    for (const w of lvl.walls) {
+      if (trapOverlapsWall(t, w, clearance)) return true;
+    }
   }
   return false;
 }
@@ -124,6 +150,9 @@ export function validateLevelSet(levels: LevelDef[]): void {
     }
     if (!isSpawnAndGoalClear(lvl)) {
       throw new Error(`Úroveň ${lvl.id}: start nebo cíl koliduje se zdí/pastí.`);
+    }
+    if (trapOverlapsAnyWall(lvl)) {
+      throw new Error(`Úroveň ${lvl.id}: past protíná zeď.`);
     }
   }
 }

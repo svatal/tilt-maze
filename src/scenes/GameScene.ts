@@ -180,6 +180,9 @@ export class GameScene extends Phaser.Scene {
         lastTriggerDist: this.e2eLastTriggerDist
       });
       w.__e2eTickHoles = () => this.e2eTickHoleChecks();
+      w.__e2eRelayout = () => {
+        this.layoutHud(this.scale.gameSize);
+      };
       w.__e2eHoleLocalMag = (trapIndex = 0) => {
         const tr = LEVELS[this.levelIndex].traps[trapIndex];
         if (!tr || !this.ball?.body) return 0;
@@ -779,7 +782,10 @@ export class GameScene extends Phaser.Scene {
     this.winLayer.style.display = "none";
     this.winLayer.innerHTML = "";
     this.layoutHud(this.scale.gameSize);
-    requestAnimationFrame(() => this.layoutHud(this.scale.gameSize));
+    requestAnimationFrame(() => {
+      this.layoutHud(this.scale.gameSize);
+      this.layoutHud(this.scale.gameSize);
+    });
   }
 
   private spawnLevel(lvl: LevelDef): void {

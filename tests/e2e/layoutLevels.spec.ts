@@ -36,7 +36,9 @@ async function screenshotLevels(
   const levelCount = 10;
   for (let i = 0; i < levelCount; i++) {
     await page.evaluate((n) => {
-      (window as unknown as { __loadLevel?: (x: number) => void }).__loadLevel?.(n);
+      const w = window as unknown as { __loadLevel?: (x: number) => void; __e2eRelayout?: () => void };
+      w.__loadLevel?.(n);
+      w.__e2eRelayout?.();
     }, i);
     await page.waitForFunction(
       () => {

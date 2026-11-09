@@ -71,14 +71,15 @@ export class MenuScene extends Phaser.Scene {
       "color:#f5e6d3",
       "display:flex",
       "flex-direction:column",
-      "align-items:stretch",
+      "align-items:center",
       "box-sizing:border-box",
       "padding:max(12px,env(safe-area-inset-top)) 16px max(12px,env(safe-area-inset-bottom)) 16px",
       "overflow:hidden"
     ].join(";");
 
     const header = document.createElement("header");
-    header.style.cssText = "text-align:center;flex-shrink:0;margin-bottom:12px";
+    header.style.cssText =
+      "text-align:center;flex-shrink:0;margin-bottom:12px;width:min(640px,100%);box-sizing:border-box";
     header.innerHTML = `
       <h1 style="margin:0 0 6px;font-size:clamp(1.35rem,4vw,1.75rem);font-weight:700">Sklopený labyrint</h1>
       <p style="margin:0;font-size:0.9rem;line-height:1.4;opacity:0.88;max-width:520px;margin-left:auto;margin-right:auto">
@@ -93,9 +94,9 @@ export class MenuScene extends Phaser.Scene {
       "display:flex",
       "flex-direction:column",
       "gap:12px",
-      "max-width:min(640px,100%)",
-      "width:100%",
-      "margin:0 auto"
+      "width:min(640px,100%)",
+      "box-sizing:border-box",
+      "align-self:center"
     ].join(";");
 
     const levelLabel = document.createElement("div");
@@ -108,12 +109,17 @@ export class MenuScene extends Phaser.Scene {
     levelScroll.setAttribute("aria-label", "Výběr úrovně");
     levelScroll.style.cssText = [
       "overflow-y:auto",
-      "flex:1",
-      "min-height:120px",
+      "flex:0 1 auto",
+      "max-height:min(38vh,320px)",
       "display:grid",
       "grid-template-columns:repeat(auto-fill,minmax(140px,1fr))",
+      "grid-auto-rows:min-content",
+      "align-content:start",
+      "align-items:start",
+      "justify-items:stretch",
       "gap:8px",
       "padding:4px",
+      "width:100%",
       "-webkit-overflow-scrolling:touch"
     ].join(";");
 
@@ -150,7 +156,8 @@ export class MenuScene extends Phaser.Scene {
     actions.append(btnPlay, btnHelp);
 
     const hint = document.createElement("p");
-    hint.style.cssText = "margin:0;font-size:0.75rem;opacity:0.75;text-align:center;flex-shrink:0";
+    hint.style.cssText =
+      "margin:0;font-size:0.75rem;opacity:0.75;text-align:center;flex-shrink:0;width:min(640px,100%);box-sizing:border-box";
     hint.textContent = "Šipky / Tab: výběr úrovně · Enter: hrát · H: nápověda";
 
     main.append(levelLabel, levelScroll, actions);

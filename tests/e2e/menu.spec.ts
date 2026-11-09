@@ -39,6 +39,7 @@ test("E2E: úvodní menu — výběr úrovně a návrat z hry", async ({ page })
 
 test("E2E: nápověda senzorů v menu", async ({ page }) => {
   await page.goto(`${basePath}?e2e=1`, { waitUntil: "domcontentloaded" });
+  await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 15000 });
   await page.locator("#menu-btn-help").click();
   await expect(page.getByTestId("help-overlay")).toBeVisible();
   await expect(page.getByTestId("help-overlay").getByText("WASD")).toBeVisible();

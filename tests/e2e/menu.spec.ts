@@ -65,10 +65,7 @@ test("E2E: desktop — karty úrovní kompaktní a v panelu", async ({ page }) =
   expect(layout!.listInsideMenu).toBe(true);
 });
 
-test("E2E: desktop — menu uvnitř hracího panelu (kromě build info)", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto(`${basePath}?e2e=1`, { waitUntil: "domcontentloaded" });
-  await expect(page.getByTestId("main-menu")).toBeVisible();
+async function assertMenuWithinPlayfield(page: import("@playwright/test").Page) {
   await page.waitForFunction(
     () => {
       const g = (window as unknown as { __tiltMazeGame?: { scale: { canvasBounds: { width: number } } } })
@@ -82,14 +79,14 @@ test("E2E: desktop — menu uvnitř hracího panelu (kromě build info)", async 
     const game = (window as unknown as {
       __tiltMazeGame?: { scale: { canvasBounds: { x: number; y: number; width: number; height: number } } };
     }).__tiltMazeGame;
-    if (!game) return { ok: false, reason: "chybí __tiltMazeGame" as const };
+    if (!game) return { outside: ["chybí __tiltMazeGame"], buildInPanel: null as boolean | null };
     const cb = game.scale.canvasBounds;
-    const pad = 3;
+    const pad = 2;
     const panel = {
-      left: cb.x - pad,
-      top: cb.y - pad,
-      right: cb.x + cb.width + pad,
-      bottom: cb.y + cb.height + pad
+      left: cb.x + pad,
+      top: cb.y + pad,
+      right: cb.x + cb.width - pad,
+      bottom: cb.y + cb.height - pad
     };
 
     const inside = (r: DOMRect) =>
@@ -97,6 +94,7 @@ test("E2E: desktop — menu uvnitř hracího panelu (kromě build info)", async 
 
     const targets: { label: string; el: Element | null }[] = [
       { label: "header", el: document.querySelector("#tilt-maze-menu header") },
+      { label: "levels-label", el: document.getElementById("tilt-maze-levels-label") },
       { label: "level-list", el: document.getElementById("tilt-maze-level-list") },
       { label: "play", el: document.getElementById("menu-btn-play") },
       { label: "help", el: document.getElementById("menu-btn-help") },
@@ -119,17 +117,24 @@ test("E2E: desktop — menu uvnitř hracího panelu (kromě build info)", async 
     const buildEl = document.getElementById("tilt-maze-build-info");
     const buildInPanel = buildEl ? inside(buildEl.getBoundingClientRect()) : null;
 
-    return {
-      ok: outside.length === 0,
-      outside,
-      panel: { w: cb.width, h: cb.height, x: cb.x, y: cb.y },
-      buildInPanel
-    };
+    return { outside, buildInPanel, panel: { w: cb.width, h: cb.height, x: cb.x, y: cb.y } };
   });
 
   expect(result.outside, JSON.stringify(result)).toEqual([]);
   expect(result.buildInPanel, "build info má být mimo panel").toBe(false);
-});
+}
+
+for (const viewport of [
+  { name: "desktop 1280×800", width: 1280, height: 800 },
+  { name: "mobile 390×844", width: 390, height: 844 }
+]) {
+  test(`E2E: menu uvnitř hracího panelu — ${viewport.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto(`${basePath}?e2e=1`, { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("main-menu")).toBeVisible();
+    await assertMenuWithinPlayfield(page);
+  });
+}
 
 test("E2E: nápověda senzorů v menu", async ({ page }) => {
   await page.goto(`${basePath}?e2e=1`, { waitUntil: "domcontentloaded" });

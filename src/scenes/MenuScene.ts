@@ -88,8 +88,12 @@ export class MenuScene extends Phaser.Scene {
       "flex-direction:column",
       "align-items:center",
       "box-sizing:border-box",
-      "padding:max(12px,env(safe-area-inset-top)) 16px max(12px,env(safe-area-inset-bottom)) 16px",
-      "overflow:hidden"
+      "padding-top:max(12px,env(safe-area-inset-top))",
+      "padding-bottom:max(12px,env(safe-area-inset-bottom))",
+      "padding-left:max(14px,env(safe-area-inset-left))",
+      "padding-right:max(14px,env(safe-area-inset-right))",
+      "overflow:hidden",
+      "overflow-x:hidden"
     ].join(";");
 
     const header = document.createElement("header");
@@ -113,8 +117,9 @@ export class MenuScene extends Phaser.Scene {
     ].join(";");
 
     const levelLabel = document.createElement("div");
+    levelLabel.id = "tilt-maze-levels-label";
     levelLabel.textContent = "Úrovně";
-    levelLabel.style.cssText = "font-weight:700;font-size:0.95rem";
+    levelLabel.style.cssText = "font-weight:700;font-size:0.95rem;width:100%;box-sizing:border-box";
 
     const levelScroll = document.createElement("div");
     levelScroll.id = "tilt-maze-level-list";
@@ -125,14 +130,17 @@ export class MenuScene extends Phaser.Scene {
       "flex:0 1 auto",
       "max-height:min(38vh,320px)",
       "display:grid",
-      "grid-template-columns:repeat(auto-fill,minmax(140px,1fr))",
+      "grid-template-columns:repeat(2,minmax(0,1fr))",
       "grid-auto-rows:min-content",
       "align-content:start",
       "align-items:start",
       "justify-items:stretch",
       "gap:8px",
-      "padding:4px",
+      "padding:0",
       "width:100%",
+      "max-width:100%",
+      "box-sizing:border-box",
+      "overflow-x:hidden",
       "-webkit-overflow-scrolling:touch"
     ].join(";");
 

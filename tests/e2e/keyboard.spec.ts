@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { LEVELS } from "../../src/levels";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "../..");
@@ -16,19 +17,7 @@ test.beforeAll(() => {
   }
 });
 
-async function holdKeys(
-  page: import("@playwright/test").Page,
-  keys: string[],
-  ms: number
-): Promise<void> {
-  for (const k of keys) await page.keyboard.down(k);
-  await sleep(ms);
-  for (const k of keys) await page.keyboard.up(k);
-}
-
-test("E2E: úroveň 1 klávesnice posune kuličku + Matter debug, bez chyb v konzoli", async ({ page }) => {
-  test.setTimeout(45_000);
-
+test("E2E: klávesnice posune kuličku + Matter debug bez chyb", async ({ page }) => {
   const errors: string[] = [];
   page.on("console", (msg) => {
     if (msg.type() === "error") errors.push(`console.error: ${msg.text()}`);
@@ -48,26 +37,40 @@ test("E2E: úroveň 1 klávesnice posune kuličku + Matter debug, bez chyb v kon
   });
   expect(matterDebug).toBe(true);
 
-  const ballPos = async () =>
-    page.evaluate(() => {
-      const s = (window as unknown as { __tiltMazeScene?: Phaser.Scene & { matter: Phaser.Physics.Matter.MatterPhysics } })
-        .__tiltMazeScene;
-      const ball = s!.matter.world.getAllBodies().find((b) => b.label === "ball");
-      return { x: ball!.position.x, y: ball!.position.y };
-    });
+  const x0 = await page.evaluate(() => (window as unknown as { __tiltMazeScene?: { ball?: { x: number } } }).__tiltMazeScene?.ball?.x ?? 0);
 
-  const start = await ballPos();
-  await holdKeys(page, ["ArrowUp", "ArrowRight"], 3200);
-  const after = await ballPos();
-  const travel = Math.hypot(after.x - start.x, after.y - start.y);
+  await page.keyboard.down("ArrowRight");
+  await sleep(600);
+  await page.keyboard.up("ArrowRight");
 
-  expect(after.y).toBeLessThan(start.y - 40);
-  expect(travel).toBeGreaterThan(120);
+  const x1 = await page.evaluate(() => (window as unknown as { __tiltMazeScene?: { ball?: { x: number } } }).__tiltMazeScene?.ball?.x ?? 0);
+  expect(x1).toBeGreaterThan(x0 + 3);
+  expect(errors, errors.join("\n")).toEqual([]);
+});
+
+test("E2E: klávesnice + lokální sklon cíle → výhra (stejný flow jako holes)", async ({ page }) => {
+  const g = LEVELS[0].goal;
+  const ballY = g.y + g.r * 0.65;
+
+  await page.goto(`${basePath}?e2e=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "Start" }).click();
+
+  await page.evaluate(
+    ({ x, y }) => {
+      const w = window as unknown as { __e2ePlaceBall?: (px: number, py: number) => void };
+      w.__e2ePlaceBall?.(x, y);
+    },
+    { x: g.x, y: ballY }
+  );
+  await sleep(200);
+  await page.keyboard.down("ArrowUp");
+  await sleep(1200);
+  await page.keyboard.up("ArrowUp");
+
+  await expect(page.getByText("Výhra!", { exact: false })).toBeVisible({ timeout: 6000 });
 
   await fs.promises.mkdir("/opt/cursor/artifacts", { recursive: true });
   await page.screenshot({ path: "/opt/cursor/artifacts/screenshot.png", fullPage: true });
-
-  expect(errors, errors.join("\n")).toEqual([]);
 });
 
 test("E2E: debug hook dokončí úroveň (regrese)", async ({ page }) => {

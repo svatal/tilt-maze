@@ -63,6 +63,11 @@ test("E2E: desktop — karty úrovní kompaktní a v panelu", async ({ page }) =
   expect(layout!.cardHeight).toBeLessThan(120);
   expect(layout!.listCenterDelta).toBeLessThan(24);
   expect(layout!.listInsideMenu).toBe(true);
+
+  const groups = await page.locator(".tilt-maze-level-group").count();
+  expect(groups).toBe(2);
+  await expect(page.getByRole("heading", { name: /Bez pastí/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /S pastmi/i })).toBeVisible();
 });
 
 async function assertMenuWithinPlayfield(page: import("@playwright/test").Page) {
@@ -133,6 +138,13 @@ for (const viewport of [
     await page.goto(`${basePath}?e2e=1`, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("main-menu")).toBeVisible();
     await assertMenuWithinPlayfield(page);
+
+    const slug = viewport.width >= 1000 ? "desktop-1280x800" : "mobile-390x844";
+    await fs.promises.mkdir("/opt/cursor/artifacts", { recursive: true });
+    await page.screenshot({
+      path: `/opt/cursor/artifacts/menu-${slug}.png`,
+      fullPage: true
+    });
   });
 }
 

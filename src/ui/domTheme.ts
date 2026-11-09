@@ -13,5 +13,19 @@ export const BTN_LEVEL =
 export const BTN_LEVEL_SELECTED =
   "padding:11px 9px;border-radius:10px;border:2px solid #c9a227;background:#3d2918;color:#fff3d0;font-size:0.88rem;cursor:pointer;min-height:48px;height:auto;text-align:left;width:100%;max-width:100%;min-width:0;box-sizing:border-box;box-shadow:0 0 0 1px rgba(201,162,39,0.25)";
 
+/** Jemný odstín pro úrovně bez pastí (skupina zdí). */
+export const BTN_LEVEL_WALLS =
+  "padding:12px 10px;border-radius:10px;border:1px solid rgba(201,162,39,0.42);background:#231912;color:#f5e6d3;font-size:0.88rem;cursor:pointer;min-height:48px;height:auto;text-align:left;width:100%;max-width:100%;min-width:0;box-sizing:border-box";
+
+export const BTN_LEVEL_WALLS_SELECTED =
+  "padding:11px 9px;border-radius:10px;border:2px solid #c9a227;background:#352a1c;color:#fff3d0;font-size:0.88rem;cursor:pointer;min-height:48px;height:auto;text-align:left;width:100%;max-width:100%;min-width:0;box-sizing:border-box;box-shadow:0 0 0 1px rgba(201,162,39,0.22)";
+
+/** Jemný teplejší odstín pro úrovně s pastmi / propady. */
+export const BTN_LEVEL_TRAPS =
+  "padding:12px 10px;border-radius:10px;border:1px solid rgba(155,105,58,0.55);background:#2a1b14;color:#f8ead8;font-size:0.88rem;cursor:pointer;min-height:48px;height:auto;text-align:left;width:100%;max-width:100%;min-width:0;box-sizing:border-box";
+
+export const BTN_LEVEL_TRAPS_SELECTED =
+  "padding:11px 9px;border-radius:10px;border:2px solid #b88a42;background:#3a2618;color:#fff3d0;font-size:0.88rem;cursor:pointer;min-height:48px;height:auto;text-align:left;width:100%;max-width:100%;min-width:0;box-sizing:border-box;box-shadow:0 0 0 1px rgba(184,138,66,0.28)";
+
 export const PANEL_OVERLAY =
   `position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(15,10,6,0.92);pointer-events:auto;padding:16px 20px;box-sizing:border-box;text-align:left;color:#f5e6d3;overflow:auto;font-family:${UI_FONT_FAMILY}`;

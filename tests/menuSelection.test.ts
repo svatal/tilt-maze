@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { menuLevelGroups } from "../src/menuLevelGroups";
 import { LEVELS } from "../src/levels";
 import { HELP_SECTIONS } from "../src/ui/sensorHelpContent";
 
@@ -7,6 +8,18 @@ describe("úvodní menu — data", () => {
     expect(LEVELS.length).toBeGreaterThanOrEqual(1);
     const ids = LEVELS.map((l) => l.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("menu skupiny 5+5 podle pastí v LEVELS", () => {
+    const groups = menuLevelGroups(LEVELS);
+    expect(groups).toHaveLength(2);
+    expect(groups[0].indices).toHaveLength(5);
+    expect(groups[1].indices).toHaveLength(5);
+    expect(groups[0].indices.every((i) => LEVELS[i].traps.length === 0)).toBe(true);
+    expect(groups[1].indices.every((i) => LEVELS[i].traps.length > 0)).toBe(true);
+    expect([...groups[0].indices, ...groups[1].indices].sort((a, b) => a - b)).toEqual(
+      Array.from({ length: LEVELS.length }, (_, i) => i)
+    );
   });
 
   it("nápověda obsahuje myš, senzory a bez ovládání kuličky šipkami", () => {

@@ -76,6 +76,8 @@ export class GameScene extends Phaser.Scene {
   /** E2E: vzdálenost středu v okamžiku spuštění trigger animace. */
   private e2eLastTriggerDist: number | null = null;
   private lastHudBandPx = 0;
+  /** Rezerva pro dvouřádkový titul — stabilní při přepínání úrovní v E2E/CI. */
+  private static readonly HUD_BAND_MIN_PX = 120;
   constructor() {
     super({ key: "GameScene" });
   }
@@ -658,7 +660,7 @@ export class GameScene extends Phaser.Scene {
     const container = document.getElementById("game-container");
     const hudBandPx =
       this.hud.style.display !== "none"
-        ? Math.ceil(this.hud.getBoundingClientRect().height) + 16
+        ? Math.max(GameScene.HUD_BAND_MIN_PX, Math.ceil(this.hud.getBoundingClientRect().height) + 16)
         : 96;
     let refreshScale = false;
     if (container) {

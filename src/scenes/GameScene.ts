@@ -169,6 +169,7 @@ export class GameScene extends Phaser.Scene {
         };
         __e2eTickHoles?: () => void;
         __e2eHoleLocalMag?: (trapIndex?: number) => number;
+        __e2eRelayout?: () => void;
       };
       w.__tiltMazeScene = this;
       w.__loadLevel = (n: number) => this.loadLevel(n);

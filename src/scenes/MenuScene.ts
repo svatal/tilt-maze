@@ -97,15 +97,10 @@ export class MenuScene extends Phaser.Scene {
       style.textContent = `
         .tilt-maze-level-group-grid {
           display: grid;
-          grid-template-columns: repeat(5, minmax(0, 1fr));
+          grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 8px;
           width: 100%;
           box-sizing: border-box;
-        }
-        @media (max-width: 520px) {
-          .tilt-maze-level-group-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-          }
         }
         #tilt-maze-level-list button[role="option"] {
           overflow: hidden;

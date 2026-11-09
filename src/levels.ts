@@ -6,6 +6,11 @@
 import { DESIGN_WIDTH } from "./constants";
 import { PERIMETER_WALLS } from "./levelGeometry";
 
+const BAR_W = 218;
+const pad = 12;
+const shelfL = (cy: number, w = BAR_W) => ({ cx: pad + w / 2 + 10, cy, w, h: 14 });
+const shelfR = (cy: number, w = BAR_W) => ({ cx: DESIGN_WIDTH - pad - w / 2, cy, w, h: 14 });
+
 export type WallDef = { cx: number; cy: number; w: number; h: number };
 
 export type LevelDef = {
@@ -18,11 +23,6 @@ export type LevelDef = {
 };
 
 const border = () => [...PERIMETER_WALLS];
-
-/** Vodorovný segment jen vlevo/vpravo — střídání šachty po výšce (široké = překryv uprostřed). */
-const BOARD_PAD = 2;
-const barL = (cy: number, w = 218) => ({ cx: BOARD_PAD + w / 2 + 10, cy, w, h: 14 });
-const barR = (cy: number, w = 218) => ({ cx: DESIGN_WIDTH - BOARD_PAD - w / 2, cy, w, h: 14 });
 
 export const LEVELS: LevelDef[] = [
   {
@@ -43,35 +43,37 @@ export const LEVELS: LevelDef[] = [
   },
   {
     id: 3,
-    name: "Slepá ulička",
+    name: "Serpentína",
     start: { x: 66, y: 560 },
     goal: { x: 288, y: 102, r: 24 },
     traps: [],
     walls: [
       ...border(),
-      barR(525),
-      barL(435),
-      barR(345),
-      barL(255),
-      barR(165, 205),
-      { cx: 70, cy: 468, w: 16, h: 88 },
-      { cx: 292, cy: 388, w: 16, h: 88 }
+      shelfR(518),
+      shelfL(425),
+      shelfR(332),
+      shelfL(239),
+      shelfR(146, 190),
+      { cx: 292, cy: 482, w: 16, h: 90 },
+      { cx: 68, cy: 388, w: 16, h: 90 },
+      { cx: 292, cy: 296, w: 16, h: 90 },
+      { cx: 68, cy: 202, w: 16, h: 72 }
     ]
   },
   {
     id: 4,
-    name: "Zigzag",
+    name: "Spirála",
     start: { x: 62, y: 572 },
     goal: { x: 288, y: 102, r: 23 },
     traps: [],
     walls: [
       ...border(),
-      barR(525),
-      barL(435),
-      barR(345),
-      barL(255),
-      barR(165, 205),
-      barL(82, 168),
+      shelfR(525),
+      shelfL(435),
+      shelfR(345),
+      shelfL(255),
+      shelfR(165, 205),
+      shelfL(82, 168),
       { cx: 292, cy: 388, w: 16, h: 85 },
       { cx: 68, cy: 478, w: 16, h: 85 },
       { cx: 68, cy: 298, w: 16, h: 85 },
@@ -80,18 +82,18 @@ export const LEVELS: LevelDef[] = [
   },
   {
     id: 5,
-    name: "Labyrint",
+    name: "Komory",
     start: { x: 58, y: 578 },
     goal: { x: 288, y: 102, r: 23 },
     traps: [],
     walls: [
       ...border(),
-      barR(530),
-      barL(445),
-      barR(360),
-      barL(275),
-      barR(190, 205),
-      barL(105, 170),
+      shelfR(530),
+      shelfL(445),
+      shelfR(360),
+      shelfL(275),
+      shelfR(190, 205),
+      shelfL(105, 170),
       { cx: 180, cy: 360, w: 18, h: 76 },
       { cx: 70, cy: 487, w: 16, h: 78 },
       { cx: 292, cy: 402, w: 16, h: 78 },
@@ -155,34 +157,37 @@ export const LEVELS: LevelDef[] = [
   {
     id: 9,
     name: "Mistrovská kombinace",
-    start: { x: 55, y: 575 },
-    goal: { x: 280, y: 108, r: 22 },
+    start: { x: 292, y: 562 },
+    goal: { x: 88, y: 108, r: 22 },
     traps: [
-      { x: 109, y: 432, r: 12 },
-      { x: 251, y: 432, r: 12 },
-      { x: 109, y: 332, r: 12 },
-      { x: 251, y: 332, r: 12 },
-      { x: 109, y: 232, r: 12 },
-      { x: 251, y: 232, r: 12 }
+      { x: 128, y: 502, r: 12 },
+      { x: 248, y: 502, r: 12 },
+      { x: 180, y: 442, r: 12 },
+      { x: 128, y: 378, r: 12 },
+      { x: 248, y: 378, r: 12 },
+      { x: 148, y: 302, r: 12 },
+      { x: 128, y: 248, r: 12 },
+      { x: 248, y: 248, r: 12 },
+      { x: 180, y: 182, r: 12 },
+      { x: 152, y: 122, r: 11 },
+      { x: 208, y: 122, r: 11 },
+      { x: 198, y: 468, r: 11 },
+      { x: 145, y: 348, r: 11 },
+      { x: 215, y: 268, r: 11 }
     ],
     walls: [
       ...border(),
-      { cx: 92, cy: 455, w: 120, h: 14 },
-      { cx: 268, cy: 455, w: 120, h: 14 },
-      { cx: 39, cy: 455, w: 14, h: 86 },
-      { cx: 321, cy: 455, w: 14, h: 86 },
-      { cx: 92, cy: 355, w: 120, h: 14 },
-      { cx: 268, cy: 355, w: 120, h: 14 },
-      { cx: 39, cy: 355, w: 14, h: 86 },
-      { cx: 321, cy: 355, w: 14, h: 86 },
-      { cx: 92, cy: 255, w: 120, h: 14 },
-      { cx: 268, cy: 255, w: 120, h: 14 },
-      { cx: 39, cy: 255, w: 14, h: 86 },
-      { cx: 321, cy: 255, w: 14, h: 86 },
-      { cx: 92, cy: 155, w: 110, h: 14 },
-      { cx: 268, cy: 155, w: 110, h: 14 },
-      { cx: 39, cy: 155, w: 14, h: 70 },
-      { cx: 321, cy: 155, w: 14, h: 70 }
+      { cx: 180, cy: 528, w: 235, h: 14 },
+      { cx: 68, cy: 468, w: 14, h: 98 },
+      { cx: 292, cy: 468, w: 14, h: 98 },
+      { cx: 180, cy: 408, w: 205, h: 14 },
+      { cx: 292, cy: 345, w: 14, h: 105 },
+      { cx: 68, cy: 282, w: 14, h: 105 },
+      { cx: 180, cy: 218, w: 205, h: 14 },
+      { cx: 138, cy: 165, w: 14, h: 62 },
+      { cx: 222, cy: 165, w: 14, h: 62 },
+      { cx: 180, cy: 368, w: 14, h: 55 },
+      { cx: 180, cy: 285, w: 14, h: 55 }
     ]
   },
   {
@@ -191,8 +196,17 @@ export const LEVELS: LevelDef[] = [
     start: { x: 118, y: 562 },
     goal: { x: 278, y: 112, r: 24 },
     traps: [
-      ...[492, 464, 436, 408, 380, 352, 324, 296, 268, 240, 212, 184, 156].map((y) => ({ x: 51, y, r: 15 })),
-      ...[492, 464, 436, 408, 380, 352, 324, 296, 268, 240, 212, 184, 156].map((y) => ({ x: 309, y, r: 15 })),
+      { x: 51, y: 488, r: 15 },
+      { x: 51, y: 438, r: 15 },
+      { x: 51, y: 368, r: 15 },
+      { x: 51, y: 298, r: 15 },
+      { x: 51, y: 228, r: 15 },
+      { x: 51, y: 178, r: 15 },
+      { x: 309, y: 473, r: 15 },
+      { x: 309, y: 403, r: 15 },
+      { x: 309, y: 333, r: 15 },
+      { x: 309, y: 263, r: 15 },
+      { x: 309, y: 193, r: 15 },
       { x: 130, y: 500, r: 16 },
       { x: 248, y: 500, r: 16 },
       { x: 180, y: 410, r: 16 },

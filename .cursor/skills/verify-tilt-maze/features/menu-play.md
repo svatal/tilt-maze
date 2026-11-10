@@ -29,6 +29,6 @@ Preconditions:
 
 ## Gotchas
 
-- `skipMenu=1` never shows this menu. A board reached that way does not prove this feature.
+- Do not bypass the menu with removed debug query flags; only the real menu flow proves this feature.
 - The menu root is `#tilt-maze-menu`. The test id `main-menu` is on that same node. After Hrát, `#tilt-maze-menu` is hidden.
 - On a pull request preview, compare the label with the PR head sha. A green page with an older sha is the wrong build.

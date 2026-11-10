@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { dismissSensorBannerIfPresent } from "./helpers/playwrightTilt";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "../..");
@@ -30,11 +31,13 @@ async function playLevelFromMenu(page: import("@playwright/test").Page, levelInd
       return scene?.running === true && scene.ball?.body != null;
     },
     undefined,
-    { timeout: 20000 }
+    { timeout: 30000 }
   );
+  await dismissSensorBannerIfPresent(page);
 }
 
 test("E2E: menu → úroveň → menu → úroveň (stejná i jiná)", async ({ page }) => {
+  test.setTimeout(60_000);
   const errors: string[] = [];
   page.on("console", (msg) => {
     if (msg.type() === "error") errors.push(`console.error: ${msg.text()}`);

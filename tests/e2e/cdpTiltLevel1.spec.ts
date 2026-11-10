@@ -17,8 +17,10 @@ const artifacts = "/opt/cursor/artifacts";
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 function expectedBuildSha(): string {
-  const full = execSync("git rev-parse HEAD", { encoding: "utf8", cwd: root }).trim();
-  return full.slice(0, 7);
+  const gen = fs.readFileSync(path.join(root, "src/buildInfo.generated.ts"), "utf8");
+  const label = /BUILD_INFO_LABEL = "([^"]+)"/.exec(gen)?.[1] ?? "";
+  const fromLabel = label.split(" · ").find((p) => /^[0-9a-f]{7}$/i.test(p));
+  return fromLabel ?? execSync("git rev-parse --short=7 HEAD", { cwd: root, encoding: "utf8" }).trim();
 }
 
 test.beforeAll(() => {

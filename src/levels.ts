@@ -134,12 +134,11 @@ export const LEVELS: LevelDef[] = [
     walls: [
       ...border(),
       ...rectRing(60, 90, 300, 550, "bl"),
-      { cx: 144, cy: 207, w: 14, h: T },
       { cx: 223, cy: 356, w: T, h: 154 },
       { cx: 137, cy: 320, w: T, h: 226 },
       { cx: 155, cy: 433, w: 44, h: T },
       { cx: 223, cy: 433, w: 44, h: T },
-      { cx: 180, cy: 472, w: T, h: 172 }
+      { cx: 180, cy: 442, w: T, h: 132 }
     ]
   },
   {
@@ -231,9 +230,7 @@ export const LEVELS: LevelDef[] = [
       { cx: 68, cy: 258, w: 14, h: 68 },
       { cx: 68, cy: 452, w: 14, h: 96 },
       { cx: 292, cy: 258, w: 14, h: 68 },
-      { cx: 292, cy: 452, w: 14, h: 96 },
-      { cx: 192, cy: 392, w: 12, h: 22 },
-      { cx: 192, cy: 262, w: 12, h: 18 }
+      { cx: 292, cy: 452, w: 14, h: 96 }
     ]
   },
   {

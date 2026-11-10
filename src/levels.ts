@@ -3,7 +3,13 @@
  * Obdélníky zdí: střed + šířka/výška.
  */
 
-import { PERIMETER_WALLS } from "./levelGeometry";
+import {
+  FRAME_BOTTOM,
+  FRAME_INNER_LEFT,
+  FRAME_INNER_RIGHT,
+  FRAME_TOP,
+  PERIMETER_WALLS
+} from "./levelGeometry";
 
 export type WallDef = { cx: number; cy: number; w: number; h: number };
 
@@ -33,8 +39,9 @@ function vWallBottom(cx: number): WallDef {
 }
 
 function vWallTop(cx: number): WallDef {
-  const h = INNER_BOTTOM - INNER_TOP - GAP;
-  return { cx, cy: INNER_TOP + h / 2, w: T, h };
+  const baseH = INNER_BOTTOM - INNER_TOP - GAP;
+  const h = baseH + (INNER_TOP - FRAME_TOP);
+  return { cx, cy: FRAME_TOP + h / 2, w: T, h };
 }
 
 function slabH(cy: number, x0: number, x1: number): WallDef {
@@ -89,17 +96,17 @@ const doorY = (y1 + y2) / 2;
 const L5_GRID: WallDef[] = [
   slabV(XS, INNER_TOP + T, doorY - DOOR / 2),
   slabV(XS, doorY + DOOR / 2, y2 + T / 2),
-  slabV(XS, y2 + T, INNER_BOTTOM - T),
-  slabH(y2, xl0, xl0 + 58),
+  slabV(XS, y2 + T, FRAME_BOTTOM),
+  slabH(y2, FRAME_INNER_LEFT, xl0 + 58),
   slabH(y2, xl0 + 58 + DOOR, xl1),
-  slabH(y2, xr0, xr1),
+  slabH(y2, xr0, FRAME_INNER_RIGHT),
   slabH(y1, xr0, xr1 - 58 - DOOR),
-  slabH(y1, xr1 - 58, xr1),
-  slabH(y1, xl0, xl1),
-  slabV(xr1 - 52, y2 + 28, INNER_BOTTOM - 48),
-  slabV(xl0 + 52, INNER_TOP + T, y1 - T),
+  slabH(y1, xr1 - 58, FRAME_INNER_RIGHT),
+  slabH(y1, FRAME_INNER_LEFT, xl1),
+  slabV(xr1 - 52, y2 + T / 2, INNER_BOTTOM - 48),
+  slabV(xl0 + 52, INNER_TOP + T, y1 - T / 2),
   slabH(335, xl0 + 25, xl1 - 5),
-  slabV(xl0 + 30, 265, 325),
+  slabV(xl0 + 30, 265, 335 - T / 2),
   slabV(xr0 + 25, 265, 325),
   slabV(xr0 + 58, 300, 360)
 ];
@@ -223,18 +230,18 @@ export const LEVELS: LevelDef[] = [
     ],
     walls: [
       ...border(),
-      { cx: 46, cy: 360, w: 12, h: 488 },
-      { cx: 314, cy: 360, w: 12, h: 488 },
-      { cx: 98, cy: 528, w: 68, h: 14 },
+      { cx: 46, cy: 362, w: 12, h: 492 },
+      { cx: 314, cy: 362, w: 12, h: 492 },
+      { cx: 92, cy: 528, w: 80, h: 14 },
       { cx: 280, cy: 528, w: 56, h: 14 },
-      { cx: 112, cy: 408, w: 44, h: 14 },
-      { cx: 260, cy: 408, w: 48, h: 14 },
+      { cx: 110, cy: 408, w: 70, h: 14 },
+      { cx: 260, cy: 408, w: 50, h: 14 },
       { cx: 104, cy: 218, w: 24, h: 14 },
       { cx: 272, cy: 218, w: 42, h: 14 },
       { cx: 68, cy: 258, w: 14, h: 68 },
-      { cx: 68, cy: 452, w: 14, h: 96 },
+      { cx: 68, cy: 462, w: 14, h: 117 },
       { cx: 292, cy: 258, w: 14, h: 68 },
-      { cx: 292, cy: 452, w: 14, h: 96 }
+      { cx: 292, cy: 462, w: 14, h: 117 }
     ]
   },
   {

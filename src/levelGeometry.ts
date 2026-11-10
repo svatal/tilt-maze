@@ -12,9 +12,14 @@ import {
 import type { LevelDef, WallDef } from "./levels";
 
 /** Vnitřní hrany obvodu (souřadnice odpovídají středům segmentů). */
-const FRAME_TOP = 32;
-const FRAME_BOTTOM = 608;
+export const FRAME_TOP = 32;
+export const FRAME_BOTTOM = 608;
+export const FRAME_INNER_LEFT = 32;
+export const FRAME_INNER_RIGHT = 328;
 const FRAME_H_SPAN = FRAME_BOTTOM - FRAME_TOP;
+
+/** Kulička nesmí protéct štěrbinou mezi tvářemi zdí (viz testy úrovní). */
+export const NARROW_FACE_GAP_MAX = 2 * BALL_RADIUS + 4;
 
 /** Vodorovné úseky do rohů (svislé segmenty končí na y=32 / y=608). */
 const PERIMETER_H_SPAN = 344;
@@ -79,6 +84,126 @@ export function interiorWallOverlapViolations(lvl: LevelDef): string[] {
       }
     }
   }
+  return viol;
+}
+
+function wallBox(w: WallDef) {
+  return { l: w.cx - w.w / 2, r: w.cx + w.w / 2, t: w.cy - w.h / 2, b: w.cy + w.h / 2 };
+}
+
+function axisOverlap(a: number, b: number, c: number, d: number): number {
+  return Math.min(b, d) - Math.max(a, c);
+}
+
+function gapChannelBlocked(walls: WallDef[], rect: { l: number; r: number; t: number; b: number }, skip: WallDef[]): boolean {
+  if (rect.r - rect.l < 0.5 || rect.b - rect.t < 0.5) return true;
+  for (const w of walls) {
+    if (skip.includes(w)) continue;
+    const b = wallBox(w);
+    if (axisOverlap(b.l, b.r, rect.l, rect.r) > 0 && axisOverlap(b.t, b.b, rect.t, rect.b) > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isHorizontalSlab(w: WallDef): boolean {
+  return w.w > w.h + WALL_EPS;
+}
+
+function isVerticalSlab(w: WallDef): boolean {
+  return w.h >= w.w - WALL_EPS;
+}
+
+/**
+ * Štěrbiny mezi tvářemi zdí (vnitřní i obvod), kde by se kulička (⌀ 2r) nevešla,
+ * ale štěrbina je úzká — logická chyba, ne záměrná chodba (ty jsou ≥ DOOR/GAP).
+ */
+export function narrowWallFaceGapViolations(lvl: LevelDef): string[] {
+  const walls = lvl.walls;
+  const viol: string[] = [];
+  const maxG = NARROW_FACE_GAP_MAX;
+  const hz = walls.filter(isHorizontalSlab);
+  const vz = walls.filter(isVerticalSlab);
+
+  const push = (msg: string, rect: { l: number; r: number; t: number; b: number }, skip: WallDef[]) => {
+    if (!gapChannelBlocked(walls, rect, skip)) viol.push(msg);
+  };
+
+  for (const v of vz) {
+    const vb = wallBox(v);
+    for (const h of hz) {
+      const hb = wallBox(h);
+      const xOv = axisOverlap(vb.l, vb.r, hb.l, hb.r);
+      if (xOv < 6) continue;
+      const gBelow = hb.t - vb.b;
+      if (gBelow > WALL_EPS && gBelow < maxG) {
+        push(
+          `svislá–spodní vodorovná mezera ${gBelow.toFixed(1)}px u (${v.cx},${v.cy})↔(${h.cx},${h.cy})`,
+          { l: Math.max(vb.l, hb.l), r: Math.min(vb.r, hb.r), t: vb.b, b: hb.t },
+          [v, h]
+        );
+      }
+      const gAbove = vb.t - hb.b;
+      if (gAbove > WALL_EPS && gAbove < maxG) {
+        push(
+          `vodorovná–horní svislá mezera ${gAbove.toFixed(1)}px u (${h.cx},${h.cy})↔(${v.cx},${v.cy})`,
+          { l: Math.max(vb.l, hb.l), r: Math.min(vb.r, hb.r), t: hb.b, b: vb.t },
+          [v, h]
+        );
+      }
+    }
+  }
+
+  for (let i = 0; i < hz.length; i++) {
+    for (let j = i + 1; j < hz.length; j++) {
+      if (Math.abs(hz[i].cy - hz[j].cy) > 3) continue;
+      const a = wallBox(hz[i]);
+      const b = wallBox(hz[j]);
+      let g = 0;
+      let rect: { l: number; r: number; t: number; b: number };
+      if (b.l > a.r) {
+        g = b.l - a.r;
+        rect = { l: a.r, r: b.l, t: Math.min(a.t, b.t), b: Math.max(a.b, b.b) };
+      } else if (a.l > b.r) {
+        g = a.l - b.r;
+        rect = { l: b.r, r: a.l, t: Math.min(a.t, b.t), b: Math.max(a.b, b.b) };
+      } else continue;
+      if (g > WALL_EPS && g < maxG) {
+        push(
+          `vodorovná–vodorovná mezera ${g.toFixed(1)}px u (${hz[i].cx},${hz[i].cy})↔(${hz[j].cx},${hz[j].cy})`,
+          rect,
+          [hz[i], hz[j]]
+        );
+      }
+    }
+  }
+
+  for (const h of hz) {
+    const hb = wallBox(h);
+    for (const v of vz) {
+      const vb = wallBox(v);
+      const yOv = axisOverlap(hb.t, hb.b, vb.t, vb.b);
+      if (yOv < 6) continue;
+      const gR = vb.l - hb.r;
+      if (gR > WALL_EPS && gR < maxG) {
+        push(
+          `konec vodorovné–svislá mezera ${gR.toFixed(1)}px u (${h.cx},${h.cy})↔(${v.cx},${v.cy})`,
+          { l: hb.r, r: vb.l, t: Math.max(hb.t, vb.t), b: Math.min(hb.b, vb.b) },
+          [h, v]
+        );
+      }
+      const gL = hb.l - vb.r;
+      if (gL > WALL_EPS && gL < maxG) {
+        push(
+          `svislá–konec vodorovné mezera ${gL.toFixed(1)}px u (${v.cx},${v.cy})↔(${h.cx},${h.cy})`,
+          { l: vb.r, r: hb.l, t: Math.max(hb.t, vb.t), b: Math.min(hb.b, vb.b) },
+          [v, h]
+        );
+      }
+    }
+  }
+
   return viol;
 }
 

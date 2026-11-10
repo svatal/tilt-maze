@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   interiorWallOverlapViolations,
+  narrowWallFaceGapViolations,
   interiorWalls,
   isSpawnAndGoalClear,
   trapOverlapsAnyWall,
@@ -33,6 +34,7 @@ describe("levelSolvability", () => {
       expect(validateWallsOnlyBand(lvl)).toBeNull();
       expect(validateLevel10Slalom(lvl)).toBeNull();
       expect(interiorWallOverlapViolations(lvl)).toEqual([]);
+      expect(narrowWallFaceGapViolations(lvl)).toEqual([]);
     }
   });
 

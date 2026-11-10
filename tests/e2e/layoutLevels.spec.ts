@@ -56,7 +56,7 @@ async function screenshotLevels(
   await startGameFromMenu(page, 0);
   await waitBoardReady(page);
 
-  const levelCount = 10;
+  const levelCount = 15;
   for (let i = 0; i < levelCount; i++) {
     if (i > 0) {
       await page.locator("#btn-menu").click();

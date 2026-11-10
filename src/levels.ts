@@ -3,6 +3,7 @@
  * Obdélníky zdí: střed + šířka/výška.
  */
 
+import type { FloorSlopeRegion } from "./floorSlope";
 import {
   FRAME_BOTTOM,
   FRAME_INNER_LEFT,
@@ -19,6 +20,8 @@ export type LevelDef = {
   start: { x: number; y: number };
   goal: { x: number; y: number; r: number };
   traps: { x: number; y: number; r: number }[];
+  /** Lokální sklon podlahy (bez propadu). */
+  slopes: FloorSlopeRegion[];
   walls: WallDef[];
 };
 
@@ -118,6 +121,7 @@ export const LEVELS: LevelDef[] = [
     start: { x: 72, y: 565 },
     goal: { x: 248, y: 118, r: 26 },
     traps: [],
+    slopes: [],
     walls: border()
   },
   {
@@ -126,6 +130,7 @@ export const LEVELS: LevelDef[] = [
     start: { x: 68, y: 558 },
     goal: { x: 278, y: 108, r: 24 },
     traps: [],
+    slopes: [],
     walls: [...border(), { cx: 228, cy: 395, w: 220, h: 16 }]
   },
   {
@@ -134,6 +139,7 @@ export const LEVELS: LevelDef[] = [
     start: { x: 62, y: 578 },
     goal: { x: 298, y: 568, r: 15 },
     traps: [],
+    slopes: [],
     walls: [...border(), vWallBottom(100), vWallTop(180), vWallBottom(260)]
   },
   {
@@ -142,6 +148,7 @@ export const LEVELS: LevelDef[] = [
     start: { x: 46, y: 120 },
     goal: { x: 180, y: 320, r: 23 },
     traps: [],
+    slopes: [],
     walls: [
       ...border(),
       ...rectRing(60, 90, 300, 550, "bl"),
@@ -158,6 +165,7 @@ export const LEVELS: LevelDef[] = [
     start: { x: 72, y: 580 },
     goal: { x: 288, y: 95, r: 16 },
     traps: [],
+    slopes: [],
     walls: [...border(), ...L5_GRID]
   },
   {
@@ -169,6 +177,7 @@ export const LEVELS: LevelDef[] = [
       { x: 180, y: 380, r: 16 },
       { x: 260, y: 520, r: 15 }
     ],
+    slopes: [],
     walls: [
       ...border(),
       { cx: 90, cy: 450, w: 140, h: 16 },
@@ -185,6 +194,7 @@ export const LEVELS: LevelDef[] = [
       { x: 225, y: 480, r: 16 },
       { x: 180, y: 340, r: 15 }
     ],
+    slopes: [],
     walls: [
       ...border(),
       { cx: 82, cy: 420, w: 108, h: 16 },
@@ -205,6 +215,7 @@ export const LEVELS: LevelDef[] = [
       { x: 275, y: 360, r: 15 },
       { x: 180, y: 230, r: 15 }
     ],
+    slopes: [],
     walls: [
       ...border(),
       { cx: 82, cy: 530, w: 100, h: 14 },
@@ -228,6 +239,7 @@ export const LEVELS: LevelDef[] = [
       { x: 235, y: 348, r: 11 },
       { x: 225, y: 268, r: 11 }
     ],
+    slopes: [],
     walls: [
       ...border(),
       { cx: 46, cy: 362, w: 12, h: 492 },
@@ -270,6 +282,88 @@ export const LEVELS: LevelDef[] = [
       { x: 145, y: 165, r: 15 },
       { x: 215, y: 165, r: 15 }
     ],
+    slopes: [],
     walls: border()
+  },
+  {
+    id: 11,
+    name: "Jamka na cestě",
+    start: { x: 62, y: 570 },
+    goal: { x: 292, y: 108, r: 22 },
+    traps: [],
+    slopes: [{ shape: "circle", cx: 178, cy: 355, r: 54, kind: "basin" }],
+    walls: [
+      ...border(),
+      { cx: 178, cy: 248, w: 118, h: 14 }
+    ]
+  },
+  {
+    id: 12,
+    name: "Hřeben",
+    start: { x: 72, y: 575 },
+    goal: { x: 285, y: 105, r: 20 },
+    traps: [],
+    slopes: [{ shape: "rect", cx: 180, cy: 318, w: 248, h: 52, kind: "hill" }],
+    walls: [
+      ...border(),
+      { cx: 55, cy: 475, w: 14, h: 120 },
+      { cx: 305, cy: 475, w: 14, h: 120 }
+    ]
+  },
+  {
+    id: 13,
+    name: "Údolí k pasti",
+    start: { x: 68, y: 560 },
+    goal: { x: 278, y: 108, r: 23 },
+    traps: [{ x: 248, y: 435, r: 16 }],
+    slopes: [
+      { shape: "circle", cx: 192, cy: 455, r: 64, kind: "basin" },
+      { shape: "rect", cx: 138, cy: 268, w: 88, h: 44, kind: "hill" }
+    ],
+    walls: [
+      ...border(),
+      { cx: 118, cy: 360, w: 96, h: 14 }
+    ]
+  },
+  {
+    id: 14,
+    name: "Kopce a mise",
+    start: { x: 295, y: 558 },
+    goal: { x: 78, y: 112, r: 22 },
+    traps: [
+      { x: 180, y: 420, r: 15 },
+      { x: 220, y: 248, r: 14 }
+    ],
+    slopes: [
+      { shape: "rect", cx: 178, cy: 305, w: 200, h: 48, kind: "hill" },
+      { shape: "circle", cx: 118, cy: 498, r: 46, kind: "basin" }
+    ],
+    walls: [
+      ...border(),
+      { cx: 268, cy: 388, w: 120, h: 14 },
+      { cx: 108, cy: 280, w: 70, h: 14 }
+    ]
+  },
+  {
+    id: 15,
+    name: "Mistr sklonů",
+    start: { x: 62, y: 578 },
+    goal: { x: 272, y: 102, r: 21 },
+    traps: [
+      { x: 248, y: 518, r: 14 },
+      { x: 112, y: 238, r: 13 },
+      { x: 180, y: 178, r: 13 }
+    ],
+    slopes: [
+      { shape: "circle", cx: 178, cy: 395, r: 42, kind: "basin" },
+      { shape: "rect", cx: 268, cy: 355, w: 72, h: 110, kind: "hill" },
+      { shape: "rect", cx: 128, cy: 445, w: 140, h: 38, kind: "hill" }
+    ],
+    walls: [
+      ...border(),
+      { cx: 178, cy: 268, w: 130, h: 14 },
+      { cx: 48, cy: 362, w: 14, h: 110 },
+      { cx: 312, cy: 478, w: 14, h: 92 }
+    ]
   }
 ];

@@ -8,6 +8,7 @@ import {
   validateLevel1Shape,
   validateLevel10Slalom,
   validateLevelSet,
+  validateSlopeLevels,
   validateWallsOnlyBand
 } from "../src/levelGeometry";
 import {
@@ -22,9 +23,9 @@ import { LEVELS } from "../src/levels";
 import { BALL_RADIUS } from "../src/constants";
 
 describe("levelSolvability", () => {
-  it("existuje přesně 10 úrovní", () => {
-    expect(LEVELS).toHaveLength(10);
-    expect(LEVELS.map((l) => l.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  it("existuje přesně 15 úrovní", () => {
+    expect(LEVELS).toHaveLength(15);
+    expect(LEVELS.map((l) => l.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
   });
 
   it("strukturální pravidla křivky obtížnosti", () => {
@@ -79,6 +80,14 @@ describe("levelSolvability", () => {
 
   it("každá úroveň má BFS cestu s poloměrem kuličky (ne náročnost hry)", () => {
     for (const lvl of LEVELS) {
+      expect(isLevelSolvable(lvl), `úroveň ${lvl.id}`).toBe(true);
+    }
+  });
+
+  it("úrovně 11–15: sklonové finále s BFS cestou", () => {
+    for (const lvl of LEVELS.filter((l) => l.id >= 11)) {
+      expect(validateSlopeLevels(lvl)).toBeNull();
+      expect(lvl.slopes.length).toBeGreaterThan(0);
       expect(isLevelSolvable(lvl), `úroveň ${lvl.id}`).toBe(true);
     }
   });

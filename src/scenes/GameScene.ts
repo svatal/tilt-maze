@@ -12,10 +12,14 @@ import {
   type StorageLike
 } from "../sensorBannerSession";
 import {
+  composeBoardHoleAndFloorTilts,
+  floorSlopeLocalTilt,
+  type FloorSlopeRegion
+} from "../floorSlope";
+import {
   ballCenterDistance,
   ballCenterTriggersHoleSink,
   ballInHoleSlopeAnnulus,
-  composeBoardAndHoleTilts,
   holeLocalTilt,
   type HoleDef
 } from "../holeSlope";
@@ -159,6 +163,7 @@ export class GameScene extends Phaser.Scene {
         };
         __e2eTickHoles?: () => void;
         __e2eHoleLocalMag?: (trapIndex?: number) => number;
+        __e2eFloorSlopeMag?: (slopeIndex?: number) => number;
       };
       w.__e2ePlaceBall = (x: number, y: number) => this.e2ePlaceBall(x, y);
       w.__e2eHoleState = () => ({
@@ -174,6 +179,14 @@ export class GameScene extends Phaser.Scene {
         const bb = this.ball.body as MatterJS.BodyType;
         const h: HoleDef = { cx: tr.x, cy: tr.y, r: tr.r };
         const t = holeLocalTilt(bb.position.x, bb.position.y, h);
+        return Math.hypot(t.ax, t.ay);
+      };
+      w.__e2eFloorSlopeMag = (slopeIndex = 0) => {
+        const slopes = LEVELS[this.levelIndex].slopes;
+        const s = slopes[slopeIndex];
+        if (!s || !this.ball?.body) return 0;
+        const bb = this.ball.body as MatterJS.BodyType;
+        const t = floorSlopeLocalTilt(bb.position.x, bb.position.y, s);
         return Math.hypot(t.ax, t.ay);
       };
     }
@@ -274,7 +287,15 @@ export class GameScene extends Phaser.Scene {
       const trapBowls: HoleDef[] = lvl.traps
         .map((tr) => ({ cx: tr.x, cy: tr.y, r: tr.r }))
         .filter((h) => ballInHoleSlopeAnnulus(pos.x, pos.y, h));
-      const composed = composeBoardAndHoleTilts(t.ax, t.ay, pos.x, pos.y, this.goalHole, trapBowls);
+      const composed = composeBoardHoleAndFloorTilts(
+        t.ax,
+        t.ay,
+        pos.x,
+        pos.y,
+        this.goalHole,
+        trapBowls,
+        lvl.slopes
+      );
       const fx = composed.ax * FORCE_MULT;
       const fy = composed.ay * FORCE_MULT;
       this.matter.body.applyForce(bb, bb.position, { x: fx, y: fy });
@@ -820,6 +841,10 @@ export class GameScene extends Phaser.Scene {
     this.goalHole = { cx: lvl.goal.x, cy: lvl.goal.y, r: lvl.goal.r };
     this.drawHole(lvl.goal.x, lvl.goal.y, lvl.goal.r, 0x0d3d0d);
 
+    for (const slope of lvl.slopes) {
+      this.drawFloorSlope(slope);
+    }
+
     for (const tr of lvl.traps) {
       const tb = this.matter.add.circle(tr.x, tr.y, tr.r, {
         isStatic: true,
@@ -855,6 +880,89 @@ export class GameScene extends Phaser.Scene {
     gr.fillCircle(cx, cy, r - 2);
     gr.lineStyle(2, 0x0a0604, 1);
     gr.strokeCircle(cx, cy, r);
+  }
+
+  /**
+   * Sklon podlahy: poloprůhledné zelené/zlatavé přechody a jemné vrstevnice.
+   * Tmavší = níž (jamka), světlejší střed = kopec — na rozdíl od tmavých děr.
+   */
+  private drawFloorSlope(slope: FloorSlopeRegion): void {
+    const gr = this.add.graphics();
+    this.decorative.push(gr);
+    const basin = slope.kind === "basin";
+    const contourColor = basin ? 0x2a5c38 : 0x6b4e2a;
+    const edgeColor = basin ? 0x3d7a4e : 0x5a3f1c;
+    const centerColor = basin ? 0x1e3d28 : 0x9a7a4e;
+
+    const drawArrow = (x: number, y: number, angleDeg: number, len: number) => {
+      const rad = (angleDeg * Math.PI) / 180;
+      const tipX = x + Math.cos(rad) * len;
+      const tipY = y + Math.sin(rad) * len;
+      const wing = rad + (2.6 * Math.PI) / 180 * (basin ? 1 : -1);
+      gr.lineStyle(1.5, 0xc9a227, 0.75);
+      gr.beginPath();
+      gr.moveTo(x, y);
+      gr.lineTo(tipX, tipY);
+      gr.lineTo(tipX - Math.cos(wing) * len * 0.42, tipY - Math.sin(wing) * len * 0.42);
+      gr.moveTo(tipX, tipY);
+      const wing2 = rad - (2.6 * Math.PI) / 180 * (basin ? 1 : -1);
+      gr.lineTo(tipX - Math.cos(wing2) * len * 0.42, tipY - Math.sin(wing2) * len * 0.42);
+      gr.strokePath();
+    };
+
+    if (slope.shape === "circle") {
+      const steps = 6;
+      for (let i = steps; i >= 0; i--) {
+        const t = i / steps;
+        const rr = slope.r * (0.22 + 0.78 * t);
+        const col = Phaser.Display.Color.Interpolate.ColorWithColor(
+          Phaser.Display.Color.IntegerToColor(centerColor),
+          Phaser.Display.Color.IntegerToColor(edgeColor),
+          steps,
+          i
+        );
+        const tint = Phaser.Display.Color.GetColor(col.r, col.g, col.b);
+        gr.fillStyle(tint, basin ? 0.22 + 0.18 * (1 - t) : 0.16 + 0.2 * t);
+        gr.fillCircle(slope.cx, slope.cy, rr);
+      }
+      gr.lineStyle(1, contourColor, 0.55);
+      for (let f = 0.25; f <= 0.95; f += 0.25) {
+        gr.strokeCircle(slope.cx, slope.cy, slope.r * f);
+      }
+      gr.lineStyle(2, edgeColor, 0.85);
+      gr.strokeCircle(slope.cx, slope.cy, slope.r);
+      for (const a of [0, 90, 180, 270]) {
+        const rad = (a * Math.PI) / 180;
+        const ax = slope.cx + Math.cos(rad) * slope.r * 0.72;
+        const ay = slope.cy + Math.sin(rad) * slope.r * 0.72;
+        drawArrow(ax, ay, basin ? a + 180 : a, 9);
+      }
+      if (basin) {
+        drawArrow(slope.cx, slope.cy - slope.r * 0.35, 90, 11);
+      } else {
+        drawArrow(slope.cx, slope.cy, 270, 11);
+      }
+      return;
+    }
+
+    const hw = slope.w / 2;
+    const hh = slope.h / 2;
+    const x0 = slope.cx - hw;
+    const y0 = slope.cy - hh;
+    gr.fillStyle(centerColor, basin ? 0.35 : 0.28);
+    gr.fillRoundedRect(x0, y0, slope.w, slope.h, Math.min(14, hh));
+    gr.lineStyle(1, contourColor, 0.5);
+    const inset = 0.18;
+    for (let k = 1; k <= 3; k++) {
+      const ix = hw * inset * k;
+      const iy = hh * inset * k;
+      gr.strokeRoundedRect(x0 + ix, y0 + iy, slope.w - 2 * ix, slope.h - 2 * iy, Math.max(4, hh - iy));
+    }
+    gr.lineStyle(2, edgeColor, 0.85);
+    gr.strokeRoundedRect(x0, y0, slope.w, slope.h, Math.min(14, hh));
+    drawArrow(slope.cx, slope.cy, basin ? 90 : 270, 12);
+    drawArrow(slope.cx - hw * 0.55, slope.cy, basin ? 0 : 180, 10);
+    drawArrow(slope.cx + hw * 0.55, slope.cy, basin ? 180 : 0, 10);
   }
 
   private onCollisionStart(event: Phaser.Physics.Matter.Events.CollisionStartEvent): void {

@@ -7,9 +7,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "../..");
 const basePath = (process.env.E2E_BASE_PATH ?? "/tilt-maze/").replace(/\/?$/, "/");
 const artifacts = "/opt/cursor/artifacts";
-const LEVEL_COUNT = 10;
-/** Úrovně s geometrickými změnami v tomto PR (kromě společného obvodu). */
-const MOBILE_GEOMETRY_LEVELS = [2, 4, 8];
+const LEVEL_COUNT = 15;
+/** Nové sklonové úrovně + reprezentativní mobilní vzorky. */
+const MOBILE_GEOMETRY_LEVELS = [11, 12, 14];
+const SLOPE_LEVEL_INDICES = [10, 11, 12, 13, 14];
 
 test.beforeAll(() => {
   if (!fs.existsSync(path.join(root, "dist", "index.html"))) {
@@ -78,8 +79,8 @@ async function shotAllLevelsFromMenu(
   }
 }
 
-test("PR artefakty: desktop — menu + všech 10 úrovní", async ({ page }) => {
-  await shotAllLevelsFromMenu(page, "desktop", 1280, 800);
+test("PR artefakty: desktop — menu + sklonové úrovně 11–15", async ({ page }) => {
+  await shotAllLevelsFromMenu(page, "desktop", 1280, 800, (i) => SLOPE_LEVEL_INDICES.includes(i));
   await page.goto(`${basePath}?e2e=1`, { waitUntil: "networkidle" });
   await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 15000 });
   await playLevelFromMenu(page, 0);
@@ -88,7 +89,7 @@ test("PR artefakty: desktop — menu + všech 10 úrovní", async ({ page }) => 
   await page.screenshot({ path: path.join(artifacts, "menu-after-roundtrip-desktop.png"), fullPage: false });
 });
 
-test("PR artefakty: mobile — úrovně se změněnou geometrií", async ({ browser }) => {
+test("PR artefakty: mobile — sklonové úrovně", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   try {

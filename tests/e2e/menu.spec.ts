@@ -67,9 +67,10 @@ test("E2E: desktop — karty úrovní kompaktní a v panelu", async ({ page }) =
   expect(layout!.listInsideMenu).toBe(true);
 
   const groups = await page.locator(".tilt-maze-level-group").count();
-  expect(groups).toBe(2);
+  expect(groups).toBe(3);
   await expect(page.getByRole("heading", { name: /Bez pastí/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /S pastmi/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Lokální sklon/i })).toBeVisible();
   await assertLevelCardsNoTextOverflow(page);
 });
 

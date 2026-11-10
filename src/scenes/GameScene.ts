@@ -27,7 +27,6 @@ import {
   SENSOR_DISMISS_BUTTON_LABEL,
   SENSOR_WARNING_INNER_HTML
 } from "../ui/sensorHelpContent";
-import { pathRouteSamples } from "../levelSolvability";
 import type { GameSceneStartData } from "./MenuScene";
 
 const WALL_FRICTION = 0.08;
@@ -68,8 +67,6 @@ export class GameScene extends Phaser.Scene {
   private desktopHintTimer: ReturnType<typeof setTimeout> | null = null;
   private mouseOverlay: MouseTiltOverlay | null = null;
   private btnMouseToggle: HTMLButtonElement | null = null;
-  private sensorDebugEl: HTMLElement | null = null;
-  private sensorDebugTimer: ReturnType<typeof setInterval> | null = null;
   private lastVibrateAt = 0;
   private sensorStorage: StorageLike = typeof sessionStorage !== "undefined" ? sessionStorage : { getItem: () => null, setItem: () => undefined };
   private goalSettling = false;
@@ -113,7 +110,6 @@ export class GameScene extends Phaser.Scene {
     const payload = (data ?? this.sys.settings.data) as GameSceneStartData | undefined;
     if (payload?.levelIndex != null) this.initialLevelIndex = payload.levelIndex;
     const qs = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
-    const skipSensorBanner = qs.get("e2e") === "1";
     this.sensorStorage = typeof sessionStorage !== "undefined" ? sessionStorage : { getItem: () => null, setItem: () => undefined };
     this.ensureTextures();
     this.matter.world.setBounds(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT, 32, true, true, true, true);
@@ -133,13 +129,9 @@ export class GameScene extends Phaser.Scene {
       isUiTarget: (el) => this.isOverlayUiTarget(el),
       onMouseArmedChange: (armed) => this.onMouseArmedChanged(armed),
       onMouseTiltVisual: (nx, ny, active) => this.mouseOverlay?.updateTilt(nx, ny, active),
-      ...(skipSensorBanner
-        ? {}
-        : {
-            onSensorDesktopHint: () => this.maybeShowDesktopSensorHint(),
-            onSensorDataStale: () => this.maybeShowFullSensorWarning(),
-            onSensorDataRecovered: () => this.onSensorValidDataRecovered()
-          })
+      onSensorDesktopHint: () => this.maybeShowDesktopSensorHint(),
+      onSensorDataStale: () => this.maybeShowFullSensorWarning(),
+      onSensorDataRecovered: () => this.onSensorValidDataRecovered()
     });
 
     this.scale.off("resize", this.layoutHud, this);
@@ -156,14 +148,8 @@ export class GameScene extends Phaser.Scene {
     this.loadLevel(this.initialLevelIndex);
     this.showPlayHud();
 
-    if (qs.get("sensorDebug") === "1") {
-      this.setupSensorDebugOverlay();
-    }
-
     if (qs.get("e2e") === "1") {
       const w = window as unknown as {
-        __tiltMazeScene?: GameScene;
-        __loadLevel?: (n: number) => void;
         __e2ePlaceBall?: (x: number, y: number) => void;
         __e2eHoleState?: () => {
           goalSettling: boolean;
@@ -173,23 +159,7 @@ export class GameScene extends Phaser.Scene {
         };
         __e2eTickHoles?: () => void;
         __e2eHoleLocalMag?: (trapIndex?: number) => number;
-        __e2eRelayout?: () => void;
-        __e2ePathSamples?: (levelIndex: number) => { x: number; y: number }[];
-        __e2eMatterStep?: (count?: number) => void;
-        __e2eBallSurfaceClearance?: () => { wall: number; trap: number };
       };
-      w.__tiltMazeScene = this;
-      w.__loadLevel = (n: number) => this.loadLevel(n);
-      w.__e2ePathSamples = (levelIndex: number) => pathRouteSamples(LEVELS[levelIndex]);
-      w.__e2eMatterStep = (count = 1) => {
-        const delta = 1000 / 60;
-        let t = performance.now();
-        for (let i = 0; i < count; i++) {
-          t += delta;
-          this.matter.world.update(t, delta);
-        }
-      };
-      w.__e2eBallSurfaceClearance = () => this.e2eBallSurfaceClearance();
       w.__e2ePlaceBall = (x: number, y: number) => this.e2ePlaceBall(x, y);
       w.__e2eHoleState = () => ({
         goalSettling: this.goalSettling,
@@ -198,9 +168,6 @@ export class GameScene extends Phaser.Scene {
         lastTriggerDist: this.e2eLastTriggerDist
       });
       w.__e2eTickHoles = () => this.e2eTickHoleChecks();
-      w.__e2eRelayout = () => {
-        this.layoutHud(this.scale.gameSize);
-      };
       w.__e2eHoleLocalMag = (trapIndex = 0) => {
         const tr = LEVELS[this.levelIndex].traps[trapIndex];
         if (!tr || !this.ball?.body) return 0;
@@ -219,16 +186,10 @@ export class GameScene extends Phaser.Scene {
 
   private readonly onShutdown = (): void => {
     this.playSession++;
-    if (this.sensorDebugTimer) {
-      clearInterval(this.sensorDebugTimer);
-      this.sensorDebugTimer = null;
-    }
     if (this.desktopHintTimer) {
       clearTimeout(this.desktopHintTimer);
       this.desktopHintTimer = null;
     }
-    this.sensorDebugEl?.remove();
-    this.sensorDebugEl = null;
     this.tilt?.setMouseArmed(false);
     this.mouseOverlay?.destroy();
     this.mouseOverlay = null;
@@ -584,48 +545,6 @@ export class GameScene extends Phaser.Scene {
     this.mouseOverlay?.layout();
   }
 
-  private setupSensorDebugOverlay(): void {
-    if (this.sensorDebugEl) return;
-    const el = document.createElement("div");
-    el.id = "tilt-maze-sensor-debug";
-    el.style.cssText = [
-      "position:fixed",
-      "top:8px",
-      "left:8px",
-      "max-width:min(96vw,380px)",
-      "background:rgba(0,0,0,0.82)",
-      "color:#cfc",
-      "font:11px/1.35ui-monospace,monospace",
-      "padding:8px 10px",
-      "border-radius:8px",
-      "z-index:2147483646",
-      "pointer-events:none",
-      "text-align:left",
-      "white-space:pre-wrap",
-      "word-break:break-word"
-    ].join(";");
-    document.body.appendChild(el);
-    this.sensorDebugEl = el;
-    const tick = (): void => {
-      const s = this.tilt.getSensorSnapshot();
-      const issue = this.tilt.monitor.classifySensorIssue(performance.now());
-      const warn = issue !== "ok" && !this.tilt.isDesktopInputOverride();
-      el.textContent = [
-        `[sensorDebug] issue=${issue} warn=${warn}`,
-        `perm A/G/M: ${s.permAccel}/${s.permGyro}/${s.permMag} denied=${s.permissionDenied}`,
-        `orient: ev ${s.orientEvents} valid ${s.orientValid} γ ${s.lastGamma ?? "—"} β ${s.lastBeta ?? "—"}`,
-        `motion: ev ${s.motionEvents} valid ${s.motionValid} g ${s.lastGrav ? `${s.lastGrav.x.toFixed(2)},${s.lastGrav.y.toFixed(2)},${s.lastGrav.z ?? "—"}` : "—"}`,
-        `gravSensor: ctor ${s.gsConstructorOk} read ${s.gsReadings} err ${s.gsErrors}`,
-        s.lastGs ? `  GS ${s.lastGs.x.toFixed(2)},${s.lastGs.y.toFixed(2)},${s.lastGs.z.toFixed(2)}` : "  GS —",
-        s.lastGravityError ? `  err: ${s.lastGravityError}` : ""
-      ]
-        .filter(Boolean)
-        .join("\n");
-    };
-    tick();
-    this.sensorDebugTimer = setInterval(tick, 320);
-  }
-
   private removeSensorBanner(): void {
     if (this.desktopHintTimer) {
       clearTimeout(this.desktopHintTimer);
@@ -798,30 +717,6 @@ export class GameScene extends Phaser.Scene {
     }
     this.scene.sleep("GameScene");
     this.scene.run("MenuScene");
-  }
-
-  /** E2E: minimální volná mezera od okraje kuličky k nejbližší zdi/pasti (Matter poloha). */
-  e2eBallSurfaceClearance(): { wall: number; trap: number } {
-    const lvl = LEVELS[this.levelIndex];
-    const bb = this.ball?.body as MatterJS.BodyType | undefined;
-    if (!bb) return { wall: -1, trap: -1 };
-    const px = bb.position.x;
-    const py = bb.position.y;
-    let minWall = Number.POSITIVE_INFINITY;
-    for (const w of lvl.walls) {
-      const hw = w.w / 2;
-      const hh = w.h / 2;
-      const dx = Math.abs(px - w.cx) - hw;
-      const dy = Math.abs(py - w.cy) - hh;
-      const d = Math.hypot(Math.max(0, dx), Math.max(0, dy));
-      minWall = Math.min(minWall, d);
-    }
-    let minTrap = Number.POSITIVE_INFINITY;
-    for (const t of lvl.traps) {
-      const d = Math.hypot(px - t.x, py - t.y) - t.r;
-      minTrap = Math.min(minTrap, d);
-    }
-    return { wall: minWall - BALL_RADIUS, trap: minTrap - BALL_RADIUS };
   }
 
   private async finishBeginPlay(session: number): Promise<void> {

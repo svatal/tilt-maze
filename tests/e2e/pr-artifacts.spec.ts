@@ -46,7 +46,6 @@ async function playLevelFromMenu(page: import("@playwright/test").Page, levelInd
     undefined,
     { timeout: 20000 }
   );
-  await page.evaluate(() => (window as unknown as { __e2eRelayout?: () => void }).__e2eRelayout?.());
   await waitBoardReady(page);
 }
 

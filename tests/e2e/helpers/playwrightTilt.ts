@@ -62,7 +62,7 @@ export async function clearCdpTilt(page: Page): Promise<void> {
 const LEVEL1_GOAL = { x: 248, y: 118 };
 
 export async function driveCdpTiltToLevel1Goal(page: Page, timeoutMs = 50_000): Promise<void> {
-  await setCdpTilt(page, { beta: 0, gamma: 0 });
+  await setCdpTilt(page, { beta: 8, gamma: 6 });
   await sleep(900);
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -88,13 +88,20 @@ export async function assertMenuHiddenAfterPlay(page: Page): Promise<void> {
   await expect(page.locator("#tilt-maze-menu")).toBeHidden({ timeout: 15000 });
 }
 
-export async function startGameFromMenu(page: Page, levelIndex = 0): Promise<void> {
-  await page.goto(`${(process.env.E2E_BASE_PATH ?? "/tilt-maze/").replace(/\/?$/, "/")}?e2e=1`, {
-    waitUntil: "domcontentloaded"
-  });
+export async function startGameFromMenu(
+  page: Page,
+  levelIndex = 0,
+  queryExtra = "",
+  cdpPrime?: { beta: number; gamma: number }
+): Promise<void> {
+  const base = (process.env.E2E_BASE_PATH ?? "/tilt-maze/").replace(/\/?$/, "/");
+  const q = queryExtra ? `&${queryExtra.replace(/^&/, "")}` : "";
+  await page.goto(`${base}?e2e=1${q}`, { waitUntil: "domcontentloaded" });
+  if (cdpPrime) await setCdpTilt(page, cdpPrime);
   await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 15000 });
   await page.locator(`button[data-level-index="${levelIndex}"]`).click();
   await page.locator("#menu-btn-play").click();
+  if (cdpPrime) await setCdpTilt(page, cdpPrime);
   await assertMenuHiddenAfterPlay(page);
   await expect(page.locator("#tilt-maze-ui")).toBeVisible({ timeout: 10000 });
   await page.waitForFunction(
@@ -108,6 +115,15 @@ export async function startGameFromMenu(page: Page, levelIndex = 0): Promise<voi
     { timeout: 20000 }
   );
   await sleep(600);
+}
+
+/** Zavře banner senzorů přes skutečné UI (počítač bez CDP orientace). */
+export async function dismissSensorBannerIfPresent(page: Page): Promise<void> {
+  const dismiss = page.locator("#sensor-dismiss");
+  if (await dismiss.isVisible().catch(() => false)) {
+    await dismiss.click();
+    await expect(page.locator("#tilt-maze-sensor-warn")).toHaveCount(0);
+  }
 }
 
 export async function driveMouseTilt(

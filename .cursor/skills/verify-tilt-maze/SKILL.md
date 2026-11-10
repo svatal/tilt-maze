@@ -41,6 +41,10 @@ Accelerometer CDP is separate: `tests/e2e/cdpAccelerometer.spec.ts`.
 
 ## Helpers
 
-`setCdpTilt`, `clearCdpTilt`, `driveCdpTiltToLevel1Goal`, `startGameFromMenu`, `assertMenuHiddenAfterPlay`, `driveMouseTilt` in `tests/e2e/helpers/playwrightTilt.ts`.
+`setCdpTilt`, `clearCdpTilt`, `driveCdpTiltToLevel1Goal`, `startGameFromMenu`, `assertMenuHiddenAfterPlay`, `dismissSensorBannerIfPresent`, `driveMouseTilt` in `tests/e2e/helpers/playwrightTilt.ts`.
+
+`?e2e=1` does not hide sensor banners; dismiss with `#sensor-dismiss` when driving desktop mouse tests. CDP orientation wins should keep `#tilt-maze-sensor-warn` absent.
+
+Window hooks under `?e2e=1`: `__tiltMazeScene`, `__tiltMazeGame`, `__debugCompleteLevel`, and hole geometry helpers (`__e2ePlaceBall`, `__e2eTickHoles`, `__e2eHoleState`, `__e2eHoleLocalMag`) — not `skipMenu`, `__loadLevel`, or `sensorDebug`.
 
 Feature map: `.cursor/skills/verify-tilt-maze/features/`.

@@ -86,7 +86,6 @@ export class TiltController {
   private listening = false;
   private stopGravitySensor: (() => void) | null = null;
   private healthTimer: ReturnType<typeof setInterval> | null = null;
-  private recoveryNotified = false;
 
   readonly monitor = new SensorMonitor();
 
@@ -175,10 +174,7 @@ export class TiltController {
     const issue = this.monitor.classifySensorIssue(t);
 
     if (issue === "ok") {
-      if (this.monitor.hadRealSensorValid && !this.recoveryNotified) {
-        this.recoveryNotified = true;
-        onSensorDataRecovered?.();
-      }
+      if (this.monitor.hadRealSensorValid) onSensorDataRecovered?.();
       return;
     }
 
@@ -275,7 +271,10 @@ export class TiltController {
       this.lastBeta = e.beta;
       ok = true;
     }
-    if (ok) this.lastOrientTs = at;
+    if (ok) {
+      this.lastOrientTs = at;
+      if (this.monitor.hadRealSensorValid) this.options.onSensorDataRecovered?.();
+    }
   };
 
   private readonly onMotion = (e: DeviceMotionEvent): void => {

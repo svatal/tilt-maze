@@ -4,14 +4,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { HOLE_TRIGGER_FRAC, holeTriggerRadius } from "../../src/holeSlope";
 import { LEVELS } from "../../src/levels";
-import { driveMouseTilt } from "./helpers/playwrightTilt";
+import { dismissSensorBannerIfPresent, driveMouseTilt, startGameFromMenu } from "./helpers/playwrightTilt";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "../..");
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
-const basePath = (process.env.E2E_BASE_PATH ?? "/tilt-maze/").replace(/\/?$/, "/");
 
 /** Úroveň s pastí pro E2E fyziku děr (id 6 — první úroveň s pastí v aktuálním LEVELS). */
 const E2E_HOLE_LEVEL_INDEX = LEVELS.findIndex((l) => l.traps.length > 0);
@@ -36,11 +34,8 @@ test.beforeAll(() => {
 });
 
 async function startHoleLevel(page: import("@playwright/test").Page) {
-  await page.goto(`${basePath}?e2e=1&skipMenu=1`, { waitUntil: "networkidle" });
-  await expect(page.locator("#tilt-maze-ui")).toBeVisible();
-  await page.evaluate((idx) => {
-    (window as unknown as { __loadLevel?: (n: number) => void }).__loadLevel?.(idx);
-  }, E2E_HOLE_LEVEL_INDEX);
+  await startGameFromMenu(page, E2E_HOLE_LEVEL_INDEX);
+  await dismissSensorBannerIfPresent(page);
 }
 
 test("E2E past: okraj viditelné díry (dist≈r) nespustí animaci", async ({ page }) => {

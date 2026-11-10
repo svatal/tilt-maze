@@ -48,13 +48,14 @@ const config: Phaser.Types.Core.GameConfig = {
 
 const game = new Phaser.Game(config);
 
-(window as unknown as { __tiltMazeGame?: Phaser.Game }).__tiltMazeGame = game;
-
 window.addEventListener("resize", () => {
   game.scale.refresh();
 });
 
-// E2E / ladění: dokončení úrovně z konzole
-(window as unknown as { __debugCompleteLevel?: () => void }).__debugCompleteLevel = () => {
-  game.events.emit("debug-complete-level");
-};
+const qs = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
+if (qs.get("e2e") === "1") {
+  (window as unknown as { __tiltMazeGame?: Phaser.Game }).__tiltMazeGame = game;
+  (window as unknown as { __debugCompleteLevel?: () => void }).__debugCompleteLevel = () => {
+    game.events.emit("debug-complete-level");
+  };
+}

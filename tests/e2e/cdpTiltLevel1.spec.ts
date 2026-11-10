@@ -33,7 +33,7 @@ async function assertBuildLabel(page: Page): Promise<void> {
 }
 
 async function finishLevel1(page: Page, shotPrefix: string): Promise<void> {
-  await startGameFromMenu(page, 0);
+  await startGameFromMenu(page, 0, "", { beta: 12, gamma: 8 });
   await assertMenuHiddenAfterPlay(page);
   await assertBuildLabel(page);
 
@@ -45,7 +45,7 @@ async function finishLevel1(page: Page, shotPrefix: string): Promise<void> {
     const win = expect(page.locator("#btn-next")).toBeVisible({ timeout: 52_000 });
     await Promise.all([tilt, midroll, win]);
 
-    await expect(page.locator("#tilt-maze-sensor-warn")).toHaveCount(0);
+    await expect(page.locator("#tilt-maze-sensor-warn")).toBeHidden();
     const sample = await page.evaluate(() => {
       const scene = (window as unknown as {
         __tiltMazeScene?: { tilt: { getSensorSnapshot: () => { orientValid: number } } };
@@ -70,6 +70,18 @@ test("E2E: CDP tilt dokončí úroveň 1 z menu na mobilu", async ({ browser }) 
   const page = await context.newPage();
   try {
     await finishLevel1(page, "cdp-tilt-mobile");
+  } finally {
+    await context.close();
+  }
+});
+
+test("E2E: bez orientačních dat ukáže banner senzorů (desktop)", async ({ browser }) => {
+  test.setTimeout(30_000);
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  try {
+    await startGameFromMenu(page, 0);
+    await expect(page.locator("#tilt-maze-sensor-warn")).toBeVisible({ timeout: 20_000 });
   } finally {
     await context.close();
   }

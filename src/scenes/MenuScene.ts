@@ -36,12 +36,6 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create(): void {
-    const qs = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
-    if (qs.get("e2e") === "1" && qs.get("skipMenu") === "1") {
-      this.scene.start("GameScene", { levelIndex: 0, startPlay: true } satisfies GameSceneStartData);
-      return;
-    }
-
     this.buildBackground();
     this.removeBuildInfo = attachBuildInfoLabel();
     this.buildDomMenu();

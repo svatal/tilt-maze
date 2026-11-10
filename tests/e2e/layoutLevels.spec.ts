@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { startGameFromMenu } from "./helpers/playwrightTilt";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "../..");
@@ -14,20 +15,7 @@ test.beforeAll(() => {
   }
 });
 
-async function screenshotLevels(
-  page: import("@playwright/test").Page,
-  view: string,
-  width: number,
-  height: number
-) {
-  await page.setViewportSize({ width, height });
-  await page.goto(`${basePath}?e2e=1&skipMenu=1`, { waitUntil: "networkidle" });
-  await page.waitForFunction(
-    () => !!(window as unknown as { __tiltMazeScene?: { running: boolean } }).__tiltMazeScene?.running,
-    undefined,
-    { timeout: 20000 }
-  );
-  await page.evaluate(() => (window as unknown as { __e2eRelayout?: () => void }).__e2eRelayout?.());
+async function waitBoardReady(page: import("@playwright/test").Page) {
   await page.waitForFunction(
     () => {
       const s = (window as unknown as {
@@ -38,24 +26,43 @@ async function screenshotLevels(
     undefined,
     { timeout: 20000 }
   );
+}
+
+async function playLevelFromMenu(page: import("@playwright/test").Page, levelIndex: number) {
+  await page.locator(`button[data-level-index="${levelIndex}"]`).click();
+  await page.locator("#menu-btn-play").click();
+  await expect(page.getByTestId("main-menu")).toBeHidden({ timeout: 15000 });
+  await expect(page.locator("#tilt-maze-menu")).toBeHidden();
+  await page.waitForFunction(
+    () => {
+      const s = (window as unknown as {
+        __tiltMazeScene?: { running: boolean; ball?: { body?: unknown } };
+      }).__tiltMazeScene;
+      return s?.running === true && s.ball?.body != null;
+    },
+    undefined,
+    { timeout: 20000 }
+  );
+  await waitBoardReady(page);
+}
+
+async function screenshotLevels(
+  page: import("@playwright/test").Page,
+  view: string,
+  width: number,
+  height: number
+) {
+  await page.setViewportSize({ width, height });
+  await startGameFromMenu(page, 0);
+  await waitBoardReady(page);
 
   const levelCount = 10;
   for (let i = 0; i < levelCount; i++) {
-    await page.evaluate((n) => {
-      const w = window as unknown as { __loadLevel?: (x: number) => void; __e2eRelayout?: () => void };
-      w.__loadLevel?.(n);
-      w.__e2eRelayout?.();
-    }, i);
-    await page.waitForFunction(
-      () => {
-        const s = (window as unknown as {
-          __tiltMazeScene?: { verifyHudAboveBoard: () => boolean; verifyCanvasFitsViewport: () => boolean };
-        }).__tiltMazeScene;
-        return s?.verifyHudAboveBoard() === true && s?.verifyCanvasFitsViewport() === true;
-      },
-      undefined,
-      { timeout: 15000 }
-    );
+    if (i > 0) {
+      await page.locator("#btn-menu").click();
+      await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 10000 });
+      await playLevelFromMenu(page, i);
+    }
 
     const ok = await page.evaluate(() => {
       const s = (window as unknown as {

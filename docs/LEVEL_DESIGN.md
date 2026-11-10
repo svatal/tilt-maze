@@ -25,4 +25,4 @@ Logický prostor **360×640**, kulička poloměr **11** (viz `constants.ts`). Va
 
 ## Hraní bez menu
 
-Postup **úroveň 1 → 10** přes tlačítko po výhře (`GameScene`). Pro ladění: `?e2e=1` a `window.__loadLevel(n)` (0–9).
+Postup **úroveň 1 → 10** přes tlačítko po výhře (`GameScene`) nebo výběr v menu.

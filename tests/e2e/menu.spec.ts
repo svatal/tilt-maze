@@ -100,19 +100,16 @@ async function assertLevelCardsNoTextOverflow(page: import("@playwright/test").P
 async function assertMenuWithinPlayfield(page: import("@playwright/test").Page) {
   await page.waitForFunction(
     () => {
-      const g = (window as unknown as { __tiltMazeGame?: { scale: { canvasBounds: { width: number } } } })
-        .__tiltMazeGame;
-      return (g?.scale.canvasBounds.width ?? 0) > 0;
+      const canvas = document.querySelector("#game-container canvas") as HTMLCanvasElement | null;
+      return (canvas?.getBoundingClientRect().width ?? 0) > 0;
     },
     { timeout: 10000 }
   );
 
   const result = await page.evaluate(() => {
-    const game = (window as unknown as {
-      __tiltMazeGame?: { scale: { canvasBounds: { x: number; y: number; width: number; height: number } } };
-    }).__tiltMazeGame;
-    if (!game) return { outside: ["chybí __tiltMazeGame"], buildInPanel: null as boolean | null };
-    const cb = game.scale.canvasBounds;
+    const canvas = document.querySelector("#game-container canvas") as HTMLCanvasElement | null;
+    if (!canvas) return { outside: ["chybí canvas"], buildInPanel: null as boolean | null };
+    const cb = canvas.getBoundingClientRect();
     const pad = 2;
     const panel = {
       left: cb.x + pad,

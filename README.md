@@ -47,7 +47,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Scénáře: pohyb kuličky **myší** nebo simulovaným `deviceorientation` (s `?e2e=1&matterDebug=1` je vidět overlay Matter.js), regresní test s `__debugCompleteLevel()`. Společně s `npm run test:unit` ověří BFS průchodnost úrovní.
+Scénáře: pohyb kuličky **myší** nebo simulovaným `deviceorientation` (s `?e2e=1&matterDebug=1` je vidět overlay Matter.js), vstup přes menu, regresní test s `__debugCompleteLevel()` (jen při `?e2e=1`). Společně s `npm run test:unit` ověří BFS průchodnost úrovní.
 
 ## Ladění fyziky v prohlížeči
 
@@ -81,10 +81,6 @@ Forky od cizích účtů se **nenasazují** (nemá smysl pouštět cizí kód s 
 3. **Branch:** `gh-pages`, složka **`/ (root)`**, uložte.
 
 Dřívější režim „GitHub Actions“ u deploy-pages už není potřeba — publikuje se přímo commit na `gh-pages`.
-
-### Ladění senzorů na telefonu
-
-Přidejte **`?sensorDebug=1`** (např. náhled PR nebo produkce). V levém horním rohu uvidíte počty událostí, poslední hodnoty a stav oprávnění – vhodné při hlášení z Brave/Chrome.
 
 ### Lokální simulace cesty jako u PR
 

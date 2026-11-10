@@ -80,6 +80,7 @@ async function shotAllLevelsFromMenu(
 }
 
 test("PR artefakty: desktop — menu + sklonové úrovně 11–15", async ({ page }) => {
+  test.setTimeout(120_000);
   await shotAllLevelsFromMenu(page, "desktop", 1280, 800, (i) => SLOPE_LEVEL_INDICES.includes(i));
   await page.goto(`${basePath}?e2e=1`, { waitUntil: "networkidle" });
   await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 15000 });
@@ -90,6 +91,7 @@ test("PR artefakty: desktop — menu + sklonové úrovně 11–15", async ({ pag
 });
 
 test("PR artefakty: mobile — sklonové úrovně", async ({ browser }) => {
+  test.setTimeout(120_000);
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   try {

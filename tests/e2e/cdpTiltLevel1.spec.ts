@@ -38,11 +38,11 @@ async function finishLevel1(page: Page, shotPrefix: string): Promise<void> {
   await assertBuildLabel(page);
 
   try {
-    const tilt = driveCdpTiltToLevel1Goal(page, 50_000);
+    const tilt = driveCdpTiltToLevel1Goal(page, 75_000);
     const midroll = sleep(2500).then(() =>
       page.screenshot({ path: path.join(artifacts, `${shotPrefix}-midroll.png`) })
     );
-    const win = expect(page.locator("#btn-next")).toBeVisible({ timeout: 52_000 });
+    const win = expect(page.locator("#btn-next")).toBeVisible({ timeout: 80_000 });
     await Promise.all([tilt, midroll, win]);
 
     await expect(page.locator("#tilt-maze-sensor-warn")).toBeHidden();

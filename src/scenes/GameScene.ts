@@ -27,6 +27,7 @@ import {
   SENSOR_DISMISS_BUTTON_LABEL,
   SENSOR_WARNING_INNER_HTML
 } from "../ui/sensorHelpContent";
+import { pathRouteSamples } from "../levelSolvability";
 import type { GameSceneStartData } from "./MenuScene";
 
 const WALL_FRICTION = 0.08;
@@ -92,16 +93,17 @@ export class GameScene extends Phaser.Scene {
     this.events.on(Phaser.Scenes.Events.WAKE, this.onSceneWake, this);
   }
 
-  private sceneBooted = false;
+  private sceneCreated = false;
 
-  private readonly onSceneWake = (_sys: Phaser.Scenes.Systems, data?: GameSceneStartData): void => {
-    if (!this.sceneBooted) return;
-    const fromRegistry = this.game.registry.get("tilt-maze-next-play") as GameSceneStartData | undefined;
-    if (fromRegistry) this.game.registry.remove("tilt-maze-next-play");
-    const payload = data ?? fromRegistry ?? (this.sys.settings.data as GameSceneStartData | undefined);
+  /** Po návratu z menu (sleep/run) znovu načte úroveň — create se nevolá. */
+  private readonly onSceneWake = (_sys: unknown, data?: GameSceneStartData): void => {
+    if (!this.sceneCreated) return;
+    const payload = data ?? (this.sys.settings.data as GameSceneStartData | undefined);
     if (payload?.levelIndex == null) return;
     this.initialLevelIndex = payload.levelIndex;
-    this.ensurePlayUi();
+    if (!this.hud || !document.getElementById("tilt-maze-ui")) {
+      this.buildHud();
+    }
     this.loadLevel(payload.levelIndex);
     this.showPlayHud();
     void this.finishBeginPlay(this.playSession);
@@ -140,6 +142,7 @@ export class GameScene extends Phaser.Scene {
           })
     });
 
+    this.scale.off("resize", this.layoutHud, this);
     this.scale.on("resize", this.layoutHud, this);
     this.layoutHud(this.scale.gameSize);
 
@@ -147,38 +150,8 @@ export class GameScene extends Phaser.Scene {
 
     this.game.events.on("debug-complete-level", this.debugWinLevel, this);
 
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.playSession++;
-      if (this.sensorDebugTimer) {
-        clearInterval(this.sensorDebugTimer);
-        this.sensorDebugTimer = null;
-      }
-      if (this.desktopHintTimer) {
-        clearTimeout(this.desktopHintTimer);
-        this.desktopHintTimer = null;
-      }
-      this.sensorDebugEl?.remove();
-      this.sensorDebugEl = null;
-      this.tilt?.setMouseArmed(false);
-      this.mouseOverlay?.destroy();
-      this.mouseOverlay = null;
-      this.removeSensorBanner();
-      this.clearDecor();
-      this.uiRoot?.remove();
-      this.removeBuildInfo?.();
-      this.removeBuildInfo = null;
-      this.running = false;
-      this.scale.off("resize", this.layoutHud, this);
-      this.tilt?.destroy();
-      this.game.events.off("debug-complete-level", this.debugWinLevel, this);
-      if (this.matter?.world) {
-        this.matter.world.off("collisionstart", this.onCollisionStart, this);
-      }
-      const w = window as unknown as { __tiltMazeScene?: GameScene };
-      if (w.__tiltMazeScene === this) {
-        delete w.__tiltMazeScene;
-      }
-    });
+    this.events.off(Phaser.Scenes.Events.SHUTDOWN, this.onShutdown, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.onShutdown, this);
 
     this.loadLevel(this.initialLevelIndex);
     this.showPlayHud();
@@ -201,9 +174,22 @@ export class GameScene extends Phaser.Scene {
         __e2eTickHoles?: () => void;
         __e2eHoleLocalMag?: (trapIndex?: number) => number;
         __e2eRelayout?: () => void;
+        __e2ePathSamples?: (levelIndex: number) => { x: number; y: number }[];
+        __e2eMatterStep?: (count?: number) => void;
+        __e2eBallSurfaceClearance?: () => { wall: number; trap: number };
       };
       w.__tiltMazeScene = this;
       w.__loadLevel = (n: number) => this.loadLevel(n);
+      w.__e2ePathSamples = (levelIndex: number) => pathRouteSamples(LEVELS[levelIndex]);
+      w.__e2eMatterStep = (count = 1) => {
+        const delta = 1000 / 60;
+        let t = performance.now();
+        for (let i = 0; i < count; i++) {
+          t += delta;
+          this.matter.world.update(t, delta);
+        }
+      };
+      w.__e2eBallSurfaceClearance = () => this.e2eBallSurfaceClearance();
       w.__e2ePlaceBall = (x: number, y: number) => this.e2ePlaceBall(x, y);
       w.__e2eHoleState = () => ({
         goalSettling: this.goalSettling,
@@ -227,10 +213,42 @@ export class GameScene extends Phaser.Scene {
 
     this.removeBuildInfo = attachBuildInfoLabel();
 
-    this.game.registry.remove("tilt-maze-start-play");
     void this.finishBeginPlay(this.playSession);
-    this.sceneBooted = true;
+    this.sceneCreated = true;
   }
+
+  private readonly onShutdown = (): void => {
+    this.playSession++;
+    if (this.sensorDebugTimer) {
+      clearInterval(this.sensorDebugTimer);
+      this.sensorDebugTimer = null;
+    }
+    if (this.desktopHintTimer) {
+      clearTimeout(this.desktopHintTimer);
+      this.desktopHintTimer = null;
+    }
+    this.sensorDebugEl?.remove();
+    this.sensorDebugEl = null;
+    this.tilt?.setMouseArmed(false);
+    this.mouseOverlay?.destroy();
+    this.mouseOverlay = null;
+    this.removeSensorBanner();
+    this.clearDecor();
+    this.uiRoot?.remove();
+    this.removeBuildInfo?.();
+    this.removeBuildInfo = null;
+    this.running = false;
+    this.scale.off("resize", this.layoutHud, this);
+    this.tilt?.destroy();
+    this.game.events.off("debug-complete-level", this.debugWinLevel, this);
+    if (this.matter?.world) {
+      this.matter.world.off("collisionstart", this.onCollisionStart, this);
+    }
+    const w = window as unknown as { __tiltMazeScene?: GameScene };
+    if (w.__tiltMazeScene === this) {
+      delete w.__tiltMazeScene;
+    }
+  };
 
   /** Okamžitě zobrazí HUD a spustí herní smyčku (nezávisle na senzorech). */
   private showPlayHud(): void {
@@ -775,15 +793,35 @@ export class GameScene extends Phaser.Scene {
       container.style.height = "";
       this.lastHudBandPx = 0;
     }
-    this.uiRoot?.remove();
-    this.uiRoot = undefined as unknown as HTMLElement;
+    for (const el of document.querySelectorAll("#tilt-maze-ui")) {
+      el.remove();
+    }
     this.scene.sleep("GameScene");
     this.scene.run("MenuScene");
   }
 
-  private ensurePlayUi(): void {
-    if (this.uiRoot && document.body.contains(this.uiRoot)) return;
-    this.buildHud();
+  /** E2E: minimální volná mezera od okraje kuličky k nejbližší zdi/pasti (Matter poloha). */
+  e2eBallSurfaceClearance(): { wall: number; trap: number } {
+    const lvl = LEVELS[this.levelIndex];
+    const bb = this.ball?.body as MatterJS.BodyType | undefined;
+    if (!bb) return { wall: -1, trap: -1 };
+    const px = bb.position.x;
+    const py = bb.position.y;
+    let minWall = Number.POSITIVE_INFINITY;
+    for (const w of lvl.walls) {
+      const hw = w.w / 2;
+      const hh = w.h / 2;
+      const dx = Math.abs(px - w.cx) - hw;
+      const dy = Math.abs(py - w.cy) - hh;
+      const d = Math.hypot(Math.max(0, dx), Math.max(0, dy));
+      minWall = Math.min(minWall, d);
+    }
+    let minTrap = Number.POSITIVE_INFINITY;
+    for (const t of lvl.traps) {
+      const d = Math.hypot(px - t.x, py - t.y) - t.r;
+      minTrap = Math.min(minTrap, d);
+    }
+    return { wall: minWall - BALL_RADIUS, trap: minTrap - BALL_RADIUS };
   }
 
   private async finishBeginPlay(session: number): Promise<void> {

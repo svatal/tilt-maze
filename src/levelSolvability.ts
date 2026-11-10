@@ -165,7 +165,13 @@ function bfsTraverse(
   return { solved: false, dist: null };
 }
 
-function wallClearanceAt(px: number, py: number, ballRadius: number, walls: LevelDef["walls"]): number {
+/** Mezera od okraje kuličky k povrchu zdi (bez logické rezervy BFS). */
+export const ROUTE_WALL_SURFACE_CLEARANCE_PX = 6;
+export const ROUTE_TRAP_SURFACE_CLEARANCE_PX = 6;
+/** Minimální vzdálenost mezi protilehlými stěnami v úžině pro průměr 22 + 6 + 6. */
+export const ROUTE_MIN_CORRIDOR_FACE_PX = 34;
+
+function wallSurfaceClearance(px: number, py: number, ballRadius: number, walls: LevelDef["walls"]): number {
   let minD = Number.POSITIVE_INFINITY;
   for (const w of walls) {
     const hw = w.w / 2;
@@ -173,20 +179,38 @@ function wallClearanceAt(px: number, py: number, ballRadius: number, walls: Leve
     const d = pointRectDist(px, py, w.cx, w.cy, hw, hh);
     minD = Math.min(minD, d);
   }
-  return minD - ballRadius - MARGIN;
+  return minD - ballRadius;
 }
 
-function trapClearanceAt(px: number, py: number, ballRadius: number, lvl: LevelDef): number {
+function trapSurfaceClearance(px: number, py: number, ballRadius: number, lvl: LevelDef): number {
   let minD = Number.POSITIVE_INFINITY;
   for (const t of lvl.traps) {
     const d = Math.hypot(px - t.x, py - t.y) - t.r;
     minD = Math.min(minD, d);
   }
-  return minD - ballRadius - MARGIN;
+  return minD - ballRadius;
 }
 
-function shortestPathPoints(lvl: LevelDef, ballRadius: number = BALL_RADIUS): { x: number; y: number }[] | null {
-  const result = bfsTraverse(lvl, ballRadius, undefined, CELL_PATH, true);
+/** Odhad šířky vodorovné „úžiny“ (vzdálenost obličí vlevo/vpravo). */
+function horizontalCorridorWidth(px: number, py: number, walls: LevelDef["walls"]): number {
+  let left = Number.POSITIVE_INFINITY;
+  let right = Number.POSITIVE_INFINITY;
+  for (const w of walls) {
+    const top = w.cy - w.h / 2;
+    const bot = w.cy + w.h / 2;
+    if (py < top || py > bot) continue;
+    const hw = w.w / 2;
+    const innerL = w.cx - hw;
+    const innerR = w.cx + hw;
+    if (innerL <= px) left = Math.min(left, px - innerR);
+    if (innerR >= px) right = Math.min(right, innerL - px);
+  }
+  if (!Number.isFinite(left) || !Number.isFinite(right)) return Number.POSITIVE_INFINITY;
+  return left + right;
+}
+
+export function shortestPathPoints(lvl: LevelDef, ballRadius: number = BALL_RADIUS): { x: number; y: number }[] | null {
+  const result = bfsTraverse(lvl, ballRadius, undefined, CELL, true);
   if (!result.solved || !result.parent || !result.goalKey || !result.xs || !result.ys) return null;
   const { parent, goalKey, xs, ys } = result;
   const pts: { x: number; y: number }[] = [];
@@ -201,46 +225,57 @@ function shortestPathPoints(lvl: LevelDef, ballRadius: number = BALL_RADIUS): { 
 }
 
 export type PathClearanceAudit = {
-  minWallClearance: number;
-  minTrapClearance: number;
-  narrowest: { x: number; y: number; wallClearance: number; trapClearance: number };
-  bypassProbeX: number;
+  minWallSurfaceClearance: number;
+  minTrapSurfaceClearance: number;
+  minCorridorFaceWidth: number;
+  narrowest: { x: number; y: number; wall: number; trap: number; corridor: number };
   maxFreeRunAtBypass: number;
 };
 
-/** Minimální volné místo podél BFS cesty (nikoli jen na uzlech mřížky). */
-export function auditShortestPathClearance(lvl: LevelDef, ballRadius: number = BALL_RADIUS): PathClearanceAudit | null {
-  const path = shortestPathPoints(lvl, ballRadius);
-  if (!path || path.length < 2) return null;
-
-  let minWall = Number.POSITIVE_INFINITY;
-  let minTrap = Number.POSITIVE_INFINITY;
-  let narrowest = { x: path[0].x, y: path[0].y, wallClearance: 0, trapClearance: 0 };
-
+/** Vzorky podél BFS trasy pro kontrolu fyzické průchozosti (ne jen MARGIN v BFS). */
+export function pathRouteSamples(lvl: LevelDef, ballRadius: number = BALL_RADIUS): { x: number; y: number }[] {
+  const path = shortestPathPoints(lvl, ballRadius + ROUTE_WALL_SURFACE_CLEARANCE_PX);
+  if (!path?.length) return [];
+  const samples: { x: number; y: number }[] = [];
   for (let i = 0; i < path.length - 1; i++) {
     const a = path[i];
     const b = path[i + 1];
     for (let s = 0; s <= SEGMENT_SAMPLES; s++) {
       const t = s / SEGMENT_SAMPLES;
-      const px = a.x + (b.x - a.x) * t;
-      const py = a.y + (b.y - a.y) * t;
-      const wc = wallClearanceAt(px, py, ballRadius, lvl.walls);
-      const tc = trapClearanceAt(px, py, ballRadius, lvl);
-      if (wc < minWall || tc < minTrap) {
-        narrowest = { x: px, y: py, wallClearance: wc, trapClearance: tc };
-      }
-      minWall = Math.min(minWall, wc);
-      minTrap = Math.min(minTrap, tc);
+      samples.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
     }
   }
+  return samples;
+}
 
-  const bypassProbeX = 46;
+export function auditShortestPathClearance(lvl: LevelDef, ballRadius: number = BALL_RADIUS): PathClearanceAudit | null {
+  if (!isLevelSolvable(lvl, ballRadius + ROUTE_WALL_SURFACE_CLEARANCE_PX)) return null;
+  const samples = pathRouteSamples(lvl, ballRadius);
+  if (!samples.length) return null;
+
+  let minWall = Number.POSITIVE_INFINITY;
+  let minTrap = Number.POSITIVE_INFINITY;
+  let minCorridor = Number.POSITIVE_INFINITY;
+  let narrowest = { x: samples[0].x, y: samples[0].y, wall: 0, trap: 0, corridor: 0 };
+
+  for (const { x: px, y: py } of samples) {
+    const wall = wallSurfaceClearance(px, py, ballRadius, lvl.walls);
+    const trap = trapSurfaceClearance(px, py, ballRadius, lvl);
+    const corridor = horizontalCorridorWidth(px, py, lvl.walls);
+    if (wall < minWall || trap < minTrap || corridor < minCorridor) {
+      narrowest = { x: px, y: py, wall, trap, corridor };
+    }
+    minWall = Math.min(minWall, wall);
+    minTrap = Math.min(minTrap, trap);
+    minCorridor = Math.min(minCorridor, corridor);
+  }
+
   return {
-    minWallClearance: minWall,
-    minTrapClearance: minTrap,
+    minWallSurfaceClearance: minWall,
+    minTrapSurfaceClearance: minTrap,
+    minCorridorFaceWidth: minCorridor,
     narrowest,
-    bypassProbeX,
-    maxFreeRunAtBypass: maxFreeVerticalRun(lvl, bypassProbeX, 120, 560, ballRadius, 2)
+    maxFreeRunAtBypass: maxFreeVerticalRun(lvl, 46, 120, 560, ballRadius, 2)
   };
 }
 

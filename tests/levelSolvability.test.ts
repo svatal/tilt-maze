@@ -9,9 +9,11 @@ import {
   validateWallsOnlyBand
 } from "../src/levelGeometry";
 import {
+  ROUTE_MIN_CORRIDOR_FACE_PX,
+  ROUTE_TRAP_SURFACE_CLEARANCE_PX,
+  ROUTE_WALL_SURFACE_CLEARANCE_PX,
   auditShortestPathClearance,
   isLevelSolvable,
-  maxFreeVerticalRun,
   pathToGoalLengthRatio
 } from "../src/levelSolvability";
 import { LEVELS } from "../src/levels";
@@ -77,13 +79,14 @@ describe("levelSolvability", () => {
     }
   });
 
-  it("úroveň 9: bez okružního bypassu u kraje a průchozí vnitřní trasa", () => {
+  it("úroveň 9: uzavřený bypass a vnitřní trasa se zadanou rezervou", () => {
     const l9 = LEVELS.find((l) => l.id === 9)!;
-    expect(maxFreeVerticalRun(l9, 46, 120, 560, BALL_RADIUS, 2)).toBeLessThan(26);
     const audit = auditShortestPathClearance(l9);
     expect(audit).not.toBeNull();
-    expect(audit!.minWallClearance).toBeGreaterThanOrEqual(0);
-    expect(audit!.minTrapClearance).toBeGreaterThanOrEqual(0);
-    expect(Math.min(audit!.minWallClearance, audit!.minTrapClearance)).toBeGreaterThanOrEqual(0);
+    expect(audit!.maxFreeRunAtBypass).toBeLessThan(26);
+    expect(isLevelSolvable(l9, BALL_RADIUS + ROUTE_WALL_SURFACE_CLEARANCE_PX)).toBe(true);
+    expect(audit!.minWallSurfaceClearance).toBeGreaterThanOrEqual(ROUTE_WALL_SURFACE_CLEARANCE_PX);
+    expect(audit!.minTrapSurfaceClearance).toBeGreaterThanOrEqual(ROUTE_TRAP_SURFACE_CLEARANCE_PX);
+    expect(audit!.minCorridorFaceWidth).toBeGreaterThanOrEqual(ROUTE_MIN_CORRIDOR_FACE_PX);
   });
 });

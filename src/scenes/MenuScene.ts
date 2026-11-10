@@ -48,7 +48,14 @@ export class MenuScene extends Phaser.Scene {
     this.scale.on("resize", this.layoutMenu, this);
     this.layoutMenu();
 
+    this.events.off(Phaser.Scenes.Events.SLEEP, this.onSceneSleep, this);
+    this.events.on(Phaser.Scenes.Events.SLEEP, this.onSceneSleep, this);
+    this.events.off(Phaser.Scenes.Events.WAKE, this.onSceneWake, this);
+    this.events.on(Phaser.Scenes.Events.WAKE, this.onSceneWake, this);
+
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.events.off(Phaser.Scenes.Events.SLEEP, this.onSceneSleep, this);
+      this.events.off(Phaser.Scenes.Events.WAKE, this.onSceneWake, this);
       this.scale.off("resize", this.layoutMenu, this);
       this.detachKeyboard();
       this.helpLayer?.remove();
@@ -60,6 +67,22 @@ export class MenuScene extends Phaser.Scene {
       this.levelButtons = [];
     });
   }
+
+  /** sleep() nevolá SHUTDOWN — DOM menu jinak zůstane jako overlay nad hrou. */
+  private readonly onSceneSleep = (): void => {
+    this.detachKeyboard();
+    this.rootEl?.style.setProperty("display", "none");
+    this.helpLayer?.style.setProperty("display", "none");
+  };
+
+  private readonly onSceneWake = (): void => {
+    this.removeBuildInfo?.();
+    this.removeBuildInfo = attachBuildInfoLabel();
+    this.rootEl?.style.removeProperty("display");
+    this.helpLayer?.style.removeProperty("display");
+    this.attachKeyboard();
+    this.layoutMenu();
+  };
 
   private layoutMenu = (): void => {
     if (!this.rootEl) return;

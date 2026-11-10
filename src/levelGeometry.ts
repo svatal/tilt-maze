@@ -16,9 +16,12 @@ const FRAME_TOP = 32;
 const FRAME_BOTTOM = 608;
 const FRAME_H_SPAN = FRAME_BOTTOM - FRAME_TOP;
 
+/** Vodorovné úseky do rohů (svislé segmenty končí na y=32 / y=608). */
+const PERIMETER_H_SPAN = 344;
+
 export const PERIMETER_WALLS: WallDef[] = [
-  { cx: 180, cy: 20, w: 296, h: 24 },
-  { cx: 180, cy: 620, w: 296, h: 24 },
+  { cx: 180, cy: 20, w: PERIMETER_H_SPAN, h: 24 },
+  { cx: 180, cy: 620, w: PERIMETER_H_SPAN, h: 24 },
   { cx: 20, cy: 320, w: 24, h: FRAME_H_SPAN },
   { cx: 340, cy: 320, w: 24, h: FRAME_H_SPAN }
 ];
@@ -43,6 +46,40 @@ export function isPerimeterWall(w: WallDef): boolean {
 
 export function interiorWalls(lvl: LevelDef): WallDef[] {
   return lvl.walls.filter((w) => !isPerimeterWall(w));
+}
+
+const TYPICAL_WALL_THICKNESS = 14;
+
+function wallAabbOverlapDepth(a: WallDef, b: WallDef): { ox: number; oy: number } | null {
+  const hwA = a.w / 2;
+  const hhA = a.h / 2;
+  const hwB = b.w / 2;
+  const hhB = b.h / 2;
+  const ox = Math.min(a.cx + hwA, b.cx + hwB) - Math.max(a.cx - hwA, b.cx - hwB);
+  const oy = Math.min(a.cy + hhA, b.cy + hhB) - Math.max(a.cy - hhA, b.cy - hhB);
+  if (ox <= 0.5 || oy <= 0.5) return null;
+  return { ox, oy };
+}
+
+/** Vnitřní zdi nesmí do sebe přesahovat více než jako čisté T-spoje (≈ tloušťka segmentu). */
+export function interiorWallOverlapViolations(lvl: LevelDef): string[] {
+  const walls = interiorWalls(lvl);
+  const viol: string[] = [];
+  const T = TYPICAL_WALL_THICKNESS;
+  for (let i = 0; i < walls.length; i++) {
+    for (let j = i + 1; j < walls.length; j++) {
+      const o = wallAabbOverlapDepth(walls[i], walls[j]);
+      if (!o) continue;
+      const m = Math.max(o.ox, o.oy);
+      const n = Math.min(o.ox, o.oy);
+      if (m > T + 0.5 && n > T / 2 + 0.5) {
+        viol.push(
+          `přesah ${o.ox.toFixed(1)}×${o.oy.toFixed(1)} mezi (${walls[i].cx},${walls[i].cy}) a (${walls[j].cx},${walls[j].cy})`
+        );
+      }
+    }
+  }
+  return viol;
 }
 
 /** Volný bod s rezervou pro kuličku — stejná logika jako levelSolvability (bez importu cyklu). */

@@ -27,6 +27,8 @@ test("E2E: úvodní menu — výběr úrovně a návrat z hry", async ({ page })
   await page.locator('button[data-level-index="1"]').click();
   await page.locator("#menu-btn-play").click();
 
+  await expect(page.getByTestId("main-menu")).toBeHidden({ timeout: 10000 });
+  await expect(page.locator("#tilt-maze-menu")).toBeHidden();
   await expect(page.locator("#tilt-maze-ui")).toBeVisible();
   await expect(page.locator("#btn-menu")).toBeVisible();
   await page.locator("#btn-menu").click();

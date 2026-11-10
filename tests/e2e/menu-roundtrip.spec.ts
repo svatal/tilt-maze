@@ -45,11 +45,15 @@ test("E2E: menu → úroveň → menu → úroveň (stejná i jiná)", async ({ 
   await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 15000 });
 
   await playLevelFromMenu(page, 0);
+  await expect(page.getByTestId("main-menu")).toBeHidden();
+  await expect(page.locator("#tilt-maze-menu")).toBeHidden();
   await page.locator("#btn-menu").click();
   await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 10000 });
   await expect(page.locator("#tilt-maze-ui")).toHaveCount(0);
 
-  await playLevelFromMenu(page, 0);
+  await playLevelFromMenu(page, 3);
+  await expect(page.getByTestId("main-menu")).toBeHidden();
+  await expect(page.locator("#tilt-maze-ui")).toBeVisible();
 
   expect(errors, errors.join("\n")).toEqual([]);
 });

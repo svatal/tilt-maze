@@ -52,24 +52,28 @@ function rectRing(x0: number, y0: number, x1: number, y1: number, opening: "bl" 
   const xl = x0 + T / 2;
   const yt = y0 + T / 2;
   const yb = y1 - T / 2;
-  const wTop = x1 - x0 - T;
   const hSide = y1 - y0 - T;
+  const spanInnerX0 = xl + T / 2;
+  const spanInnerX1 = xr - T / 2;
+
   if (opening === "bl") {
     const leftH = hSide - GAP;
-    const botW = wTop - GAP;
+    const botW = spanInnerX1 - (xl + GAP);
+    const topW = spanInnerX1 - spanInnerX0;
     return [
-      { cx: (x0 + x1) / 2, cy: yt, w: wTop, h: T },
+      { cx: spanInnerX0 + topW / 2, cy: yt, w: topW, h: T },
       { cx: xr, cy: (y0 + y1) / 2, w: T, h: hSide },
       { cx: xl + GAP + botW / 2, cy: yb, w: botW, h: T },
       { cx: xl, cy: yt + leftH / 2, w: T, h: leftH }
     ];
   }
   const rightH = hSide - GAP;
-  const topW = wTop - GAP;
+  const topW = spanInnerX1 - (xl + GAP);
+  const botW = spanInnerX1 - spanInnerX0;
   return [
-    { cx: xl + topW / 2, cy: yt, w: topW, h: T },
+    { cx: xl + GAP + topW / 2, cy: yt, w: topW, h: T },
     { cx: xr, cy: yt + GAP + rightH / 2, w: T, h: rightH },
-    { cx: (x0 + x1) / 2, cy: yb, w: wTop, h: T },
+    { cx: spanInnerX0 + botW / 2, cy: yb, w: botW, h: T },
     { cx: xl, cy: (y0 + y1) / 2, w: T, h: hSide }
   ];
 }
@@ -136,8 +140,8 @@ export const LEVELS: LevelDef[] = [
       ...rectRing(60, 90, 300, 550, "bl"),
       { cx: 223, cy: 356, w: T, h: 154 },
       { cx: 137, cy: 327, w: T, h: 212 },
-      { cx: 155, cy: 433, w: 44, h: T },
-      { cx: 223, cy: 433, w: 44, h: T },
+      { cx: 153, cy: 433, w: 40, h: T },
+      { cx: 216, cy: 433, w: 58, h: T },
       { cx: 180, cy: 442, w: T, h: 132 }
     ]
   },
@@ -222,9 +226,9 @@ export const LEVELS: LevelDef[] = [
       { cx: 46, cy: 360, w: 12, h: 488 },
       { cx: 314, cy: 360, w: 12, h: 488 },
       { cx: 98, cy: 528, w: 68, h: 14 },
-      { cx: 290, cy: 528, w: 76, h: 14 },
+      { cx: 280, cy: 528, w: 56, h: 14 },
       { cx: 112, cy: 408, w: 44, h: 14 },
-      { cx: 262, cy: 408, w: 52, h: 14 },
+      { cx: 260, cy: 408, w: 48, h: 14 },
       { cx: 104, cy: 218, w: 24, h: 14 },
       { cx: 272, cy: 218, w: 42, h: 14 },
       { cx: 68, cy: 258, w: 14, h: 68 },

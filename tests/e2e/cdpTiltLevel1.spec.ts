@@ -51,12 +51,13 @@ async function finishLevel1(page: Page, shotPrefix: string): Promise<void> {
           __tiltMazeScene?: { ball?: { body?: { position?: { y: number } } } };
         }).__tiltMazeScene;
         const y = scene?.ball?.body?.position?.y;
-        return typeof y === "number" && y < 460 && y > 180 && document.querySelector("#btn-next") == null;
+        return typeof y === "number" && y < 530 && y > 470 && document.querySelector("#btn-next") == null;
       },
       undefined,
-      { timeout: 15000 }
+      { timeout: 15000, polling: 10 }
     );
     await page.screenshot({ path: path.join(artifacts, `${shotPrefix}-midroll.png`) });
+    await expect(page.locator("#btn-next")).toHaveCount(0);
 
     await page.waitForFunction(
       () => {

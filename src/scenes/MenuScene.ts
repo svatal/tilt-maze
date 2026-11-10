@@ -368,7 +368,9 @@ export class MenuScene extends Phaser.Scene {
       levelIndex: this.selectedIndex,
       startPlay: true
     };
-    this.scene.start("GameScene", data);
+    this.game.registry.set("tilt-maze-next-play", data);
+    this.scene.sleep("MenuScene");
+    this.scene.run("GameScene", data);
   }
 
   private openHelp(): void {

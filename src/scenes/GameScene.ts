@@ -3,6 +3,8 @@ import { BALL_RADIUS, DESIGN_HEIGHT, DESIGN_WIDTH } from "../constants";
 import { LEVELS, type LevelDef } from "../levels";
 import { TiltController } from "../tilt";
 import {
+  hasShownDesktopSensorHint,
+  hasValidSensorRecovery,
   markUserDismissedSensorBanner,
   markValidSensorRecovery,
   recordSensorBannerShown,
@@ -51,7 +53,6 @@ export class GameScene extends Phaser.Scene {
   private running = false;
   private wallBodies: MatterJS.BodyType[] = [];
   private decorative: Phaser.GameObjects.Graphics[] = [];
-  private goalBody: MatterJS.BodyType | null = null;
   private trapBodies: MatterJS.BodyType[] = [];
   private hud!: HTMLElement;
   private timerEl!: HTMLElement;
@@ -60,8 +61,9 @@ export class GameScene extends Phaser.Scene {
   private uiRoot!: HTMLElement;
   private sensorBanner: HTMLElement | null = null;
   private removeBuildInfo: (() => void) | null = null;
-  private pendingStartPlay = false;
   private initialLevelIndex = 0;
+  /** Zruší pozdní beginPlay po opuštění scény. */
+  private playSession = 0;
   private desktopHintTimer: ReturnType<typeof setTimeout> | null = null;
   private mouseOverlay: MouseTiltOverlay | null = null;
   private btnMouseToggle: HTMLButtonElement | null = null;
@@ -81,11 +83,33 @@ export class GameScene extends Phaser.Scene {
   }
 
   init(data?: GameSceneStartData): void {
-    this.initialLevelIndex = data?.levelIndex ?? 0;
-    this.pendingStartPlay = data?.startPlay === true;
+    const payload = (data ?? this.sys.settings.data) as GameSceneStartData | undefined;
+    if (payload?.levelIndex != null) {
+      this.initialLevelIndex = payload.levelIndex;
+    }
+    this.running = false;
+    this.events.off(Phaser.Scenes.Events.WAKE, this.onSceneWake, this);
+    this.events.on(Phaser.Scenes.Events.WAKE, this.onSceneWake, this);
   }
 
-  create(): void {
+  private sceneBooted = false;
+
+  private readonly onSceneWake = (_sys: Phaser.Scenes.Systems, data?: GameSceneStartData): void => {
+    if (!this.sceneBooted) return;
+    const fromRegistry = this.game.registry.get("tilt-maze-next-play") as GameSceneStartData | undefined;
+    if (fromRegistry) this.game.registry.remove("tilt-maze-next-play");
+    const payload = data ?? fromRegistry ?? (this.sys.settings.data as GameSceneStartData | undefined);
+    if (payload?.levelIndex == null) return;
+    this.initialLevelIndex = payload.levelIndex;
+    this.ensurePlayUi();
+    this.loadLevel(payload.levelIndex);
+    this.showPlayHud();
+    void this.finishBeginPlay(this.playSession);
+  };
+
+  create(data?: GameSceneStartData): void {
+    const payload = (data ?? this.sys.settings.data) as GameSceneStartData | undefined;
+    if (payload?.levelIndex != null) this.initialLevelIndex = payload.levelIndex;
     const qs = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
     const skipSensorBanner = qs.get("e2e") === "1";
     this.sensorStorage = typeof sessionStorage !== "undefined" ? sessionStorage : { getItem: () => null, setItem: () => undefined };
@@ -124,6 +148,7 @@ export class GameScene extends Phaser.Scene {
     this.game.events.on("debug-complete-level", this.debugWinLevel, this);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.playSession++;
       if (this.sensorDebugTimer) {
         clearInterval(this.sensorDebugTimer);
         this.sensorDebugTimer = null;
@@ -138,6 +163,7 @@ export class GameScene extends Phaser.Scene {
       this.mouseOverlay?.destroy();
       this.mouseOverlay = null;
       this.removeSensorBanner();
+      this.clearDecor();
       this.uiRoot?.remove();
       this.removeBuildInfo?.();
       this.removeBuildInfo = null;
@@ -148,9 +174,14 @@ export class GameScene extends Phaser.Scene {
       if (this.matter?.world) {
         this.matter.world.off("collisionstart", this.onCollisionStart, this);
       }
+      const w = window as unknown as { __tiltMazeScene?: GameScene };
+      if (w.__tiltMazeScene === this) {
+        delete w.__tiltMazeScene;
+      }
     });
 
     this.loadLevel(this.initialLevelIndex);
+    this.showPlayHud();
 
     if (qs.get("sensorDebug") === "1") {
       this.setupSensorDebugOverlay();
@@ -196,9 +227,22 @@ export class GameScene extends Phaser.Scene {
 
     this.removeBuildInfo = attachBuildInfoLabel();
 
-    if (this.pendingStartPlay) {
-      void this.beginPlay();
+    this.game.registry.remove("tilt-maze-start-play");
+    void this.finishBeginPlay(this.playSession);
+    this.sceneBooted = true;
+  }
+
+  /** Okamžitě zobrazí HUD a spustí herní smyčku (nezávisle na senzorech). */
+  private showPlayHud(): void {
+    this.hud.style.display = "flex";
+    this.running = true;
+    if (new URLSearchParams(typeof location !== "undefined" ? location.search : "").get("e2e") === "1") {
+      (window as unknown as { __tiltMazeScene?: GameScene }).__tiltMazeScene = this;
     }
+    this.elapsedMs = 0;
+    this.layoutHud(this.scale.gameSize);
+    this.game.scale.refresh();
+    this.layoutHud(this.scale.gameSize);
   }
 
   /** E2E: přesun kuličky a reset rychlosti. */
@@ -244,6 +288,9 @@ export class GameScene extends Phaser.Scene {
     const lvl = LEVELS[this.levelIndex];
 
     if (!this.goalSettling && !this.trapSinking) {
+      if (this.tilt.isMouseArmed()) {
+        this.tilt.monitor.markManualInputOverride(performance.now());
+      }
       const t = this.tilt.update(delta, 1);
       const trapBowls: HoleDef[] = lvl.traps
         .map((tr) => ({ cx: tr.x, cy: tr.y, r: tr.r }))
@@ -391,6 +438,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private buildHud(): void {
+    document.getElementById("tilt-maze-ui")?.remove();
     const root = document.createElement("div");
     root.id = "tilt-maze-ui";
     root.style.cssText = [
@@ -611,6 +659,13 @@ export class GameScene extends Phaser.Scene {
 
   private maybeShowFullSensorWarning(): void {
     if (!shouldShowSensorBannerKind(this.sensorStorage, "full_warning")) return;
+    if (
+      hasShownDesktopSensorHint(this.sensorStorage) &&
+      !hasValidSensorRecovery(this.sensorStorage) &&
+      !this.tilt.monitor.hadRealSensorValid
+    ) {
+      return;
+    }
     recordSensorBannerShown(this.sensorStorage, "full_warning");
 
     this.removeSensorBanner();
@@ -708,6 +763,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private returnToMenu(): void {
+    this.playSession++;
     this.running = false;
     this.tilt?.setMouseArmed(false);
     this.cancelTerminalMotion();
@@ -719,11 +775,20 @@ export class GameScene extends Phaser.Scene {
       container.style.height = "";
       this.lastHudBandPx = 0;
     }
-    this.scene.start("MenuScene");
+    this.uiRoot?.remove();
+    this.uiRoot = undefined as unknown as HTMLElement;
+    this.scene.sleep("GameScene");
+    this.scene.run("MenuScene");
   }
 
-  private async beginPlay(): Promise<void> {
+  private ensurePlayUi(): void {
+    if (this.uiRoot && document.body.contains(this.uiRoot)) return;
+    this.buildHud();
+  }
+
+  private async finishBeginPlay(session: number): Promise<void> {
     await this.tilt.startSensors();
+    if (session !== this.playSession) return;
     this.tilt.calibrate();
 
     const el = document.documentElement;
@@ -742,42 +807,41 @@ export class GameScene extends Phaser.Scene {
         /* ignore */
       }
     })();
-
-    this.hud.style.display = "flex";
-    this.running = true;
-    this.elapsedMs = 0;
-    this.layoutHud(this.scale.gameSize);
-    this.game.scale.refresh();
-    this.layoutHud(this.scale.gameSize);
   }
 
   private clearDecor(): void {
-    for (const g of this.decorative) g.destroy();
+    for (const g of this.decorative) {
+      if (g.scene) {
+        g.destroy();
+      }
+    }
     this.decorative = [];
   }
 
-  private removeBody(b: MatterJS.BodyType): void {
-    this.matter.world.remove(b);
+  /** Odstraní všechna tělesa ze světa Matter (i po opětovném startu scény). */
+  private purgeMatterBodies(): void {
+    if (!this.matter?.world) return;
+    const bodies = [...this.matter.world.getAllBodies()];
+    for (const b of bodies) {
+      this.matter.world.remove(b, true);
+    }
   }
 
   private clearLevelBodies(): void {
-    for (const w of this.wallBodies) this.removeBody(w);
-    this.wallBodies = [];
-    if (this.goalBody) {
-      this.removeBody(this.goalBody);
-      this.goalBody = null;
+    if (this.ball?.scene) {
+      this.ball.destroy();
     }
+    this.wallBodies = [];
     this.goalHole = null;
-    for (const t of this.trapBodies) this.removeBody(t);
     this.trapBodies = [];
-    if (this.ball) this.ball.destroy();
-    this.clearDecor();
   }
 
   private loadLevel(index: number): void {
     this.levelIndex = Phaser.Math.Clamp(index, 0, LEVELS.length - 1);
     const lvl = LEVELS[this.levelIndex];
     this.cancelTerminalMotion();
+    this.clearDecor();
+    this.purgeMatterBodies();
     this.clearLevelBodies();
 
     this.spawnLevel(lvl);
@@ -815,7 +879,7 @@ export class GameScene extends Phaser.Scene {
       this.wallBodies.push(body);
     }
 
-    this.goalBody = this.matter.add.circle(lvl.goal.x, lvl.goal.y, lvl.goal.r, {
+    this.matter.add.circle(lvl.goal.x, lvl.goal.y, lvl.goal.r, {
       isStatic: true,
       isSensor: true,
       label: "goal"

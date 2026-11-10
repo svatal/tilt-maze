@@ -8,7 +8,12 @@ import {
   validateLevelSet,
   validateWallsOnlyBand
 } from "../src/levelGeometry";
-import { isLevelSolvable, pathToGoalLengthRatio } from "../src/levelSolvability";
+import {
+  auditShortestPathClearance,
+  isLevelSolvable,
+  maxFreeVerticalRun,
+  pathToGoalLengthRatio
+} from "../src/levelSolvability";
 import { LEVELS } from "../src/levels";
 import { BALL_RADIUS } from "../src/constants";
 
@@ -70,5 +75,15 @@ describe("levelSolvability", () => {
     for (const lvl of LEVELS) {
       expect(isLevelSolvable(lvl), `úroveň ${lvl.id}`).toBe(true);
     }
+  });
+
+  it("úroveň 9: bez okružního bypassu u kraje a průchozí vnitřní trasa", () => {
+    const l9 = LEVELS.find((l) => l.id === 9)!;
+    expect(maxFreeVerticalRun(l9, 46, 120, 560, BALL_RADIUS, 2)).toBeLessThan(26);
+    const audit = auditShortestPathClearance(l9);
+    expect(audit).not.toBeNull();
+    expect(audit!.minWallClearance).toBeGreaterThanOrEqual(0);
+    expect(audit!.minTrapClearance).toBeGreaterThanOrEqual(0);
+    expect(Math.min(audit!.minWallClearance, audit!.minTrapClearance)).toBeGreaterThanOrEqual(0);
   });
 });

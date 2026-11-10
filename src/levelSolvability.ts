@@ -98,12 +98,22 @@ const NEIGH = [
   [-1, -1]
 ] as const;
 
+type BfsResult = {
+  solved: boolean;
+  dist: number | null;
+  parent?: Map<string, string | null>;
+  goalKey?: string;
+  xs?: number[];
+  ys?: number[];
+};
+
 function bfsTraverse(
   lvl: LevelDef,
   ballRadius: number,
   onGoal?: (ix: number, iy: number, dist: number) => boolean,
-  cell = CELL
-): { solved: boolean; dist: number | null } {
+  cell = CELL,
+  recordParent = false
+): BfsResult {
   const goalReach = lvl.goal.r + ballRadius + 4;
   const grid = buildBfsGrid(lvl, ballRadius, cell);
   if (!grid) return { solved: false, dist: null };
@@ -111,12 +121,14 @@ function bfsTraverse(
   const { xs, ys, startCells } = grid;
   const key = (ix: number, iy: number) => `${ix},${iy}`;
   const dist = new Map<string, number>();
+  const parent = recordParent ? new Map<string, string | null>() : undefined;
   const q: { ix: number; iy: number }[] = [];
 
   for (const c of startCells) {
     const k = key(c.ix, c.iy);
     if (!dist.has(k)) {
       dist.set(k, 0);
+      if (parent) parent.set(k, null);
       q.push(c);
     }
   }
@@ -128,8 +140,10 @@ function bfsTraverse(
     const curD = dist.get(key(cur.ix, cur.iy)) ?? 0;
 
     if (Math.hypot(px - lvl.goal.x, py - lvl.goal.y) <= goalReach) {
-      if (onGoal?.(cur.ix, cur.iy, curD)) return { solved: true, dist: curD };
-      return { solved: true, dist: curD };
+      if (onGoal?.(cur.ix, cur.iy, curD)) {
+        return { solved: true, dist: curD, parent, goalKey: key(cur.ix, cur.iy), xs, ys };
+      }
+      return { solved: true, dist: curD, parent, goalKey: key(cur.ix, cur.iy), xs, ys };
     }
 
     for (const [dx, dy] of NEIGH) {
@@ -144,10 +158,90 @@ function bfsTraverse(
       if (!canTraverse({ x: px, y: py }, { x: nx, y: ny }, ballRadius, lvl)) continue;
       const step = Math.hypot(nx - px, ny - py);
       dist.set(k, curD + step);
+      if (parent) parent.set(k, key(cur.ix, cur.iy));
       q.push({ ix: nix, iy: niy });
     }
   }
   return { solved: false, dist: null };
+}
+
+function wallClearanceAt(px: number, py: number, ballRadius: number, walls: LevelDef["walls"]): number {
+  let minD = Number.POSITIVE_INFINITY;
+  for (const w of walls) {
+    const hw = w.w / 2;
+    const hh = w.h / 2;
+    const d = pointRectDist(px, py, w.cx, w.cy, hw, hh);
+    minD = Math.min(minD, d);
+  }
+  return minD - ballRadius - MARGIN;
+}
+
+function trapClearanceAt(px: number, py: number, ballRadius: number, lvl: LevelDef): number {
+  let minD = Number.POSITIVE_INFINITY;
+  for (const t of lvl.traps) {
+    const d = Math.hypot(px - t.x, py - t.y) - t.r;
+    minD = Math.min(minD, d);
+  }
+  return minD - ballRadius - MARGIN;
+}
+
+function shortestPathPoints(lvl: LevelDef, ballRadius: number = BALL_RADIUS): { x: number; y: number }[] | null {
+  const result = bfsTraverse(lvl, ballRadius, undefined, CELL_PATH, true);
+  if (!result.solved || !result.parent || !result.goalKey || !result.xs || !result.ys) return null;
+  const { parent, goalKey, xs, ys } = result;
+  const pts: { x: number; y: number }[] = [];
+  let cur: string | null | undefined = goalKey;
+  while (cur) {
+    const [ix, iy] = cur.split(",").map(Number);
+    pts.push({ x: xs[ix], y: ys[iy] });
+    cur = parent.get(cur) ?? null;
+  }
+  pts.reverse();
+  return pts;
+}
+
+export type PathClearanceAudit = {
+  minWallClearance: number;
+  minTrapClearance: number;
+  narrowest: { x: number; y: number; wallClearance: number; trapClearance: number };
+  bypassProbeX: number;
+  maxFreeRunAtBypass: number;
+};
+
+/** Minimální volné místo podél BFS cesty (nikoli jen na uzlech mřížky). */
+export function auditShortestPathClearance(lvl: LevelDef, ballRadius: number = BALL_RADIUS): PathClearanceAudit | null {
+  const path = shortestPathPoints(lvl, ballRadius);
+  if (!path || path.length < 2) return null;
+
+  let minWall = Number.POSITIVE_INFINITY;
+  let minTrap = Number.POSITIVE_INFINITY;
+  let narrowest = { x: path[0].x, y: path[0].y, wallClearance: 0, trapClearance: 0 };
+
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i];
+    const b = path[i + 1];
+    for (let s = 0; s <= SEGMENT_SAMPLES; s++) {
+      const t = s / SEGMENT_SAMPLES;
+      const px = a.x + (b.x - a.x) * t;
+      const py = a.y + (b.y - a.y) * t;
+      const wc = wallClearanceAt(px, py, ballRadius, lvl.walls);
+      const tc = trapClearanceAt(px, py, ballRadius, lvl);
+      if (wc < minWall || tc < minTrap) {
+        narrowest = { x: px, y: py, wallClearance: wc, trapClearance: tc };
+      }
+      minWall = Math.min(minWall, wc);
+      minTrap = Math.min(minTrap, tc);
+    }
+  }
+
+  const bypassProbeX = 46;
+  return {
+    minWallClearance: minWall,
+    minTrapClearance: minTrap,
+    narrowest,
+    bypassProbeX,
+    maxFreeRunAtBypass: maxFreeVerticalRun(lvl, bypassProbeX, 120, 560, ballRadius, 2)
+  };
 }
 
 export function isLevelSolvable(lvl: LevelDef, ballRadius: number = BALL_RADIUS): boolean {

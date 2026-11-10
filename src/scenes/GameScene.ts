@@ -3,6 +3,8 @@ import { BALL_RADIUS, DESIGN_HEIGHT, DESIGN_WIDTH } from "../constants";
 import { LEVELS, type LevelDef } from "../levels";
 import { TiltController } from "../tilt";
 import {
+  hasShownDesktopSensorHint,
+  hasValidSensorRecovery,
   markUserDismissedSensorBanner,
   markValidSensorRecovery,
   recordSensorBannerShown,
@@ -25,6 +27,7 @@ import {
   SENSOR_DISMISS_BUTTON_LABEL,
   SENSOR_WARNING_INNER_HTML
 } from "../ui/sensorHelpContent";
+import { pathRouteSamples } from "../levelSolvability";
 import type { GameSceneStartData } from "./MenuScene";
 
 const WALL_FRICTION = 0.08;
@@ -51,7 +54,6 @@ export class GameScene extends Phaser.Scene {
   private running = false;
   private wallBodies: MatterJS.BodyType[] = [];
   private decorative: Phaser.GameObjects.Graphics[] = [];
-  private goalBody: MatterJS.BodyType | null = null;
   private trapBodies: MatterJS.BodyType[] = [];
   private hud!: HTMLElement;
   private timerEl!: HTMLElement;
@@ -60,8 +62,9 @@ export class GameScene extends Phaser.Scene {
   private uiRoot!: HTMLElement;
   private sensorBanner: HTMLElement | null = null;
   private removeBuildInfo: (() => void) | null = null;
-  private pendingStartPlay = false;
   private initialLevelIndex = 0;
+  /** Zruší pozdní beginPlay po opuštění scény. */
+  private playSession = 0;
   private desktopHintTimer: ReturnType<typeof setTimeout> | null = null;
   private mouseOverlay: MouseTiltOverlay | null = null;
   private btnMouseToggle: HTMLButtonElement | null = null;
@@ -75,16 +78,40 @@ export class GameScene extends Phaser.Scene {
   private goalHole: HoleDef | null = null;
   /** E2E: vzdálenost středu v okamžiku spuštění trigger animace. */
   private e2eLastTriggerDist: number | null = null;
+  private lastHudBandPx = 0;
   constructor() {
     super({ key: "GameScene" });
   }
 
   init(data?: GameSceneStartData): void {
-    this.initialLevelIndex = data?.levelIndex ?? 0;
-    this.pendingStartPlay = data?.startPlay === true;
+    const payload = (data ?? this.sys.settings.data) as GameSceneStartData | undefined;
+    if (payload?.levelIndex != null) {
+      this.initialLevelIndex = payload.levelIndex;
+    }
+    this.running = false;
+    this.events.off(Phaser.Scenes.Events.WAKE, this.onSceneWake, this);
+    this.events.on(Phaser.Scenes.Events.WAKE, this.onSceneWake, this);
   }
 
-  create(): void {
+  private sceneCreated = false;
+
+  /** Po návratu z menu (sleep/run) znovu načte úroveň — create se nevolá. */
+  private readonly onSceneWake = (_sys: unknown, data?: GameSceneStartData): void => {
+    if (!this.sceneCreated) return;
+    const payload = data ?? (this.sys.settings.data as GameSceneStartData | undefined);
+    if (payload?.levelIndex == null) return;
+    this.initialLevelIndex = payload.levelIndex;
+    if (!this.hud || !document.getElementById("tilt-maze-ui")) {
+      this.buildHud();
+    }
+    this.loadLevel(payload.levelIndex);
+    this.showPlayHud();
+    void this.finishBeginPlay(this.playSession);
+  };
+
+  create(data?: GameSceneStartData): void {
+    const payload = (data ?? this.sys.settings.data) as GameSceneStartData | undefined;
+    if (payload?.levelIndex != null) this.initialLevelIndex = payload.levelIndex;
     const qs = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
     const skipSensorBanner = qs.get("e2e") === "1";
     this.sensorStorage = typeof sessionStorage !== "undefined" ? sessionStorage : { getItem: () => null, setItem: () => undefined };
@@ -115,6 +142,7 @@ export class GameScene extends Phaser.Scene {
           })
     });
 
+    this.scale.off("resize", this.layoutHud, this);
     this.scale.on("resize", this.layoutHud, this);
     this.layoutHud(this.scale.gameSize);
 
@@ -122,34 +150,11 @@ export class GameScene extends Phaser.Scene {
 
     this.game.events.on("debug-complete-level", this.debugWinLevel, this);
 
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      if (this.sensorDebugTimer) {
-        clearInterval(this.sensorDebugTimer);
-        this.sensorDebugTimer = null;
-      }
-      if (this.desktopHintTimer) {
-        clearTimeout(this.desktopHintTimer);
-        this.desktopHintTimer = null;
-      }
-      this.sensorDebugEl?.remove();
-      this.sensorDebugEl = null;
-      this.tilt?.setMouseArmed(false);
-      this.mouseOverlay?.destroy();
-      this.mouseOverlay = null;
-      this.removeSensorBanner();
-      this.uiRoot?.remove();
-      this.removeBuildInfo?.();
-      this.removeBuildInfo = null;
-      this.running = false;
-      this.scale.off("resize", this.layoutHud, this);
-      this.tilt?.destroy();
-      this.game.events.off("debug-complete-level", this.debugWinLevel, this);
-      if (this.matter?.world) {
-        this.matter.world.off("collisionstart", this.onCollisionStart, this);
-      }
-    });
+    this.events.off(Phaser.Scenes.Events.SHUTDOWN, this.onShutdown, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.onShutdown, this);
 
     this.loadLevel(this.initialLevelIndex);
+    this.showPlayHud();
 
     if (qs.get("sensorDebug") === "1") {
       this.setupSensorDebugOverlay();
@@ -168,9 +173,23 @@ export class GameScene extends Phaser.Scene {
         };
         __e2eTickHoles?: () => void;
         __e2eHoleLocalMag?: (trapIndex?: number) => number;
+        __e2eRelayout?: () => void;
+        __e2ePathSamples?: (levelIndex: number) => { x: number; y: number }[];
+        __e2eMatterStep?: (count?: number) => void;
+        __e2eBallSurfaceClearance?: () => { wall: number; trap: number };
       };
       w.__tiltMazeScene = this;
       w.__loadLevel = (n: number) => this.loadLevel(n);
+      w.__e2ePathSamples = (levelIndex: number) => pathRouteSamples(LEVELS[levelIndex]);
+      w.__e2eMatterStep = (count = 1) => {
+        const delta = 1000 / 60;
+        let t = performance.now();
+        for (let i = 0; i < count; i++) {
+          t += delta;
+          this.matter.world.update(t, delta);
+        }
+      };
+      w.__e2eBallSurfaceClearance = () => this.e2eBallSurfaceClearance();
       w.__e2ePlaceBall = (x: number, y: number) => this.e2ePlaceBall(x, y);
       w.__e2eHoleState = () => ({
         goalSettling: this.goalSettling,
@@ -179,6 +198,9 @@ export class GameScene extends Phaser.Scene {
         lastTriggerDist: this.e2eLastTriggerDist
       });
       w.__e2eTickHoles = () => this.e2eTickHoleChecks();
+      w.__e2eRelayout = () => {
+        this.layoutHud(this.scale.gameSize);
+      };
       w.__e2eHoleLocalMag = (trapIndex = 0) => {
         const tr = LEVELS[this.levelIndex].traps[trapIndex];
         if (!tr || !this.ball?.body) return 0;
@@ -191,9 +213,54 @@ export class GameScene extends Phaser.Scene {
 
     this.removeBuildInfo = attachBuildInfoLabel();
 
-    if (this.pendingStartPlay) {
-      void this.beginPlay();
+    void this.finishBeginPlay(this.playSession);
+    this.sceneCreated = true;
+  }
+
+  private readonly onShutdown = (): void => {
+    this.playSession++;
+    if (this.sensorDebugTimer) {
+      clearInterval(this.sensorDebugTimer);
+      this.sensorDebugTimer = null;
     }
+    if (this.desktopHintTimer) {
+      clearTimeout(this.desktopHintTimer);
+      this.desktopHintTimer = null;
+    }
+    this.sensorDebugEl?.remove();
+    this.sensorDebugEl = null;
+    this.tilt?.setMouseArmed(false);
+    this.mouseOverlay?.destroy();
+    this.mouseOverlay = null;
+    this.removeSensorBanner();
+    this.clearDecor();
+    this.uiRoot?.remove();
+    this.removeBuildInfo?.();
+    this.removeBuildInfo = null;
+    this.running = false;
+    this.scale.off("resize", this.layoutHud, this);
+    this.tilt?.destroy();
+    this.game.events.off("debug-complete-level", this.debugWinLevel, this);
+    if (this.matter?.world) {
+      this.matter.world.off("collisionstart", this.onCollisionStart, this);
+    }
+    const w = window as unknown as { __tiltMazeScene?: GameScene };
+    if (w.__tiltMazeScene === this) {
+      delete w.__tiltMazeScene;
+    }
+  };
+
+  /** Okamžitě zobrazí HUD a spustí herní smyčku (nezávisle na senzorech). */
+  private showPlayHud(): void {
+    this.hud.style.display = "flex";
+    this.running = true;
+    if (new URLSearchParams(typeof location !== "undefined" ? location.search : "").get("e2e") === "1") {
+      (window as unknown as { __tiltMazeScene?: GameScene }).__tiltMazeScene = this;
+    }
+    this.elapsedMs = 0;
+    this.layoutHud(this.scale.gameSize);
+    this.game.scale.refresh();
+    this.layoutHud(this.scale.gameSize);
   }
 
   /** E2E: přesun kuličky a reset rychlosti. */
@@ -239,6 +306,9 @@ export class GameScene extends Phaser.Scene {
     const lvl = LEVELS[this.levelIndex];
 
     if (!this.goalSettling && !this.trapSinking) {
+      if (this.tilt.isMouseArmed()) {
+        this.tilt.monitor.markManualInputOverride(performance.now());
+      }
       const t = this.tilt.update(delta, 1);
       const trapBowls: HoleDef[] = lvl.traps
         .map((tr) => ({ cx: tr.x, cy: tr.y, r: tr.r }))
@@ -386,6 +456,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private buildHud(): void {
+    document.getElementById("tilt-maze-ui")?.remove();
     const root = document.createElement("div");
     root.id = "tilt-maze-ui";
     root.style.cssText = [
@@ -403,23 +474,32 @@ export class GameScene extends Phaser.Scene {
       "left:0",
       "right:0",
       "display:none",
-      "flex-wrap:wrap",
-      "gap:8px",
-      "padding:12px",
+      "flex-direction:column",
+      "gap:6px",
+      "padding:8px 12px",
       "pointer-events:auto",
-      "align-items:center",
-      "justify-content:space-between",
       "color:#fff",
-      "text-shadow:0 1px 2px #000"
+      "text-shadow:0 1px 2px #000",
+      "box-sizing:border-box"
     ].join(";");
     this.hud = hud;
 
+    const titleRow = document.createElement("div");
+    titleRow.style.cssText = "display:flex;justify-content:space-between;align-items:baseline;gap:12px;width:100%";
+
     this.levelEl = document.createElement("div");
     this.levelEl.style.fontWeight = "700";
+    this.levelEl.style.flex = "1 1 auto";
+    this.levelEl.style.minWidth = "0";
+    this.levelEl.style.minHeight = "2.55em";
+    this.levelEl.style.lineHeight = "1.22";
     this.timerEl = document.createElement("div");
+    this.timerEl.style.flex = "0 0 auto";
+    this.timerEl.style.whiteSpace = "nowrap";
+    titleRow.append(this.levelEl, this.timerEl);
 
     const actions = document.createElement("div");
-    actions.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-left:auto";
+    actions.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;justify-content:center;width:100%";
 
     const mkBtn = (id: string, label: string) => {
       const b = document.createElement("button");
@@ -441,7 +521,7 @@ export class GameScene extends Phaser.Scene {
 
     actions.append(btnMenu, btnCal, btnRestart, btnMouse);
 
-    hud.append(this.levelEl, this.timerEl, actions);
+    hud.append(titleRow, actions);
 
     this.winLayer = document.createElement("div");
     this.winLayer.style.cssText = [
@@ -597,6 +677,13 @@ export class GameScene extends Phaser.Scene {
 
   private maybeShowFullSensorWarning(): void {
     if (!shouldShowSensorBannerKind(this.sensorStorage, "full_warning")) return;
+    if (
+      hasShownDesktopSensorHint(this.sensorStorage) &&
+      !hasValidSensorRecovery(this.sensorStorage) &&
+      !this.tilt.monitor.hadRealSensorValid
+    ) {
+      return;
+    }
     recordSensorBannerShown(this.sensorStorage, "full_warning");
 
     this.removeSensorBanner();
@@ -642,25 +729,104 @@ export class GameScene extends Phaser.Scene {
   }
 
   private layoutHud(_size: Phaser.Structs.Size): void {
-    // Režim Scale.FIT v main.ts — kamera zůstává 1:1 ve světě DESIGN_WIDTH×DESIGN_HEIGHT, mezery jsou mimo canvas
-    const bounds = this.game.scale.canvasBounds;
-    if (this.hud) {
-      this.hud.style.paddingLeft = `${Math.max(8, Math.round(bounds.x))}px`;
-      this.hud.style.paddingRight = `${Math.max(8, Math.round(window.innerWidth - (bounds.x + bounds.width)))}px`;
+    if (!this.hud) return;
+    const container = document.getElementById("game-container");
+    const hudBandPx =
+      this.hud.style.display !== "none"
+        ? Math.ceil(this.hud.getBoundingClientRect().height) + 16
+        : 96;
+    let refreshScale = false;
+    if (container) {
+      container.style.boxSizing = "border-box";
+      if (hudBandPx !== this.lastHudBandPx) {
+        this.lastHudBandPx = hudBandPx;
+        container.style.paddingTop = "0";
+        container.style.marginTop = `${hudBandPx}px`;
+        container.style.height = `calc(100% - ${hudBandPx}px)`;
+        refreshScale = true;
+      }
     }
+    const bounds = this.game.scale.canvasBounds;
+    this.hud.style.top = "6px";
+    this.hud.style.left = `${Math.max(0, Math.round(bounds.left))}px`;
+    this.hud.style.width = `${Math.max(0, Math.round(bounds.width))}px`;
+    this.hud.style.paddingLeft = "8px";
+    this.hud.style.paddingRight = "8px";
     this.mouseOverlay?.layout();
+    if (refreshScale) {
+      this.game.scale.refresh();
+    }
+  }
+
+  /** E2E: HUD je celý nad horním okrajem herní desky (nebo v horním letterboxu). */
+  verifyHudAboveBoard(): boolean {
+    if (!this.hud || this.hud.style.display === "none") return true;
+    const hb = this.hud.getBoundingClientRect();
+    const canvas = this.game.canvas as HTMLCanvasElement;
+    const cb = canvas.getBoundingClientRect();
+    return hb.bottom <= cb.top + 2;
+  }
+
+  /** E2E: celý canvas (včetně spodního rámu) je v okně bez ořezu. */
+  verifyCanvasFitsViewport(): boolean {
+    const canvas = this.game.canvas as HTMLCanvasElement;
+    const r = canvas.getBoundingClientRect();
+    const pad = 1;
+    return (
+      r.top >= pad &&
+      r.left >= -pad &&
+      r.bottom <= window.innerHeight + pad &&
+      r.right <= window.innerWidth + pad
+    );
   }
 
   private returnToMenu(): void {
+    this.playSession++;
     this.running = false;
     this.tilt?.setMouseArmed(false);
     this.cancelTerminalMotion();
     this.removeSensorBanner();
-    this.scene.start("MenuScene");
+    const container = document.getElementById("game-container");
+    if (container) {
+      container.style.paddingTop = "";
+      container.style.marginTop = "";
+      container.style.height = "";
+      this.lastHudBandPx = 0;
+    }
+    for (const el of document.querySelectorAll("#tilt-maze-ui")) {
+      el.remove();
+    }
+    this.scene.sleep("GameScene");
+    this.scene.run("MenuScene");
   }
 
-  private async beginPlay(): Promise<void> {
+  /** E2E: minimální volná mezera od okraje kuličky k nejbližší zdi/pasti (Matter poloha). */
+  e2eBallSurfaceClearance(): { wall: number; trap: number } {
+    const lvl = LEVELS[this.levelIndex];
+    const bb = this.ball?.body as MatterJS.BodyType | undefined;
+    if (!bb) return { wall: -1, trap: -1 };
+    const px = bb.position.x;
+    const py = bb.position.y;
+    let minWall = Number.POSITIVE_INFINITY;
+    for (const w of lvl.walls) {
+      const hw = w.w / 2;
+      const hh = w.h / 2;
+      const dx = Math.abs(px - w.cx) - hw;
+      const dy = Math.abs(py - w.cy) - hh;
+      const d = Math.hypot(Math.max(0, dx), Math.max(0, dy));
+      minWall = Math.min(minWall, d);
+    }
+    let minTrap = Number.POSITIVE_INFINITY;
+    for (const t of lvl.traps) {
+      const d = Math.hypot(px - t.x, py - t.y) - t.r;
+      minTrap = Math.min(minTrap, d);
+    }
+    return { wall: minWall - BALL_RADIUS, trap: minTrap - BALL_RADIUS };
+  }
+
+  private async finishBeginPlay(session: number): Promise<void> {
     await this.tilt.startSensors();
+    if (session !== this.playSession) return;
     this.tilt.calibrate();
 
     const el = document.documentElement;
@@ -679,39 +845,41 @@ export class GameScene extends Phaser.Scene {
         /* ignore */
       }
     })();
-
-    this.hud.style.display = "flex";
-    this.running = true;
-    this.elapsedMs = 0;
   }
 
   private clearDecor(): void {
-    for (const g of this.decorative) g.destroy();
+    for (const g of this.decorative) {
+      if (g.scene) {
+        g.destroy();
+      }
+    }
     this.decorative = [];
   }
 
-  private removeBody(b: MatterJS.BodyType): void {
-    this.matter.world.remove(b);
+  /** Odstraní všechna tělesa ze světa Matter (i po opětovném startu scény). */
+  private purgeMatterBodies(): void {
+    if (!this.matter?.world) return;
+    const bodies = [...this.matter.world.getAllBodies()];
+    for (const b of bodies) {
+      this.matter.world.remove(b, true);
+    }
   }
 
   private clearLevelBodies(): void {
-    for (const w of this.wallBodies) this.removeBody(w);
-    this.wallBodies = [];
-    if (this.goalBody) {
-      this.removeBody(this.goalBody);
-      this.goalBody = null;
+    if (this.ball?.scene) {
+      this.ball.destroy();
     }
+    this.wallBodies = [];
     this.goalHole = null;
-    for (const t of this.trapBodies) this.removeBody(t);
     this.trapBodies = [];
-    if (this.ball) this.ball.destroy();
-    this.clearDecor();
   }
 
   private loadLevel(index: number): void {
     this.levelIndex = Phaser.Math.Clamp(index, 0, LEVELS.length - 1);
     const lvl = LEVELS[this.levelIndex];
     this.cancelTerminalMotion();
+    this.clearDecor();
+    this.purgeMatterBodies();
     this.clearLevelBodies();
 
     this.spawnLevel(lvl);
@@ -720,6 +888,11 @@ export class GameScene extends Phaser.Scene {
     this.elapsedMs = 0;
     this.winLayer.style.display = "none";
     this.winLayer.innerHTML = "";
+    this.layoutHud(this.scale.gameSize);
+    requestAnimationFrame(() => {
+      this.layoutHud(this.scale.gameSize);
+      this.layoutHud(this.scale.gameSize);
+    });
   }
 
   private spawnLevel(lvl: LevelDef): void {
@@ -744,7 +917,7 @@ export class GameScene extends Phaser.Scene {
       this.wallBodies.push(body);
     }
 
-    this.goalBody = this.matter.add.circle(lvl.goal.x, lvl.goal.y, lvl.goal.r, {
+    this.matter.add.circle(lvl.goal.x, lvl.goal.y, lvl.goal.r, {
       isStatic: true,
       isSensor: true,
       label: "goal"

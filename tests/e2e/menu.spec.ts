@@ -27,6 +27,8 @@ test("E2E: úvodní menu — výběr úrovně a návrat z hry", async ({ page })
   await page.locator('button[data-level-index="1"]').click();
   await page.locator("#menu-btn-play").click();
 
+  await expect(page.getByTestId("main-menu")).toBeHidden({ timeout: 10000 });
+  await expect(page.locator("#tilt-maze-menu")).toBeHidden();
   await expect(page.locator("#tilt-maze-ui")).toBeVisible();
   await expect(page.locator("#btn-menu")).toBeVisible();
   await page.locator("#btn-menu").click();
@@ -63,7 +65,37 @@ test("E2E: desktop — karty úrovní kompaktní a v panelu", async ({ page }) =
   expect(layout!.cardHeight).toBeLessThan(120);
   expect(layout!.listCenterDelta).toBeLessThan(24);
   expect(layout!.listInsideMenu).toBe(true);
+
+  const groups = await page.locator(".tilt-maze-level-group").count();
+  expect(groups).toBe(2);
+  await expect(page.getByRole("heading", { name: /Bez pastí/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /S pastmi/i })).toBeVisible();
+  await assertLevelCardsNoTextOverflow(page);
 });
+
+async function assertLevelCardsNoTextOverflow(page: import("@playwright/test").Page) {
+  const bad = await page.evaluate(() => {
+    const buttons = document.querySelectorAll("#tilt-maze-level-list button[data-level-index]");
+    const failures: string[] = [];
+    buttons.forEach((btn) => {
+      const el = btn as HTMLElement;
+      const label = el.querySelector(".tilt-maze-level-card-label") as HTMLElement | null;
+      if (el.scrollWidth > el.clientWidth + 1) {
+        failures.push(`btn-${el.dataset.levelIndex}: scroll ${el.scrollWidth} > ${el.clientWidth}`);
+      }
+      if (label) {
+        const br = el.getBoundingClientRect();
+        const lr = label.getBoundingClientRect();
+        const inset = 6;
+        if (lr.right > br.right - inset || lr.left < br.left + inset || lr.bottom > br.bottom - inset) {
+          failures.push(`label-${el.dataset.levelIndex}: mimo kartu`);
+        }
+      }
+    });
+    return failures;
+  });
+  expect(bad, bad.join("\n")).toEqual([]);
+}
 
 async function assertMenuWithinPlayfield(page: import("@playwright/test").Page) {
   await page.waitForFunction(
@@ -133,6 +165,14 @@ for (const viewport of [
     await page.goto(`${basePath}?e2e=1`, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("main-menu")).toBeVisible();
     await assertMenuWithinPlayfield(page);
+    await assertLevelCardsNoTextOverflow(page);
+
+    const slug = viewport.width >= 1000 ? "desktop-1280x800" : "mobile-390x844";
+    await fs.promises.mkdir("/opt/cursor/artifacts", { recursive: true });
+    await page.screenshot({
+      path: `/opt/cursor/artifacts/menu-${slug}.png`,
+      fullPage: true
+    });
   });
 }
 

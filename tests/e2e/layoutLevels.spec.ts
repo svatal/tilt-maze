@@ -14,34 +14,79 @@ test.beforeAll(() => {
   }
 });
 
-async function screenshotLevels(page: import("@playwright/test").Page, view: string) {
-  await page.goto(`${basePath}?e2e=1&skipMenu=1&matterDebug=1`, { waitUntil: "networkidle" });
+async function screenshotLevels(
+  page: import("@playwright/test").Page,
+  view: string,
+  width: number,
+  height: number
+) {
+  await page.setViewportSize({ width, height });
+  await page.goto(`${basePath}?e2e=1&skipMenu=1`, { waitUntil: "networkidle" });
+  await page.waitForFunction(
+    () => !!(window as unknown as { __tiltMazeScene?: { running: boolean } }).__tiltMazeScene?.running,
+    undefined,
+    { timeout: 20000 }
+  );
+  await page.evaluate(() => (window as unknown as { __e2eRelayout?: () => void }).__e2eRelayout?.());
+  await page.waitForFunction(
+    () => {
+      const s = (window as unknown as {
+        __tiltMazeScene?: { verifyHudAboveBoard: () => boolean; verifyCanvasFitsViewport: () => boolean };
+      }).__tiltMazeScene;
+      return s?.verifyHudAboveBoard() === true && s?.verifyCanvasFitsViewport() === true;
+    },
+    undefined,
+    { timeout: 20000 }
+  );
 
-  for (let i = 0; i < 3; i++) {
+  const levelCount = 10;
+  for (let i = 0; i < levelCount; i++) {
     await page.evaluate((n) => {
-      (window as unknown as { __loadLevel?: (x: number) => void }).__loadLevel?.(n);
+      const w = window as unknown as { __loadLevel?: (x: number) => void; __e2eRelayout?: () => void };
+      w.__loadLevel?.(n);
+      w.__e2eRelayout?.();
     }, i);
+    await page.waitForFunction(
+      () => {
+        const s = (window as unknown as {
+          __tiltMazeScene?: { verifyHudAboveBoard: () => boolean; verifyCanvasFitsViewport: () => boolean };
+        }).__tiltMazeScene;
+        return s?.verifyHudAboveBoard() === true && s?.verifyCanvasFitsViewport() === true;
+      },
+      undefined,
+      { timeout: 15000 }
+    );
 
     const ok = await page.evaluate(() => {
-      const s = (window as unknown as { __tiltMazeScene?: { verifyWallsFitDesignBoard: () => boolean } }).__tiltMazeScene;
-      return s?.verifyWallsFitDesignBoard() ?? false;
+      const s = (window as unknown as {
+        __tiltMazeScene?: {
+          verifyWallsFitDesignBoard: () => boolean;
+          verifyHudAboveBoard: () => boolean;
+          verifyCanvasFitsViewport: () => boolean;
+        };
+      }).__tiltMazeScene;
+      return {
+        walls: s?.verifyWallsFitDesignBoard() ?? false,
+        hud: s?.verifyHudAboveBoard() ?? false,
+        viewport: s?.verifyCanvasFitsViewport() ?? false
+      };
     });
-    expect(ok, `úroveň ${i + 1} má zeď mimo desku`).toBe(true);
+    expect(ok.walls, `úroveň ${i + 1} má zeď mimo desku`).toBe(true);
+    expect(ok.hud, `úroveň ${i + 1}: HUD překrývá desku`).toBe(true);
+    expect(ok.viewport, `úroveň ${i + 1}: canvas oříznutý viewportem`).toBe(true);
 
     await fs.promises.mkdir("/opt/cursor/artifacts", { recursive: true });
     await page.screenshot({
       path: `/opt/cursor/artifacts/board-${view}-level-${i + 1}.png`,
-      fullPage: true
+      fullPage: false
     });
   }
 }
 
-test("deska: 1024×549 — všechny zdi uvnitř rámu", async ({ page }) => {
-  await page.setViewportSize({ width: 1024, height: 549 });
-  await screenshotLevels(page, "1024x549");
+test("deska: 1280×800 — všechny zdi uvnitř rámu", async ({ page }) => {
+  await screenshotLevels(page, "1280x800", 1280, 800);
 });
 
-test("deska: 412×915 — všechny zdi uvnitř rámu", async ({ page }) => {
-  await page.setViewportSize({ width: 412, height: 915 });
-  await screenshotLevels(page, "412x915");
+test("deska: 390×844 — všechny zdi uvnitř rámu", async ({ page }) => {
+  await screenshotLevels(page, "390x844", 390, 844);
 });

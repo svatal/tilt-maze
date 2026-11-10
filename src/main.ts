@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { DESIGN_HEIGHT, DESIGN_WIDTH } from "./constants";
+import { validateLevelSet } from "./levelGeometry";
 import { assertAllLevelsSolvable } from "./levelSolvability";
 import { LEVELS } from "./levels";
 import { GameScene } from "./scenes/GameScene";
@@ -10,6 +11,7 @@ if (import.meta.env.VITE_DISABLE_PWA !== "true") {
     registerSW({ immediate: true });
   });
 }
+validateLevelSet(LEVELS);
 assertAllLevelsSolvable(LEVELS);
 
 const container = document.getElementById("game-container");

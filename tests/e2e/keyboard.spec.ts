@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { LEVELS } from "../../src/levels";
 import { driveMouseTilt } from "./helpers/playwrightTilt";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -24,6 +25,14 @@ test("E2E: myš posune kuličku + Matter debug bez chyb", async ({ page }) => {
 
   await page.goto(`${basePath}?e2e=1&skipMenu=1&matterDebug=1`, { waitUntil: "networkidle" });
   await expect(page.locator("#tilt-maze-ui")).toBeVisible();
+  await page.locator("body").click();
+
+  const matterDebug = await page.evaluate(() => {
+    const s = (window as unknown as { __tiltMazeScene?: Phaser.Scene & { matter: Phaser.Physics.Matter.MatterPhysics } })
+      .__tiltMazeScene;
+    return !!(s?.matter?.world as unknown as { debugGraphic?: unknown })?.debugGraphic;
+  });
+  expect(matterDebug).toBe(true);
 
   const x0 = await page.evaluate(() => (window as unknown as { __tiltMazeScene?: { ball?: { x: number } } }).__tiltMazeScene?.ball?.x ?? 0);
 
@@ -35,12 +44,18 @@ test("E2E: myš posune kuličku + Matter debug bez chyb", async ({ page }) => {
 });
 
 test("E2E: myš + lokální sklon cíle → výhra (stejný flow jako holes)", async ({ page }) => {
+  const g = LEVELS[0].goal;
+  const ballY = g.y + g.r * 0.65;
+
   await page.goto(`${basePath}?e2e=1&skipMenu=1`, { waitUntil: "networkidle" });
 
-  await page.evaluate(() => {
-    const w = window as unknown as { __e2ePlaceBall?: (x: number, y: number) => void };
-    w.__e2ePlaceBall?.(300, 102);
-  });
+  await page.evaluate(
+    ({ x, y }) => {
+      const w = window as unknown as { __e2ePlaceBall?: (px: number, py: number) => void };
+      w.__e2ePlaceBall?.(x, y);
+    },
+    { x: g.x, y: ballY }
+  );
   await driveMouseTilt(page, { nx: 0, ny: -1 }, 1400);
 
   await expect(page.getByText("Výhra!", { exact: false })).toBeVisible({ timeout: 8000 });
@@ -57,6 +72,7 @@ test("E2E: debug hook dokončí úroveň (regrese)", async ({ page }) => {
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 
   await page.goto(`${basePath}?e2e=1&skipMenu=1`, { waitUntil: "networkidle" });
+  await expect(page.locator("#tilt-maze-ui")).toBeVisible();
   await page.evaluate(() => {
     (window as unknown as { __debugCompleteLevel?: () => void }).__debugCompleteLevel?.();
   });

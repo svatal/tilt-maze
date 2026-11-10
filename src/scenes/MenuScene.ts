@@ -4,9 +4,12 @@ import { LEVELS } from "../levels";
 import { querySensorPermissions } from "../sensorMonitor";
 import { requestIOSMotionPermission } from "../tilt";
 import { attachBuildInfoLabel } from "../ui/attachBuildInfo";
+import { levelMenuGroupId, menuLevelGroups } from "../menuLevelGroups";
 import {
-  BTN_LEVEL,
-  BTN_LEVEL_SELECTED,
+  BTN_LEVEL_TRAPS,
+  BTN_LEVEL_TRAPS_SELECTED,
+  BTN_LEVEL_WALLS,
+  BTN_LEVEL_WALLS_SELECTED,
   BTN_PRIMARY,
   BTN_SECONDARY,
   PANEL_OVERLAY,
@@ -45,7 +48,14 @@ export class MenuScene extends Phaser.Scene {
     this.scale.on("resize", this.layoutMenu, this);
     this.layoutMenu();
 
+    this.events.off(Phaser.Scenes.Events.SLEEP, this.onSceneSleep, this);
+    this.events.on(Phaser.Scenes.Events.SLEEP, this.onSceneSleep, this);
+    this.events.off(Phaser.Scenes.Events.WAKE, this.onSceneWake, this);
+    this.events.on(Phaser.Scenes.Events.WAKE, this.onSceneWake, this);
+
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.events.off(Phaser.Scenes.Events.SLEEP, this.onSceneSleep, this);
+      this.events.off(Phaser.Scenes.Events.WAKE, this.onSceneWake, this);
       this.scale.off("resize", this.layoutMenu, this);
       this.detachKeyboard();
       this.helpLayer?.remove();
@@ -57,6 +67,22 @@ export class MenuScene extends Phaser.Scene {
       this.levelButtons = [];
     });
   }
+
+  /** sleep() nevolá SHUTDOWN — DOM menu jinak zůstane jako overlay nad hrou. */
+  private readonly onSceneSleep = (): void => {
+    this.detachKeyboard();
+    this.rootEl?.style.setProperty("display", "none");
+    this.helpLayer?.style.setProperty("display", "none");
+  };
+
+  private readonly onSceneWake = (): void => {
+    this.removeBuildInfo?.();
+    this.removeBuildInfo = attachBuildInfoLabel();
+    this.rootEl?.style.removeProperty("display");
+    this.helpLayer?.style.removeProperty("display");
+    this.attachKeyboard();
+    this.layoutMenu();
+  };
 
   private layoutMenu = (): void => {
     if (!this.rootEl) return;
@@ -81,7 +107,42 @@ export class MenuScene extends Phaser.Scene {
     g.strokeRect(2, 2, DESIGN_WIDTH - 4, DESIGN_HEIGHT - 4);
   }
 
+  private levelButtonStyle(index: number, selected: boolean): string {
+    const g = levelMenuGroupId(LEVELS[index]);
+    if (g === "traps") return selected ? BTN_LEVEL_TRAPS_SELECTED : BTN_LEVEL_TRAPS;
+    return selected ? BTN_LEVEL_WALLS_SELECTED : BTN_LEVEL_WALLS;
+  }
+
   private buildDomMenu(): void {
+    if (!document.getElementById("tilt-maze-menu-styles")) {
+      const style = document.createElement("style");
+      style.id = "tilt-maze-menu-styles";
+      style.textContent = `
+        .tilt-maze-level-group-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+          width: 100%;
+          box-sizing: border-box;
+        }
+        #tilt-maze-level-list button[role="option"] {
+          overflow: hidden;
+          max-width: 100%;
+        }
+        .tilt-maze-level-card-label {
+          display: block;
+          font-weight: 700;
+          line-height: 1.22;
+          font-size: clamp(0.68rem, 1.45vw, 0.8rem);
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          hyphens: auto;
+          max-width: 100%;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
     const root = document.createElement("div");
     root.id = "tilt-maze-menu";
     root.dataset.testid = "main-menu";
@@ -135,14 +196,10 @@ export class MenuScene extends Phaser.Scene {
     levelScroll.style.cssText = [
       "overflow-y:auto",
       "flex:0 1 auto",
-      "max-height:min(38vh,320px)",
-      "display:grid",
-      "grid-template-columns:repeat(2,minmax(0,1fr))",
-      "grid-auto-rows:min-content",
-      "align-content:start",
-      "align-items:start",
-      "justify-items:stretch",
-      "gap:8px",
+      "max-height:min(44vh,360px)",
+      "display:flex",
+      "flex-direction:column",
+      "gap:12px",
       "padding:0",
       "width:100%",
       "max-width:100%",
@@ -151,17 +208,40 @@ export class MenuScene extends Phaser.Scene {
       "-webkit-overflow-scrolling:touch"
     ].join(";");
 
-    this.levelButtons = LEVELS.map((lvl, i) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.setAttribute("role", "option");
-      b.dataset.levelIndex = String(i);
-      b.innerHTML = `<span style="font-weight:700;display:block">${i + 1}. ${lvl.name}</span>`;
-      b.style.cssText = i === 0 ? BTN_LEVEL_SELECTED : BTN_LEVEL;
-      b.addEventListener("click", () => this.setSelectedLevel(i));
-      levelScroll.append(b);
-      return b;
-    });
+    this.levelButtons = new Array(LEVELS.length);
+    const groups = menuLevelGroups(LEVELS);
+    for (const group of groups) {
+      const section = document.createElement("section");
+      section.className = "tilt-maze-level-group";
+      section.setAttribute("aria-label", group.title);
+      section.style.cssText = "width:100%;box-sizing:border-box";
+
+      const groupTitle = document.createElement("h3");
+      groupTitle.textContent = group.title;
+      groupTitle.style.cssText =
+        "margin:0 0 6px;font-size:0.82rem;font-weight:600;opacity:0.88;letter-spacing:0.02em;width:100%";
+
+      const grid = document.createElement("div");
+      grid.className = "tilt-maze-level-group-grid";
+      grid.setAttribute("role", "group");
+
+      for (const i of group.indices) {
+        const lvl = LEVELS[i];
+        const b = document.createElement("button");
+        b.type = "button";
+        b.setAttribute("role", "option");
+        b.dataset.levelIndex = String(i);
+        b.dataset.levelGroup = group.id;
+        b.innerHTML = `<span class="tilt-maze-level-card-label" lang="cs">${i + 1}. ${lvl.name}</span>`;
+        b.style.cssText = this.levelButtonStyle(i, i === 0);
+        b.addEventListener("click", () => this.setSelectedLevel(i));
+        grid.append(b);
+        this.levelButtons[i] = b;
+      }
+
+      section.append(groupTitle, grid);
+      levelScroll.append(section);
+    }
 
     const actions = document.createElement("div");
     actions.style.cssText =
@@ -207,14 +287,33 @@ export class MenuScene extends Phaser.Scene {
 
   private updateLevelButtonStyles(): void {
     this.levelButtons.forEach((b, i) => {
-      b.style.cssText = i === this.selectedIndex ? BTN_LEVEL_SELECTED : BTN_LEVEL;
+      b.style.cssText = this.levelButtonStyle(i, i === this.selectedIndex);
       b.setAttribute("aria-selected", i === this.selectedIndex ? "true" : "false");
     });
   }
 
+  /** Počet sloupců v mřížce skupiny (5 desktop, 3 úzký mobil). */
+  private gridColumnCount(): number {
+    const grid = this.rootEl?.querySelector(".tilt-maze-level-group-grid") as HTMLElement | null;
+    if (!grid) return 5;
+    const tpl = getComputedStyle(grid).gridTemplateColumns;
+    const n = tpl.split(" ").filter((p) => p.trim().length > 0).length;
+    return n > 0 ? n : 5;
+  }
+
+  private groupSpan(index: number): { start: number; end: number } {
+    const groups = menuLevelGroups(LEVELS);
+    for (const g of groups) {
+      if (g.indices.includes(index)) {
+        return { start: g.indices[0], end: g.indices[g.indices.length - 1] };
+      }
+    }
+    return { start: 0, end: LEVELS.length - 1 };
+  }
+
   private attachKeyboard(): void {
     this.detachKeyboard();
-    const cols = () => Math.max(1, Math.floor((this.levelButtons[0]?.parentElement?.clientWidth ?? 300) / 148));
+    const cols = () => this.gridColumnCount();
     this.keyHandler = (e: KeyboardEvent) => {
       if (this.helpLayer) {
         if (e.key === "Escape") {
@@ -236,11 +335,43 @@ export class MenuScene extends Phaser.Scene {
         return;
       }
       let next = this.selectedIndex;
+      const span = this.groupSpan(this.selectedIndex);
       if (e.key === "ArrowRight") next = Math.min(n - 1, this.selectedIndex + 1);
       else if (e.key === "ArrowLeft") next = Math.max(0, this.selectedIndex - 1);
-      else if (e.key === "ArrowDown") next = Math.min(n - 1, this.selectedIndex + c);
-      else if (e.key === "ArrowUp") next = Math.max(0, this.selectedIndex - c);
-      else return;
+      else if (e.key === "ArrowDown") {
+        next = this.selectedIndex + c;
+        if (next > span.end) {
+          const groups = menuLevelGroups(LEVELS);
+          const gi = groups.findIndex((g) => g.indices.includes(this.selectedIndex));
+          const nextGroup = groups[gi + 1];
+          if (nextGroup) {
+            const col = (this.selectedIndex - span.start) % c;
+            next = nextGroup.indices[Math.min(col, nextGroup.indices.length - 1)];
+          } else {
+            next = span.end;
+          }
+        } else {
+          next = Math.min(span.end, next);
+        }
+      } else if (e.key === "ArrowUp") {
+        next = this.selectedIndex - c;
+        if (next < span.start) {
+          const groups = menuLevelGroups(LEVELS);
+          const gi = groups.findIndex((g) => g.indices.includes(this.selectedIndex));
+          const prevGroup = groups[gi - 1];
+          if (prevGroup) {
+            const col = (this.selectedIndex - span.start) % c;
+            const prevLen = prevGroup.indices.length;
+            const targetRow = Math.floor((prevLen - 1) / c);
+            const idxInGroup = Math.min(targetRow * c + col, prevLen - 1);
+            next = prevGroup.indices[idxInGroup];
+          } else {
+            next = span.start;
+          }
+        } else {
+          next = Math.max(span.start, next);
+        }
+      } else return;
       e.preventDefault();
       this.setSelectedLevel(next);
     };
@@ -260,7 +391,8 @@ export class MenuScene extends Phaser.Scene {
       levelIndex: this.selectedIndex,
       startPlay: true
     };
-    this.scene.start("GameScene", data);
+    this.scene.sleep("MenuScene");
+    this.scene.run("GameScene", data);
   }
 
   private openHelp(): void {

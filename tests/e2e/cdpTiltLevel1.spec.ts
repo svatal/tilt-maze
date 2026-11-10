@@ -45,19 +45,26 @@ async function finishLevel1(page: Page, shotPrefix: string): Promise<void> {
     await sleep(neutral.ms);
     await startCdpDeviceOrientation(page, aimed.beta, aimed.gamma);
 
-    await page.waitForFunction(
-      () => {
+    const midDeadline = Date.now() + 15000;
+    let shotMid = false;
+    while (Date.now() < midDeadline && !shotMid) {
+      const state = await page.evaluate(() => {
         const scene = (window as unknown as {
           __tiltMazeScene?: { ball?: { body?: { position?: { y: number } } } };
         }).__tiltMazeScene;
         const y = scene?.ball?.body?.position?.y;
-        return typeof y === "number" && y < 530 && y > 470 && document.querySelector("#btn-next") == null;
-      },
-      undefined,
-      { timeout: 15000, polling: 10 }
-    );
-    await page.screenshot({ path: path.join(artifacts, `${shotPrefix}-midroll.png`) });
-    await expect(page.locator("#btn-next")).toHaveCount(0);
+        return { y: typeof y === "number" ? y : null, won: document.querySelector("#btn-next") != null };
+      });
+      if (state.y != null && state.y < 540 && state.y > 490 && !state.won) {
+        await startCdpDeviceOrientation(page, 0, 0);
+        await page.screenshot({ path: path.join(artifacts, `${shotPrefix}-midroll.png`) });
+        await startCdpDeviceOrientation(page, aimed.beta, aimed.gamma);
+        shotMid = true;
+        break;
+      }
+      await sleep(15);
+    }
+    expect(shotMid).toBe(true);
 
     await page.waitForFunction(
       () => {

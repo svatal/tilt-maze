@@ -135,7 +135,7 @@ export const LEVELS: LevelDef[] = [
       ...border(),
       ...rectRing(60, 90, 300, 550, "bl"),
       { cx: 223, cy: 356, w: T, h: 154 },
-      { cx: 137, cy: 320, w: T, h: 226 },
+      { cx: 137, cy: 327, w: T, h: 212 },
       { cx: 155, cy: 433, w: 44, h: T },
       { cx: 223, cy: 433, w: 44, h: T },
       { cx: 180, cy: 442, w: T, h: 132 }

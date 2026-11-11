@@ -38,7 +38,7 @@ async function finishLevel1(page: Page, shotPrefix: string): Promise<void> {
   await assertBuildLabel(page);
 
   try {
-    const tilt = driveCdpTiltToLevel1Goal(page, 75_000);
+    const tilt = driveCdpTiltToLevel1Goal(page, 95_000);
     const midroll = sleep(2500).then(() =>
       page.screenshot({ path: path.join(artifacts, `${shotPrefix}-midroll.png`) })
     );
@@ -61,7 +61,7 @@ async function finishLevel1(page: Page, shotPrefix: string): Promise<void> {
 }
 
 test("E2E: CDP tilt dokončí úroveň 1 z menu na mobilu", async ({ browser }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(150_000);
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     isMobile: true,

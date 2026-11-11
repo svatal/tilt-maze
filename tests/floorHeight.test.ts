@@ -14,13 +14,12 @@ const hill: FloorBowlCircle = { shape: "bowl", cx: 180, cy: 320, r: 50, amplitud
 
 const ramp: FloorRamp = {
   shape: "ramp",
-  cx: 180,
-  cy: 200,
-  w: 120,
-  h: 80,
-  rise: 1,
-  lowSide: "top",
-  rampFrac: 0.4
+  axis: "horizontal",
+  split: 220,
+  band: 40,
+  hLow: 0,
+  hHigh: 1,
+  lowSide: "top"
 };
 
 describe("floorHeight", () => {
@@ -42,23 +41,26 @@ describe("floorHeight", () => {
     expect(Math.sign(b.ax)).toBe(-Math.sign(h.ax) || (b.ax === 0 && h.ax === 0));
   });
 
-  it("rampa: konstantní gradient podél sklonu", () => {
-    const g = floorHeightGradient(180, 175, [ramp]);
-    expect(g.dy).toBeGreaterThan(0);
-    const t = floorHeightTilt(180, 175, [ramp]);
-    expect(t.ay).toBeLessThan(0);
+  it("stupňová rampa: dvě rovinné nástupnice přes celou šířku", () => {
+    expect(featureHeightAt(20, 120, ramp)).toBe(0);
+    expect(featureHeightAt(340, 120, ramp)).toBe(0);
+    expect(featureHeightAt(20, 400, ramp)).toBe(1);
+    expect(featureHeightAt(340, 400, ramp)).toBe(1);
   });
 
-  it("rampa: v centru nástupnice malý sklon", () => {
-    const g = floorHeightGradient(180, 225, [ramp]);
-    expect(Math.abs(g.dy)).toBeLessThan(0.12);
+  it("stupňová rampa: gradient jen v pásmu sklonu", () => {
+    const onSlope = floorHeightGradient(180, 225, [ramp]);
+    expect(Math.abs(onSlope.dy)).toBeCloseTo(0.025, 3);
+    const highPlateau = floorHeightGradient(180, 500, [ramp]);
+    expect(Math.abs(highPlateau.dy)).toBeLessThan(1e-6);
+    const lowPlateau = floorHeightGradient(180, 80, [ramp]);
+    expect(Math.abs(lowPlateau.dy)).toBeLessThan(1e-6);
   });
 
-  it("rampa: u boční hrany výška padá na nulu", () => {
-    const edge = featureHeightAt(ramp.cx + ramp.w / 2 - 2, ramp.cy, ramp);
-    expect(edge).toBeLessThan(0.08);
-    const outer = featureHeightAt(ramp.cx + ramp.w / 2 + 4, ramp.cy, ramp);
-    expect(outer).toBe(0);
+  it("stupňová rampa: na vysoké nástupnici nulový tilt", () => {
+    const t = floorHeightTilt(180, 520, [ramp]);
+    expect(t.ax).toBe(0);
+    expect(t.ay).toBe(0);
   });
 
   it("composeBoardHoleAndFloorTilts přičítá tilt z pole", () => {

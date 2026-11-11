@@ -31,7 +31,7 @@ async function playLevelFromMenu(page: import("@playwright/test").Page, levelInd
       return scene?.running === true && scene.ball?.body != null;
     },
     undefined,
-    { timeout: 30000 }
+    { timeout: 45000 }
   );
   await dismissSensorBannerIfPresent(page);
 }

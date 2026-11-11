@@ -303,7 +303,7 @@ export const LEVELS: LevelDef[] = [
     start: { x: 72, y: 575 },
     goal: { x: 285, y: 105, r: 20 },
     traps: [],
-    slopes: [{ shape: "ramp", cx: 180, cy: 335, w: 296, h: 130, rise: 1, lowSide: "top", rampFrac: 0.36 }],
+    slopes: [{ shape: "ramp", axis: "horizontal", split: 352, band: 48, hLow: 0, hHigh: 1, lowSide: "top" }],
     walls: [
       ...border(),
       { cx: 55, cy: 475, w: 14, h: 120 },
@@ -335,7 +335,7 @@ export const LEVELS: LevelDef[] = [
       { x: 220, y: 248, r: 14 }
     ],
     slopes: [
-      { shape: "ramp", cx: 180, cy: 298, w: 292, h: 56, rise: 0.85, lowSide: "bottom", rampFrac: 0.5 },
+      { shape: "ramp", axis: "horizontal", split: 248, band: 42, hLow: 0, hHigh: 0.85, lowSide: "bottom" },
       { shape: "bowl", cx: 118, cy: 498, r: 46, amplitude: -0.9 }
     ],
     walls: [
@@ -357,7 +357,7 @@ export const LEVELS: LevelDef[] = [
     slopes: [
       { shape: "bowl", cx: 178, cy: 395, r: 42, amplitude: -0.9 },
       { shape: "bowlRect", cx: 268, cy: 355, w: 72, h: 110, amplitude: 0.8 },
-      { shape: "ramp", cx: 118, cy: 452, w: 168, h: 48, rise: 0.7, lowSide: "left", rampFrac: 0.45 }
+      { shape: "ramp", axis: "vertical", split: 112, band: 40, hLow: 0, hHigh: 0.7, lowSide: "left" }
     ],
     walls: [
       ...border(),

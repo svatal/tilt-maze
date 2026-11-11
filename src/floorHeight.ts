@@ -24,17 +24,20 @@ export type FloorBowlRect = {
   amplitude: number;
 };
 
-/** Rampa: nízká strana 0, vysoká strana `rise`; horní část zóny = nástupnice. */
+/**
+ * Stupňová rampa přes celou desku: dvě nástupnice + pás sklonu.
+ * Mimo pásmo sklonu je výška konstantní (flat ⇒ žádný tilt).
+ */
 export type FloorRamp = {
   shape: "ramp";
-  cx: number;
-  cy: number;
-  w: number;
-  h: number;
-  rise: number;
+  axis: "horizontal" | "vertical";
+  /** Střed přechodového pásma (y pro horizontální, x pro vertikální). */
+  split: number;
+  /** Tloušťka pásma sklonu [px], lineární přechod hLow → hHigh. */
+  band: number;
+  hLow: number;
+  hHigh: number;
   lowSide: "top" | "bottom" | "left" | "right";
-  /** Podíl výšky vyhrazený sklonu (zbytek = plochá vyšší nástupnice). */
-  rampFrac?: number;
 };
 
 export type FloorHeightFeature = FloorBowlCircle | FloorBowlRect | FloorRamp;
@@ -43,32 +46,42 @@ const GRAD_EPS = 1.25;
 /** Převod |∇h| na ekvivalent sklonu (~dřívější misky). */
 const GRAD_TO_TILT = 48;
 
-/** Změkčení hran obdélníkové rampy (podíl šířky/výšky). */
-const RAMP_EDGE_FEATHER = 0.16;
+function rampBandHeight(coord: number, f: FloorRamp): number {
+  const half = f.band / 2;
+  const lo = f.split - half;
+  const hi = f.split + half;
 
-function smooth01(t: number): number {
-  const x = Math.max(0, Math.min(1, t));
-  return x * x * (3 - 2 * x);
-}
-
-function rampRectEnvelope(u: number, v: number, feather = RAMP_EDGE_FEATHER): number {
-  const edgeU = smooth01(Math.min(u / feather, (1 - u) / feather));
-  const edgeV = smooth01(Math.min(v / feather, (1 - v) / feather));
-  return Math.min(edgeU, edgeV);
-}
-
-function rampClimbAlongAxis(u: number, v: number, f: FloorRamp): number {
-  const frac = f.rampFrac ?? 0.42;
-  switch (f.lowSide) {
-    case "top":
-      return v <= frac ? v / frac : 1;
-    case "bottom":
-      return v >= 1 - frac ? (1 - v) / frac : 1;
-    case "left":
-      return u <= frac ? u / frac : 1;
-    default:
-      return u >= 1 - frac ? (1 - u) / frac : 1;
+  if (f.axis === "horizontal") {
+    const y = coord;
+    if (f.lowSide === "top") {
+      if (y <= lo) return f.hLow;
+      if (y >= hi) return f.hHigh;
+      const t = (y - lo) / f.band;
+      return f.hLow + (f.hHigh - f.hLow) * t;
+    }
+    if (f.lowSide === "bottom") {
+      if (y >= hi) return f.hLow;
+      if (y <= lo) return f.hHigh;
+      const t = (y - lo) / f.band;
+      return f.hHigh + (f.hLow - f.hHigh) * t;
+    }
+    return 0;
   }
+
+  const x = coord;
+  if (f.lowSide === "left") {
+    if (x <= lo) return f.hLow;
+    if (x >= hi) return f.hHigh;
+    const t = (x - lo) / f.band;
+    return f.hLow + (f.hHigh - f.hLow) * t;
+  }
+  if (f.lowSide === "right") {
+    if (x >= hi) return f.hLow;
+    if (x <= lo) return f.hHigh;
+    const t = (x - lo) / f.band;
+    return f.hHigh + (f.hLow - f.hHigh) * t;
+  }
+  return 0;
 }
 
 export function featureHeightAt(x: number, y: number, f: FloorHeightFeature): number {
@@ -86,16 +99,8 @@ export function featureHeightAt(x: number, y: number, f: FloorHeightFeature): nu
     if (norm > 1) return 0;
     return f.amplitude * (1 - norm);
   }
-  const hw = f.w / 2;
-  const hh = f.h / 2;
-  const x0 = f.cx - hw;
-  const y0 = f.cy - hh;
-  const u = (x - x0) / f.w;
-  const v = (y - y0) / f.h;
-  if (u < 0 || u > 1 || v < 0 || v > 1) return 0;
-  const env = rampRectEnvelope(u, v);
-  if (env <= 0) return 0;
-  return f.rise * rampClimbAlongAxis(u, v, f) * env;
+  const coord = f.axis === "horizontal" ? y : x;
+  return rampBandHeight(coord, f);
 }
 
 export function floorHeightAt(x: number, y: number, features: FloorHeightFeature[]): number {
@@ -238,12 +243,8 @@ export function bakeFloorHeightCanvas(
 /** Pro testy: je bod v ovlivněné oblasti kterékoli feature? */
 export function ballOverFloorFeature(ballX: number, ballY: number, features: FloorHeightFeature[]): boolean {
   for (const f of features) {
+    if (f.shape === "ramp") return true;
     if (featureHeightAt(ballX, ballY, f) !== 0) return true;
-    if (f.shape === "ramp") {
-      const hw = f.w / 2;
-      const hh = f.h / 2;
-      if (Math.abs(ballX - f.cx) <= hw && Math.abs(ballY - f.cy) <= hh) return true;
-    }
   }
   const eps = 0.5;
   return Math.abs(floorHeightAt(ballX, ballY, features)) > eps;

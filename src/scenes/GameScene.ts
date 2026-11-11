@@ -199,7 +199,8 @@ export class GameScene extends Phaser.Scene {
         const t = floorHeightTilt(bb.position.x, bb.position.y, LEVELS[this.levelIndex].slopes);
         return Math.hypot(t.ax, t.ay);
       };
-      w.__e2eRenderDepthOk = () => this.verifyDecorAboveFloorShade();
+      w.__e2eRenderDepthOk = () =>
+        this.verifyDecorAboveFloorShade() && this.verifyFloorShadeClippedToInterior();
     }
 
     this.removeBuildInfo = attachBuildInfoLabel();
@@ -887,6 +888,16 @@ export class GameScene extends Phaser.Scene {
     }) as Phaser.Physics.Matter.Image;
     this.ball.setDisplaySize(BALL_RADIUS * 2, BALL_RADIUS * 2);
     this.ball.setDepth(DEPTH_BALL);
+  }
+
+  /** E2E: bake stínu nesmí přetékat přes vnitřní hrany obvodových zdí. */
+  verifyFloorShadeClippedToInterior(): boolean {
+    if (!this.floorHeightTexKey || !this.textures.exists(this.floorHeightTexKey)) return true;
+    const source = this.textures.get(this.floorHeightTexKey).getSourceImage();
+    if (!(source instanceof HTMLCanvasElement)) return true;
+    const ctx = source.getContext("2d");
+    if (!ctx) return false;
+    return ctx.getImageData(8, 8, 1, 1).data[3] === 0;
   }
 
   /** E2E: stínovaná podlaha musí být pod všemi herními grafikami úrovně. */

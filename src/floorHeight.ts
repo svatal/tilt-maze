@@ -5,6 +5,12 @@
 
 import { composeBoardAndHoleTilts, TILT_SIN_SCALE, type HoleDef } from "./holeSlope";
 import { DESIGN_HEIGHT, DESIGN_WIDTH } from "./constants";
+import {
+  FRAME_BOTTOM,
+  FRAME_INNER_LEFT,
+  FRAME_INNER_RIGHT,
+  FRAME_TOP
+} from "./levelGeometry";
 
 export type FloorBowlCircle = {
   shape: "bowl";
@@ -237,6 +243,13 @@ export function bakeFloorHeightCanvas(
     }
   }
   ctx.putImageData(img, 0, 0);
+  const innerW = FRAME_INNER_RIGHT - FRAME_INNER_LEFT;
+  const innerH = FRAME_BOTTOM - FRAME_TOP;
+  ctx.save();
+  ctx.globalCompositeOperation = "destination-in";
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(FRAME_INNER_LEFT, FRAME_TOP, innerW, innerH);
+  ctx.restore();
   return canvas;
 }
 

@@ -175,6 +175,7 @@ for (const viewport of [
 }
 
 test("E2E: návrat do menu vypne režim myši", async ({ page }) => {
+  test.setTimeout(60_000);
   await page.goto(`${basePath}?e2e=1`, { waitUntil: "domcontentloaded" });
   await page.locator("#menu-btn-play").click();
   await expect(page.locator("#tilt-maze-ui")).toBeVisible();

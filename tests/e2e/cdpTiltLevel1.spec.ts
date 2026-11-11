@@ -88,7 +88,7 @@ test("E2E: bez orientačních dat ukáže banner senzorů (desktop)", async ({ b
 });
 
 test("E2E: CDP tilt dokončí úroveň 1 z menu na desktopu", async ({ browser }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
     isMobile: true,

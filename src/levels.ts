@@ -3,7 +3,7 @@
  * Obdélníky zdí: střed + šířka/výška.
  */
 
-import type { FloorSlopeRegion } from "./floorSlope";
+import type { FloorHeightFeature } from "./floorHeight";
 import {
   FRAME_BOTTOM,
   FRAME_INNER_LEFT,
@@ -21,7 +21,7 @@ export type LevelDef = {
   goal: { x: number; y: number; r: number };
   traps: { x: number; y: number; r: number }[];
   /** Lokální sklon podlahy (bez propadu). */
-  slopes: FloorSlopeRegion[];
+  slopes: FloorHeightFeature[];
   walls: WallDef[];
 };
 
@@ -291,7 +291,7 @@ export const LEVELS: LevelDef[] = [
     start: { x: 62, y: 570 },
     goal: { x: 292, y: 108, r: 22 },
     traps: [],
-    slopes: [{ shape: "circle", cx: 178, cy: 355, r: 54, kind: "basin" }],
+    slopes: [{ shape: "bowl", cx: 178, cy: 355, r: 54, amplitude: -1 }],
     walls: [
       ...border(),
       { cx: 178, cy: 248, w: 118, h: 14 }
@@ -299,11 +299,11 @@ export const LEVELS: LevelDef[] = [
   },
   {
     id: 12,
-    name: "Hřeben",
+    name: "Rampa a nástupnice",
     start: { x: 72, y: 575 },
     goal: { x: 285, y: 105, r: 20 },
     traps: [],
-    slopes: [{ shape: "rect", cx: 180, cy: 318, w: 248, h: 52, kind: "hill" }],
+    slopes: [{ shape: "ramp", cx: 180, cy: 335, w: 248, h: 130, rise: 1, lowSide: "top", rampFrac: 0.36 }],
     walls: [
       ...border(),
       { cx: 55, cy: 475, w: 14, h: 120 },
@@ -317,8 +317,8 @@ export const LEVELS: LevelDef[] = [
     goal: { x: 278, y: 108, r: 23 },
     traps: [{ x: 248, y: 435, r: 16 }],
     slopes: [
-      { shape: "circle", cx: 192, cy: 455, r: 64, kind: "basin" },
-      { shape: "rect", cx: 138, cy: 268, w: 88, h: 44, kind: "hill" }
+      { shape: "bowl", cx: 192, cy: 455, r: 64, amplitude: -0.95 },
+      { shape: "bowlRect", cx: 138, cy: 268, w: 88, h: 44, amplitude: 0.75 }
     ],
     walls: [
       ...border(),
@@ -335,8 +335,8 @@ export const LEVELS: LevelDef[] = [
       { x: 220, y: 248, r: 14 }
     ],
     slopes: [
-      { shape: "rect", cx: 178, cy: 305, w: 200, h: 48, kind: "hill" },
-      { shape: "circle", cx: 118, cy: 498, r: 46, kind: "basin" }
+      { shape: "ramp", cx: 178, cy: 298, w: 200, h: 56, rise: 0.85, lowSide: "bottom", rampFrac: 0.5 },
+      { shape: "bowl", cx: 118, cy: 498, r: 46, amplitude: -0.9 }
     ],
     walls: [
       ...border(),
@@ -355,9 +355,9 @@ export const LEVELS: LevelDef[] = [
       { x: 180, y: 178, r: 13 }
     ],
     slopes: [
-      { shape: "circle", cx: 178, cy: 395, r: 42, kind: "basin" },
-      { shape: "rect", cx: 268, cy: 355, w: 72, h: 110, kind: "hill" },
-      { shape: "rect", cx: 128, cy: 445, w: 140, h: 38, kind: "hill" }
+      { shape: "bowl", cx: 178, cy: 395, r: 42, amplitude: -0.9 },
+      { shape: "bowlRect", cx: 268, cy: 355, w: 72, h: 110, amplitude: 0.8 },
+      { shape: "ramp", cx: 128, cy: 452, w: 140, h: 48, rise: 0.7, lowSide: "left", rampFrac: 0.45 }
     ],
     walls: [
       ...border(),

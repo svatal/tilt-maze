@@ -23,7 +23,7 @@ test("E2E sklon: menu → úroveň 11 → okraj jamky přitahuje (bez propadu)",
   await startGameFromMenu(page, SLOPE_LEVEL_INDEX);
 
   const rimPoint =
-    basin.shape === "circle"
+    basin.shape === "bowl" && "r" in basin
       ? { px: basin.cx + basin.r - 0.2, py: basin.cy }
       : { px: basin.cx, py: basin.cy };
 

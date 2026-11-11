@@ -40,6 +40,12 @@ const BALL_RESTITUTION = 0.5;
 const FORCE_MULT = 0.00085;
 const MAX_SPEED = 7;
 
+const DEPTH_BOARD_BG = -20;
+const DEPTH_FLOOR_SHADE = -5;
+const DEPTH_WALL = 5;
+const DEPTH_HOLE = 6;
+const DEPTH_BALL = 15;
+
 /** Čas sesazení v cíli před výhrou (Phaser tween). */
 const GOAL_SETTLE_MS = 460;
 /** Krátký propad v pasti. */
@@ -167,6 +173,7 @@ export class GameScene extends Phaser.Scene {
         __e2eTickHoles?: () => void;
         __e2eHoleLocalMag?: (trapIndex?: number) => number;
         __e2eFloorSlopeMag?: (slopeIndex?: number) => number;
+        __e2eRenderDepthOk?: () => boolean;
       };
       w.__e2ePlaceBall = (x: number, y: number) => this.e2ePlaceBall(x, y);
       w.__e2eHoleState = () => ({
@@ -192,6 +199,7 @@ export class GameScene extends Phaser.Scene {
         const t = floorHeightTilt(bb.position.x, bb.position.y, LEVELS[this.levelIndex].slopes);
         return Math.hypot(t.ax, t.ay);
       };
+      w.__e2eRenderDepthOk = () => this.verifyDecorAboveFloorShade();
     }
 
     this.removeBuildInfo = attachBuildInfoLabel();
@@ -438,6 +446,7 @@ export class GameScene extends Phaser.Scene {
     g.fillRect(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
     g.lineStyle(3, 0x2d1f12, 1);
     g.strokeRect(2, 2, DESIGN_WIDTH - 4, DESIGN_HEIGHT - 4);
+    g.setDepth(DEPTH_BOARD_BG);
   }
 
   private buildHud(): void {
@@ -824,8 +833,11 @@ export class GameScene extends Phaser.Scene {
     const gStroke = 0x2d1f12;
     const gFill = 0x8b6914;
 
+    this.bakeFloorHeightShading(lvl.slopes);
+
     for (const w of lvl.walls) {
       const gr = this.add.graphics();
+      gr.setDepth(DEPTH_WALL);
       gr.fillStyle(gFill, 1);
       gr.lineStyle(2, gStroke, 1);
       gr.fillRoundedRect(w.cx - w.w / 2, w.cy - w.h / 2, w.w, w.h, 6);
@@ -849,8 +861,6 @@ export class GameScene extends Phaser.Scene {
     });
     this.goalHole = { cx: lvl.goal.x, cy: lvl.goal.y, r: lvl.goal.r };
     this.drawHole(lvl.goal.x, lvl.goal.y, lvl.goal.r, 0x0d3d0d);
-
-    this.bakeFloorHeightShading(lvl.slopes);
 
     for (const tr of lvl.traps) {
       const tb = this.matter.add.circle(tr.x, tr.y, tr.r, {
@@ -876,10 +886,25 @@ export class GameScene extends Phaser.Scene {
       restitution: BALL_RESTITUTION
     }) as Phaser.Physics.Matter.Image;
     this.ball.setDisplaySize(BALL_RADIUS * 2, BALL_RADIUS * 2);
+    this.ball.setDepth(DEPTH_BALL);
+  }
+
+  /** E2E: stínovaná podlaha musí být pod všemi herními grafikami úrovně. */
+  verifyDecorAboveFloorShade(): boolean {
+    if (!this.floorShadeImage) return true;
+    const fd = this.floorShadeImage.depth;
+    for (const g of this.decorative) {
+      const any = g as { depth?: number; destroy?: () => void };
+      if (typeof any.depth !== "number") continue;
+      if (any.depth <= fd) return false;
+    }
+    if (this.ball && this.ball.depth <= fd) return false;
+    return true;
   }
 
   private drawHole(cx: number, cy: number, r: number, inner: number): void {
     const gr = this.add.graphics();
+    gr.setDepth(DEPTH_HOLE);
     this.decorative.push(gr);
     gr.fillStyle(0x1a120a, 1);
     gr.fillCircle(cx, cy, r + 2);
@@ -899,7 +924,7 @@ export class GameScene extends Phaser.Scene {
     const canvas = bakeFloorHeightCanvas(features, 3);
     this.textures.addCanvas(key, canvas);
     this.floorHeightTexKey = key;
-    this.floorShadeImage = this.add.image(0, 0, key).setOrigin(0, 0).setDepth(0);
+    this.floorShadeImage = this.add.image(0, 0, key).setOrigin(0, 0).setDepth(DEPTH_FLOOR_SHADE);
   }
 
   private onCollisionStart(event: Phaser.Physics.Matter.Events.CollisionStartEvent): void {

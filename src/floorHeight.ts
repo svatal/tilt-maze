@@ -43,6 +43,34 @@ const GRAD_EPS = 1.25;
 /** Převod |∇h| na ekvivalent sklonu (~dřívější misky). */
 const GRAD_TO_TILT = 48;
 
+/** Změkčení hran obdélníkové rampy (podíl šířky/výšky). */
+const RAMP_EDGE_FEATHER = 0.16;
+
+function smooth01(t: number): number {
+  const x = Math.max(0, Math.min(1, t));
+  return x * x * (3 - 2 * x);
+}
+
+function rampRectEnvelope(u: number, v: number, feather = RAMP_EDGE_FEATHER): number {
+  const edgeU = smooth01(Math.min(u / feather, (1 - u) / feather));
+  const edgeV = smooth01(Math.min(v / feather, (1 - v) / feather));
+  return Math.min(edgeU, edgeV);
+}
+
+function rampClimbAlongAxis(u: number, v: number, f: FloorRamp): number {
+  const frac = f.rampFrac ?? 0.42;
+  switch (f.lowSide) {
+    case "top":
+      return v <= frac ? v / frac : 1;
+    case "bottom":
+      return v >= 1 - frac ? (1 - v) / frac : 1;
+    case "left":
+      return u <= frac ? u / frac : 1;
+    default:
+      return u >= 1 - frac ? (1 - u) / frac : 1;
+  }
+}
+
 export function featureHeightAt(x: number, y: number, f: FloorHeightFeature): number {
   if (f.shape === "bowl") {
     const d = Math.hypot(x - f.cx, y - f.cy);
@@ -60,33 +88,14 @@ export function featureHeightAt(x: number, y: number, f: FloorHeightFeature): nu
   }
   const hw = f.w / 2;
   const hh = f.h / 2;
-  if (Math.abs(x - f.cx) > hw || Math.abs(y - f.cy) > hh) return 0;
   const x0 = f.cx - hw;
   const y0 = f.cy - hh;
-  const frac = f.rampFrac ?? 0.42;
-  const rise = f.rise;
-  if (f.lowSide === "top") {
-    const rampH = f.h * frac;
-    const ty = y - y0;
-    if (ty <= rampH) return rise * (ty / rampH);
-    return rise;
-  }
-  if (f.lowSide === "bottom") {
-    const rampH = f.h * frac;
-    const ty = y0 + f.h - y;
-    if (ty <= rampH) return rise * (ty / rampH);
-    return rise;
-  }
-  if (f.lowSide === "left") {
-    const rampW = f.w * frac;
-    const tx = x - x0;
-    if (tx <= rampW) return rise * (tx / rampW);
-    return rise;
-  }
-  const rampW = f.w * frac;
-  const tx = x0 + f.w - x;
-  if (tx <= rampW) return rise * (tx / rampW);
-  return rise;
+  const u = (x - x0) / f.w;
+  const v = (y - y0) / f.h;
+  if (u < 0 || u > 1 || v < 0 || v > 1) return 0;
+  const env = rampRectEnvelope(u, v);
+  if (env <= 0) return 0;
+  return f.rise * rampClimbAlongAxis(u, v, f) * env;
 }
 
 export function floorHeightAt(x: number, y: number, features: FloorHeightFeature[]): number {
@@ -170,14 +179,14 @@ export function floorHeightRange(
   return { min: min - pad, max: max + pad };
 }
 
-const WOOD_DARK = { r: 0x42, g: 0x2d, b: 0x18 };
+const WOOD_DARK = { r: 0x35, g: 0x22, b: 0x12 };
 const WOOD_MID = { r: 0x5c, g: 0x3d, b: 0x21 };
-const WOOD_LIGHT = { r: 0x75, g: 0x55, b: 0x34 };
+const WOOD_LIGHT = { r: 0x8a, g: 0x68, b: 0x42 };
 
 function heightToRgb(h: number, hMin: number, hMax: number): { r: number; g: number; b: number } {
   const span = hMax - hMin || 1;
   const t = Math.max(0, Math.min(1, (h - hMin) / span));
-  const tone = 0.5 + (t - 0.5) * 1.15;
+  const tone = 0.5 + (t - 0.5) * 1.55;
   const clamped = Math.max(0, Math.min(1, tone));
   if (clamped < 0.5) {
     const u = clamped / 0.5;

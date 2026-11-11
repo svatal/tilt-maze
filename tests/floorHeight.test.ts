@@ -49,9 +49,16 @@ describe("floorHeight", () => {
     expect(t.ay).toBeLessThan(0);
   });
 
-  it("rampa: plochá nástupnice má nulový gradient", () => {
+  it("rampa: v centru nástupnice malý sklon", () => {
     const g = floorHeightGradient(180, 225, [ramp]);
-    expect(Math.abs(g.dy)).toBeLessThan(0.05);
+    expect(Math.abs(g.dy)).toBeLessThan(0.12);
+  });
+
+  it("rampa: u boční hrany výška padá na nulu", () => {
+    const edge = featureHeightAt(ramp.cx + ramp.w / 2 - 2, ramp.cy, ramp);
+    expect(edge).toBeLessThan(0.08);
+    const outer = featureHeightAt(ramp.cx + ramp.w / 2 + 4, ramp.cy, ramp);
+    expect(outer).toBe(0);
   });
 
   it("composeBoardHoleAndFloorTilts přičítá tilt z pole", () => {

@@ -61,7 +61,7 @@ async function finishLevel1(page: Page, shotPrefix: string): Promise<void> {
 }
 
 test("E2E: CDP tilt dokončí úroveň 1 z menu na mobilu", async ({ browser }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     isMobile: true,

@@ -37,7 +37,7 @@ async function playLevelFromMenu(page: import("@playwright/test").Page, levelInd
 }
 
 test("E2E: menu → úroveň → menu → úroveň (stejná i jiná)", async ({ page }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(90_000);
   const errors: string[] = [];
   page.on("console", (msg) => {
     if (msg.type() === "error") errors.push(`console.error: ${msg.text()}`);

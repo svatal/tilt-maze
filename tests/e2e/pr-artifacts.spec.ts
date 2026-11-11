@@ -8,8 +8,6 @@ const root = path.resolve(__dirname, "../..");
 const basePath = (process.env.E2E_BASE_PATH ?? "/tilt-maze/").replace(/\/?$/, "/");
 const artifacts = "/opt/cursor/artifacts";
 const LEVEL_COUNT = 15;
-/** Nové sklonové úrovně + reprezentativní mobilní vzorky. */
-const MOBILE_GEOMETRY_LEVELS = [11, 12, 14];
 const SLOPE_LEVEL_INDICES = [10, 11, 12, 13, 14];
 
 test.beforeAll(() => {
@@ -91,11 +89,11 @@ test("PR artefakty: desktop — menu + sklonové úrovně 11–15", async ({ pag
 });
 
 test("PR artefakty: mobile — sklonové úrovně", async ({ browser }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   try {
-    await shotAllLevelsFromMenu(page, "mobile", 390, 844, (i) => MOBILE_GEOMETRY_LEVELS.includes(i));
+    await shotAllLevelsFromMenu(page, "mobile", 390, 844, (i) => SLOPE_LEVEL_INDICES.includes(i));
   } finally {
     await context.close();
   }

@@ -198,7 +198,7 @@ function heightToRgb(h: number, hMin: number, hMax: number): { r: number; g: num
 /** Jednorázový bake stínování podlahy (volitelný hrubší krok pro mobil). */
 export function bakeFloorHeightCanvas(
   features: FloorHeightFeature[],
-  pixelStep = 2
+  pixelStep = 3
 ): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = DESIGN_WIDTH;

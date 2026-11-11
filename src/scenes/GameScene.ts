@@ -896,7 +896,7 @@ export class GameScene extends Phaser.Scene {
     if (this.floorHeightTexKey && this.textures.exists(this.floorHeightTexKey)) {
       this.textures.remove(this.floorHeightTexKey);
     }
-    const canvas = bakeFloorHeightCanvas(features, 2);
+    const canvas = bakeFloorHeightCanvas(features, 3);
     this.textures.addCanvas(key, canvas);
     this.floorHeightTexKey = key;
     this.floorShadeImage = this.add.image(0, 0, key).setOrigin(0, 0).setDepth(0);

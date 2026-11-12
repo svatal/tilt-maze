@@ -165,6 +165,18 @@ for (const viewport of [
     await assertMenuWithinPlayfield(page);
     await assertLevelCardsNoTextOverflow(page);
 
+    const actionPin = await page.evaluate(() => {
+      const menu = document.getElementById("tilt-maze-menu");
+      const help = document.getElementById("menu-btn-help");
+      if (!menu || !help) return null;
+      const mb = menu.getBoundingClientRect();
+      const hb = help.getBoundingClientRect();
+      const pad = parseFloat(getComputedStyle(menu).paddingBottom) || 0;
+      return mb.bottom - hb.bottom - pad;
+    });
+    expect(actionPin).not.toBeNull();
+    expect(actionPin!).toBeLessThan(4);
+
     const slug = viewport.width >= 1000 ? "1280x800" : "390x844";
     await fs.promises.mkdir("/opt/cursor/artifacts", { recursive: true });
     await page.screenshot({

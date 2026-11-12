@@ -308,15 +308,23 @@ export function validateLevel10Slalom(lvl: LevelDef): string | null {
   return null;
 }
 
+/** Úrovně 11–15: alespoň jeden lokální sklon. */
+export function validateSlopeLevels(lvl: LevelDef): string | null {
+  if (lvl.id < 11 || lvl.id > 15) return null;
+  if (lvl.slopes.length < 1) return `úroveň ${lvl.id} potřebuje alespoň jeden sklon region`;
+  return null;
+}
+
 export function validateLevelSet(levels: LevelDef[]): void {
-  if (levels.length !== 10) {
-    throw new Error(`Očekáváno 10 úrovní, je jich ${levels.length}.`);
+  if (levels.length !== 15) {
+    throw new Error(`Očekáváno 15 úrovní, je jich ${levels.length}.`);
   }
   for (const lvl of levels) {
     const errs = [
       validateLevel1Shape(lvl),
       validateWallsOnlyBand(lvl),
-      validateLevel10Slalom(lvl)
+      validateLevel10Slalom(lvl),
+      validateSlopeLevels(lvl)
     ].filter(Boolean);
     if (errs.length) {
       throw new Error(`Úroveň ${lvl.id}: ${errs.join("; ")}`);
@@ -327,7 +335,7 @@ export function validateLevelSet(levels: LevelDef[]): void {
     if (trapOverlapsAnyWall(lvl)) {
       throw new Error(`Úroveň ${lvl.id}: past protíná zeď.`);
     }
-    if (lvl.id >= 2 && hasClearStraightCorridor(lvl)) {
+    if (lvl.id >= 2 && lvl.id <= 10 && hasClearStraightCorridor(lvl)) {
       throw new Error(`Úroveň ${lvl.id}: přímá start–cíl trajektorie není blokovaná.`);
     }
     if (lvl.id >= 3 && lvl.id <= 5) {

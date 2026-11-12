@@ -22,7 +22,8 @@ export const HELP_SECTIONS: HelpSection[] = [
     id: "play",
     title: "Jak hrát",
     bodyHtml: `
-      <p>V hlavním menu vyberte jednu z <strong>10 úrovní</strong> (postupná obtížnost: zdi, pak pasti, finále se slalomem) a klepněte <strong>Hrát vybranou úroveň</strong>. Ve hře nakloňte telefon a doveďte světle žlutou kuličku do cílové díry se <strong>tmavě zeleným</strong> středem (okraj díry je tmavě hnědý, stejně jako u pastí).</p>
+      <p>V hlavním menu vyberte jednu z <strong>15 úrovní</strong> (zdi, pasti, pak lokální sklon podlahy) a klepněte <strong>Hrát vybranou úroveň</strong>. Ve hře nakloňte telefon a doveďte světle žlutou kuličku do cílové díry se <strong>tmavě zeleným</strong> středem (okraj díry je tmavě hnědý, stejně jako u pastí).</p>
+      <p><strong>Sklon podlahy</strong> je vidět jen jako <strong>odstín dřeva</strong>: tmavší místa jsou níž, světlejší výš. Rampa mezi nástupnicemi má plynulý přechod odstínu. Kulička necítí propad jako u pasti — jen mírný tah směrem dolů po spádu.</p>
       <p><strong>Pasti</strong> vypadají jako díry s velmi <strong>tmavým hnědočerným</strong> vnitřkem (na desce spíš černohnědé kruhy, ne barevně označené). Kuličku k nim nepřitahují „magicky“ ze dálky: u <strong>okraje</strong> díry působí místní sklon dovnitř (lze okrajem projet). Spadne-li <strong>střed kuličky</strong> do pasti, krátce „spadne“ a vrátí se na <strong>start úrovně</strong> (úroveň pokračuje). Stejným propadem do cíle úroveň vyhrajete.</p>
       <p>Na počítači zapněte ve hře tlačítko <strong>Myš</strong> (nebo klávesu <strong>M</strong>) a táhněte kurzor od středu herní plochy — směr a vzdálenost určují sklon desky. Tlačítko <strong>Menu</strong> vrátí do výběru úrovní.</p>
     `

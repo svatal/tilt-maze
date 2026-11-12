@@ -4,6 +4,12 @@
  */
 
 import {
+  bowlCircularAmplitude,
+  bowlRectAmplitude,
+  rampRiseForBand,
+  type FloorHeightFeature
+} from "./floorHeight";
+import {
   FRAME_BOTTOM,
   FRAME_INNER_LEFT,
   FRAME_INNER_RIGHT,
@@ -16,9 +22,13 @@ export type WallDef = { cx: number; cy: number; w: number; h: number };
 export type LevelDef = {
   id: number;
   name: string;
+  /** Stručná herní idea — co hráč musí zvládnout (hlavně úrovně 11–15). */
+  idea?: string;
   start: { x: number; y: number };
   goal: { x: number; y: number; r: number };
   traps: { x: number; y: number; r: number }[];
+  /** Lokální sklon podlahy (bez propadu). */
+  slopes: FloorHeightFeature[];
   walls: WallDef[];
 };
 
@@ -118,6 +128,7 @@ export const LEVELS: LevelDef[] = [
     start: { x: 72, y: 565 },
     goal: { x: 248, y: 118, r: 26 },
     traps: [],
+    slopes: [],
     walls: border()
   },
   {
@@ -126,6 +137,7 @@ export const LEVELS: LevelDef[] = [
     start: { x: 68, y: 558 },
     goal: { x: 278, y: 108, r: 24 },
     traps: [],
+    slopes: [],
     walls: [...border(), { cx: 228, cy: 395, w: 220, h: 16 }]
   },
   {
@@ -134,6 +146,7 @@ export const LEVELS: LevelDef[] = [
     start: { x: 62, y: 578 },
     goal: { x: 298, y: 568, r: 15 },
     traps: [],
+    slopes: [],
     walls: [...border(), vWallBottom(100), vWallTop(180), vWallBottom(260)]
   },
   {
@@ -142,6 +155,7 @@ export const LEVELS: LevelDef[] = [
     start: { x: 46, y: 120 },
     goal: { x: 180, y: 320, r: 23 },
     traps: [],
+    slopes: [],
     walls: [
       ...border(),
       ...rectRing(60, 90, 300, 550, "bl"),
@@ -158,6 +172,7 @@ export const LEVELS: LevelDef[] = [
     start: { x: 72, y: 580 },
     goal: { x: 288, y: 95, r: 16 },
     traps: [],
+    slopes: [],
     walls: [...border(), ...L5_GRID]
   },
   {
@@ -169,6 +184,7 @@ export const LEVELS: LevelDef[] = [
       { x: 180, y: 380, r: 16 },
       { x: 260, y: 520, r: 15 }
     ],
+    slopes: [],
     walls: [
       ...border(),
       { cx: 90, cy: 450, w: 140, h: 16 },
@@ -185,6 +201,7 @@ export const LEVELS: LevelDef[] = [
       { x: 225, y: 480, r: 16 },
       { x: 180, y: 340, r: 15 }
     ],
+    slopes: [],
     walls: [
       ...border(),
       { cx: 82, cy: 420, w: 108, h: 16 },
@@ -205,6 +222,7 @@ export const LEVELS: LevelDef[] = [
       { x: 275, y: 360, r: 15 },
       { x: 180, y: 230, r: 15 }
     ],
+    slopes: [],
     walls: [
       ...border(),
       { cx: 82, cy: 530, w: 100, h: 14 },
@@ -228,6 +246,7 @@ export const LEVELS: LevelDef[] = [
       { x: 235, y: 348, r: 11 },
       { x: 225, y: 268, r: 11 }
     ],
+    slopes: [],
     walls: [
       ...border(),
       { cx: 46, cy: 362, w: 12, h: 492 },
@@ -270,6 +289,126 @@ export const LEVELS: LevelDef[] = [
       { x: 145, y: 165, r: 15 },
       { x: 215, y: 165, r: 15 }
     ],
+    slopes: [],
     walls: border()
+  },
+  {
+    id: 11,
+    name: "Jamka na cestě",
+    idea:
+      "Přejet širokou mělkou jamku na cestě — stačí mírný tilt nahoru; zeď nahoře nutí projet důlek, ne okolo.",
+    start: { x: 62, y: 570 },
+    goal: { x: 292, y: 108, r: 22 },
+    traps: [],
+    slopes: [{ shape: "bowl", cx: 178, cy: 390, r: 76, amplitude: -bowlCircularAmplitude(76) }],
+    walls: [...border(), { cx: 178, cy: 292, w: 196, h: 14 }]
+  },
+  {
+    id: 12,
+    name: "Výstup po rampě",
+    idea: "Vylézt po rampě na vyšší nástupnici, kde je cíl — start dole, cíl nahoře.",
+    start: { x: 72, y: 575 },
+    goal: { x: 285, y: 105, r: 20 },
+    traps: [],
+    slopes: [
+      {
+        shape: "ramp",
+        axis: "horizontal",
+        split: 338,
+        band: 56,
+        hLow: 0,
+        hHigh: rampRiseForBand(56),
+        lowSide: "bottom"
+      }
+    ],
+    walls: [...border()]
+  },
+  {
+    id: 13,
+    name: "Přes kopec",
+    idea:
+      "Přejet široký kopec po šířce desky; pasti po jeho bocích nutí jet přes vrchol místo okolo.",
+    start: { x: 68, y: 560 },
+    goal: { x: 278, y: 108, r: 23 },
+    traps: [
+      { x: 58, y: 418, r: 14 },
+      { x: 302, y: 418, r: 14 }
+    ],
+    slopes: [
+      {
+        shape: "bowlRect",
+        cx: 180,
+        cy: 400,
+        w: 252,
+        h: 96,
+        amplitude: bowlRectAmplitude(252, 96)
+      }
+    ],
+    walls: [...border()]
+  },
+  {
+    id: 14,
+    name: "Koridor pastí",
+    idea:
+      "Jediná trasa k cíli vede širším koridorem mezi dvěma pastmi; boční obcházky zleva i zprava jsou zatarasené.",
+    start: { x: 72, y: 568 },
+    goal: { x: 288, y: 112, r: 22 },
+    traps: [
+      { x: 140, y: 398, r: 15 },
+      { x: 220, y: 398, r: 15 }
+    ],
+    slopes: [
+      {
+        shape: "ramp",
+        axis: "vertical",
+        split: 158,
+        band: 48,
+        hLow: 0,
+        hHigh: rampRiseForBand(48),
+        lowSide: "left"
+      }
+    ],
+    walls: [
+      ...border(),
+      { cx: 111, cy: 398, w: 14, h: 352 },
+      { cx: 249, cy: 398, w: 14, h: 352 },
+      { cx: 68, cy: 324, w: 72, h: 14 },
+      { cx: 68, cy: 488, w: 72, h: 14 },
+      { cx: 292, cy: 324, w: 72, h: 14 },
+      { cx: 292, cy: 488, w: 72, h: 14 }
+    ]
+  },
+  {
+    id: 15,
+    name: "Finále sklonů",
+    idea:
+      "Finále: výstup spodní rampou, přejet středový kopec a dojet k cíli mezi třemi pastmi.",
+    start: { x: 62, y: 578 },
+    goal: { x: 272, y: 102, r: 21 },
+    traps: [
+      { x: 178, y: 520, r: 14 },
+      { x: 118, y: 268, r: 13 },
+      { x: 248, y: 268, r: 13 }
+    ],
+    slopes: [
+      {
+        shape: "ramp",
+        axis: "horizontal",
+        split: 418,
+        band: 52,
+        hLow: 0,
+        hHigh: rampRiseForBand(52),
+        lowSide: "bottom"
+      },
+      {
+        shape: "bowlRect",
+        cx: 180,
+        cy: 350,
+        w: 120,
+        h: 72,
+        amplitude: bowlRectAmplitude(120, 72)
+      }
+    ],
+    walls: [...border(), { cx: 178, cy: 448, w: 140, h: 14 }]
   }
 ];

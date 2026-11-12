@@ -8,6 +8,7 @@ import {
   validateLevel1Shape,
   validateLevel10Slalom,
   validateLevelSet,
+  validateSlopeLevels,
   validateWallsOnlyBand
 } from "../src/levelGeometry";
 import {
@@ -16,15 +17,17 @@ import {
   ROUTE_WALL_SURFACE_CLEARANCE_PX,
   auditShortestPathClearance,
   isLevelSolvable,
+  shortestPathBypassesRectYBand,
+  shortestPathVisitsRect,
   pathToGoalLengthRatio
 } from "../src/levelSolvability";
 import { LEVELS } from "../src/levels";
 import { BALL_RADIUS } from "../src/constants";
 
 describe("levelSolvability", () => {
-  it("existuje přesně 10 úrovní", () => {
-    expect(LEVELS).toHaveLength(10);
-    expect(LEVELS.map((l) => l.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  it("existuje přesně 15 úrovní", () => {
+    expect(LEVELS).toHaveLength(15);
+    expect(LEVELS.map((l) => l.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
   });
 
   it("strukturální pravidla křivky obtížnosti", () => {
@@ -81,6 +84,25 @@ describe("levelSolvability", () => {
     for (const lvl of LEVELS) {
       expect(isLevelSolvable(lvl), `úroveň ${lvl.id}`).toBe(true);
     }
+  });
+
+  it("úrovně 11–15: sklonové finále s BFS cestou", () => {
+    for (const lvl of LEVELS.filter((l) => l.id >= 11)) {
+      expect(validateSlopeLevels(lvl)).toBeNull();
+      expect(lvl.slopes.length).toBeGreaterThan(0);
+      expect(isLevelSolvable(lvl), `úroveň ${lvl.id}`).toBe(true);
+    }
+  });
+
+  it("úroveň 14: cesta musí vést koridorem — nelze obcházet z boku", () => {
+    const l14 = LEVELS.find((l) => l.id === 14)!;
+    const x0 = 118;
+    const x1 = 242;
+    const y0 = 300;
+    const y1 = 520;
+    expect(isLevelSolvable(l14)).toBe(true);
+    expect(shortestPathVisitsRect(l14, x0, x1, y0, y1)).toBe(true);
+    expect(shortestPathBypassesRectYBand(l14, x0, x1, y0, y1)).toBe(false);
   });
 
   it("úroveň 9: uzavřený bypass a vnitřní trasa se zadanou rezervou", () => {

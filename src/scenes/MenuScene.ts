@@ -189,8 +189,8 @@ export class MenuScene extends Phaser.Scene {
     levelScroll.setAttribute("aria-label", "Výběr úrovně");
     levelScroll.style.cssText = [
       "overflow-y:auto",
-      "flex:0 1 auto",
-      "max-height:min(44vh,360px)",
+      "flex:1",
+      "min-height:0",
       "display:flex",
       "flex-direction:column",
       "gap:12px",
@@ -262,8 +262,8 @@ export class MenuScene extends Phaser.Scene {
       "margin:0;font-size:0.75rem;opacity:0.75;text-align:center;flex-shrink:0;width:100%;box-sizing:border-box";
     hint.textContent = "Šipky / Tab: výběr úrovně · Enter: hrát · H: nápověda";
 
-    main.append(levelLabel, levelScroll, actions);
-    root.append(header, main, hint);
+    main.append(levelLabel, levelScroll);
+    root.append(header, main, hint, actions);
     document.body.appendChild(root);
     this.rootEl = root;
 

@@ -58,11 +58,11 @@ async function shotAllLevelsFromMenu(
   await page.setViewportSize({ width: w, height: h });
   await page.goto(`${basePath}?e2e=1`, { waitUntil: "networkidle" });
   await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 15000 });
-  if (view === "desktop") {
-    await page.screenshot({ path: path.join(artifacts, "menu-desktop.png"), fullPage: false });
-  } else {
-    await page.screenshot({ path: path.join(artifacts, "menu-mobile.png"), fullPage: false });
-  }
+  const menuShot =
+    view === "desktop"
+      ? path.join(artifacts, "menu-1280x800.png")
+      : path.join(artifacts, "menu-390x844.png");
+  await page.screenshot({ path: menuShot, fullPage: false });
 
   for (let i = 0; i < LEVEL_COUNT; i++) {
     if (levelFilter && !levelFilter(i)) continue;

@@ -165,11 +165,11 @@ for (const viewport of [
     await assertMenuWithinPlayfield(page);
     await assertLevelCardsNoTextOverflow(page);
 
-    const slug = viewport.width >= 1000 ? "desktop-1280x800" : "mobile-390x844";
+    const slug = viewport.width >= 1000 ? "1280x800" : "390x844";
     await fs.promises.mkdir("/opt/cursor/artifacts", { recursive: true });
     await page.screenshot({
       path: `/opt/cursor/artifacts/menu-${slug}.png`,
-      fullPage: true
+      fullPage: false
     });
   });
 }

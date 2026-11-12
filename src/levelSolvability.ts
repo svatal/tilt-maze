@@ -209,6 +209,36 @@ function horizontalCorridorWidth(px: number, py: number, walls: LevelDef["walls"
   return left + right;
 }
 
+/** BFS nejkratší trasa prochází obdélníkem (střed kuličky)? */
+export function shortestPathVisitsRect(
+  lvl: LevelDef,
+  x0: number,
+  x1: number,
+  y0: number,
+  y1: number,
+  ballRadius: number = BALL_RADIUS
+): boolean {
+  const pts = shortestPathPoints(lvl, ballRadius);
+  if (!pts) return false;
+  return pts.some((p) => p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1);
+}
+
+/** V pásmu y všechny vzorky trasy leží vlevo nebo vpravo od koridoru (obchvat)? */
+export function shortestPathBypassesRectYBand(
+  lvl: LevelDef,
+  x0: number,
+  x1: number,
+  y0: number,
+  y1: number,
+  ballRadius: number = BALL_RADIUS
+): boolean {
+  const pts = shortestPathPoints(lvl, ballRadius);
+  if (!pts) return false;
+  const band = pts.filter((p) => p.y >= y0 && p.y <= y1);
+  if (!band.length) return false;
+  return band.every((p) => p.x < x0 || p.x > x1);
+}
+
 export function shortestPathPoints(lvl: LevelDef, ballRadius: number = BALL_RADIUS): { x: number; y: number }[] | null {
   const result = bfsTraverse(lvl, ballRadius, undefined, CELL, true);
   if (!result.solved || !result.parent || !result.goalKey || !result.xs || !result.ys) return null;

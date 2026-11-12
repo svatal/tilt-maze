@@ -17,6 +17,8 @@ import {
   ROUTE_WALL_SURFACE_CLEARANCE_PX,
   auditShortestPathClearance,
   isLevelSolvable,
+  shortestPathBypassesRectYBand,
+  shortestPathVisitsRect,
   pathToGoalLengthRatio
 } from "../src/levelSolvability";
 import { LEVELS } from "../src/levels";
@@ -90,6 +92,17 @@ describe("levelSolvability", () => {
       expect(lvl.slopes.length).toBeGreaterThan(0);
       expect(isLevelSolvable(lvl), `úroveň ${lvl.id}`).toBe(true);
     }
+  });
+
+  it("úroveň 14: cesta musí vést koridorem — nelze obcházet z boku", () => {
+    const l14 = LEVELS.find((l) => l.id === 14)!;
+    const x0 = 118;
+    const x1 = 242;
+    const y0 = 300;
+    const y1 = 520;
+    expect(isLevelSolvable(l14)).toBe(true);
+    expect(shortestPathVisitsRect(l14, x0, x1, y0, y1)).toBe(true);
+    expect(shortestPathBypassesRectYBand(l14, x0, x1, y0, y1)).toBe(false);
   });
 
   it("úroveň 9: uzavřený bypass a vnitřní trasa se zadanou rezervou", () => {

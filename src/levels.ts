@@ -350,12 +350,12 @@ export const LEVELS: LevelDef[] = [
     id: 14,
     name: "Koridor pastí",
     idea:
-      "Projít úzkým koridorem mezi dvěma pastmi; mírná rampa vede zleva doprava k cíli.",
+      "Jediná trasa k cíli vede širším koridorem mezi dvěma pastmi; boční obcházky zleva i zprava jsou zatarasené.",
     start: { x: 72, y: 568 },
     goal: { x: 288, y: 112, r: 22 },
     traps: [
-      { x: 142, y: 398, r: 15 },
-      { x: 218, y: 398, r: 15 }
+      { x: 140, y: 398, r: 15 },
+      { x: 220, y: 398, r: 15 }
     ],
     slopes: [
       {
@@ -370,8 +370,12 @@ export const LEVELS: LevelDef[] = [
     ],
     walls: [
       ...border(),
-      { cx: 118, cy: 380, w: 14, h: 168 },
-      { cx: 242, cy: 380, w: 14, h: 168 }
+      { cx: 111, cy: 398, w: 14, h: 352 },
+      { cx: 249, cy: 398, w: 14, h: 352 },
+      { cx: 68, cy: 324, w: 72, h: 14 },
+      { cx: 68, cy: 488, w: 72, h: 14 },
+      { cx: 292, cy: 324, w: 72, h: 14 },
+      { cx: 292, cy: 488, w: 72, h: 14 }
     ]
   },
   {

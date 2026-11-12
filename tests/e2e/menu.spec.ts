@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { dismissSensorBannerIfPresent } from "./helpers/playwrightTilt";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "../..");
@@ -195,6 +196,7 @@ test("E2E: návrat do menu vypne režim myši", async ({ page }) => {
   await expect(page.locator("#tilt-maze-mouse-overlay")).toBeVisible();
   await page.locator("#btn-menu").click();
   await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 10000 });
+  await dismissSensorBannerIfPresent(page);
   await page.locator("#menu-btn-play").click();
   await expect(page.locator("#tilt-maze-mouse-overlay")).toBeHidden();
 });

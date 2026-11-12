@@ -3,7 +3,12 @@
  * Obdélníky zdí: střed + šířka/výška.
  */
 
-import type { FloorHeightFeature } from "./floorHeight";
+import {
+  bowlCircularAmplitude,
+  bowlRectAmplitude,
+  rampRiseForBand,
+  type FloorHeightFeature
+} from "./floorHeight";
 import {
   FRAME_BOTTOM,
   FRAME_INNER_LEFT,
@@ -17,6 +22,8 @@ export type WallDef = { cx: number; cy: number; w: number; h: number };
 export type LevelDef = {
   id: number;
   name: string;
+  /** Stručná herní idea — co hráč musí zvládnout (hlavně úrovně 11–15). */
+  idea?: string;
   start: { x: number; y: number };
   goal: { x: number; y: number; r: number };
   traps: { x: number; y: number; r: number }[];
@@ -288,82 +295,116 @@ export const LEVELS: LevelDef[] = [
   {
     id: 11,
     name: "Jamka na cestě",
+    idea:
+      "Přejet širokou mělkou jamku na cestě — stačí mírný tilt nahoru; zeď nahoře nutí projet důlek, ne okolo.",
     start: { x: 62, y: 570 },
     goal: { x: 292, y: 108, r: 22 },
     traps: [],
-    slopes: [{ shape: "bowl", cx: 178, cy: 355, r: 54, amplitude: -1 }],
-    walls: [
-      ...border(),
-      { cx: 178, cy: 248, w: 118, h: 14 }
-    ]
+    slopes: [{ shape: "bowl", cx: 178, cy: 390, r: 76, amplitude: -bowlCircularAmplitude(76) }],
+    walls: [...border(), { cx: 178, cy: 292, w: 196, h: 14 }]
   },
   {
     id: 12,
-    name: "Rampa a nástupnice",
+    name: "Výstup po rampě",
+    idea: "Vylézt po rampě na vyšší nástupnici, kde je cíl — start dole, cíl nahoře.",
     start: { x: 72, y: 575 },
     goal: { x: 285, y: 105, r: 20 },
     traps: [],
-    slopes: [{ shape: "ramp", axis: "horizontal", split: 352, band: 48, hLow: 0, hHigh: 1, lowSide: "top" }],
-    walls: [
-      ...border(),
-      { cx: 55, cy: 475, w: 14, h: 120 },
-      { cx: 305, cy: 475, w: 14, h: 120 }
-    ]
+    slopes: [
+      {
+        shape: "ramp",
+        axis: "horizontal",
+        split: 338,
+        band: 56,
+        hLow: 0,
+        hHigh: rampRiseForBand(56),
+        lowSide: "bottom"
+      }
+    ],
+    walls: [...border()]
   },
   {
     id: 13,
-    name: "Údolí k pasti",
+    name: "Přes kopec",
+    idea:
+      "Přejet široký kopec po šířce desky; pasti po jeho bocích nutí jet přes vrchol místo okolo.",
     start: { x: 68, y: 560 },
     goal: { x: 278, y: 108, r: 23 },
-    traps: [{ x: 248, y: 435, r: 16 }],
-    slopes: [
-      { shape: "bowl", cx: 192, cy: 455, r: 64, amplitude: -0.95 },
-      { shape: "bowlRect", cx: 138, cy: 268, w: 88, h: 44, amplitude: 0.75 }
+    traps: [
+      { x: 58, y: 418, r: 14 },
+      { x: 302, y: 418, r: 14 }
     ],
-    walls: [
-      ...border(),
-      { cx: 118, cy: 360, w: 96, h: 14 }
-    ]
+    slopes: [
+      {
+        shape: "bowlRect",
+        cx: 180,
+        cy: 400,
+        w: 252,
+        h: 96,
+        amplitude: bowlRectAmplitude(252, 96)
+      }
+    ],
+    walls: [...border()]
   },
   {
     id: 14,
-    name: "Kopce a mise",
-    start: { x: 295, y: 558 },
-    goal: { x: 78, y: 112, r: 22 },
+    name: "Koridor pastí",
+    idea:
+      "Projít úzkým koridorem mezi dvěma pastmi; mírná rampa vede zleva doprava k cíli.",
+    start: { x: 72, y: 568 },
+    goal: { x: 288, y: 112, r: 22 },
     traps: [
-      { x: 180, y: 420, r: 15 },
-      { x: 220, y: 248, r: 14 }
+      { x: 142, y: 398, r: 15 },
+      { x: 218, y: 398, r: 15 }
     ],
     slopes: [
-      { shape: "ramp", axis: "horizontal", split: 248, band: 42, hLow: 0, hHigh: 0.85, lowSide: "bottom" },
-      { shape: "bowl", cx: 118, cy: 498, r: 46, amplitude: -0.9 }
+      {
+        shape: "ramp",
+        axis: "vertical",
+        split: 158,
+        band: 48,
+        hLow: 0,
+        hHigh: rampRiseForBand(48),
+        lowSide: "left"
+      }
     ],
     walls: [
       ...border(),
-      { cx: 268, cy: 388, w: 120, h: 14 },
-      { cx: 108, cy: 280, w: 70, h: 14 }
+      { cx: 118, cy: 380, w: 14, h: 168 },
+      { cx: 242, cy: 380, w: 14, h: 168 }
     ]
   },
   {
     id: 15,
-    name: "Mistr sklonů",
+    name: "Finále sklonů",
+    idea:
+      "Finále: výstup spodní rampou, přejet středový kopec a dojet k cíli mezi třemi pastmi.",
     start: { x: 62, y: 578 },
     goal: { x: 272, y: 102, r: 21 },
     traps: [
-      { x: 248, y: 518, r: 14 },
-      { x: 112, y: 238, r: 13 },
-      { x: 180, y: 178, r: 13 }
+      { x: 178, y: 520, r: 14 },
+      { x: 118, y: 268, r: 13 },
+      { x: 248, y: 268, r: 13 }
     ],
     slopes: [
-      { shape: "bowl", cx: 178, cy: 395, r: 42, amplitude: -0.9 },
-      { shape: "bowlRect", cx: 268, cy: 355, w: 72, h: 110, amplitude: 0.8 },
-      { shape: "ramp", axis: "vertical", split: 112, band: 40, hLow: 0, hHigh: 0.7, lowSide: "left" }
+      {
+        shape: "ramp",
+        axis: "horizontal",
+        split: 418,
+        band: 52,
+        hLow: 0,
+        hHigh: rampRiseForBand(52),
+        lowSide: "bottom"
+      },
+      {
+        shape: "bowlRect",
+        cx: 180,
+        cy: 350,
+        w: 120,
+        h: 72,
+        amplitude: bowlRectAmplitude(120, 72)
+      }
     ],
-    walls: [
-      ...border(),
-      { cx: 178, cy: 268, w: 130, h: 14 },
-      { cx: 48, cy: 362, w: 14, h: 110 },
-      { cx: 312, cy: 478, w: 14, h: 92 }
-    ]
+    walls: [...border(), { cx: 178, cy: 448, w: 140, h: 14 }]
   }
 ];

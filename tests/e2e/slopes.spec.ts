@@ -43,7 +43,7 @@ test("E2E sklon: menu → úroveň 11 → okraj jamky přitahuje (bez propadu)",
 
   expect(rim.trapSinking).toBe(false);
   expect(rim.goalSettling).toBe(false);
-  expect(rim.mag).toBeGreaterThan(0.85);
+  expect(rim.mag).toBeGreaterThan(0.12);
 
   const depthOk = await page.evaluate(() => {
     const w = window as unknown as { __e2eRenderDepthOk?: () => boolean };

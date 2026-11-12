@@ -52,6 +52,42 @@ const GRAD_EPS = 1.25;
 /** Převod |∇h| na ekvivalent sklonu (~dřívější misky). */
 const GRAD_TO_TILT = 48;
 
+/**
+ * Horní mez |∇h| pro návrh úrovní (jamky/rampy).
+ * Dřívější data sahala cca k 0,034 (úroveň 13); nové levely drží ≤ této hodnoty.
+ */
+export const MAX_FLOOR_HEIGHT_GRAD = 0.011;
+
+/** Kladná/záporná amplituda kruhové misky: na okraji |∇h| ≤ MAX. */
+export function bowlCircularAmplitude(r: number): number {
+  return MAX_FLOOR_HEIGHT_GRAD * r;
+}
+
+/** Amplituda eliptické misky — konzervativní odhad podle kratší poloosy. */
+export function bowlRectAmplitude(w: number, h: number): number {
+  return MAX_FLOOR_HEIGHT_GRAD * Math.min(w / 2, h / 2);
+}
+
+/** Výškový skok stupňové rampy v pásmu `band`. */
+export function rampRiseForBand(band: number): number {
+  return MAX_FLOOR_HEIGHT_GRAD * band;
+}
+
+/** Maximální |∇h| uvnitř hracího rámu (pro validaci levelů). */
+export function maxFloorHeightGradientMagnitude(
+  features: FloorHeightFeature[],
+  step = 4
+): number {
+  let maxG = 0;
+  for (let y = FRAME_TOP; y < FRAME_BOTTOM; y += step) {
+    for (let x = FRAME_INNER_LEFT; x < FRAME_INNER_RIGHT; x += step) {
+      const g = floorHeightGradient(x, y, features);
+      maxG = Math.max(maxG, Math.hypot(g.dx, g.dy));
+    }
+  }
+  return maxG;
+}
+
 function rampBandHeight(coord: number, f: FloorRamp): number {
   const half = f.band / 2;
   const lo = f.split - half;

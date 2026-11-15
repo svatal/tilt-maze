@@ -380,35 +380,26 @@ export const LEVELS: LevelDef[] = [
   },
   {
     id: 15,
-    name: "Finále sklonů",
+    name: "Nástupní plošina",
     idea:
-      "Finále: výstup spodní rampou, přejet středový kopec a dojet k cíli mezi třemi pastmi.",
-    start: { x: 62, y: 578 },
-    goal: { x: 272, y: 102, r: 21 },
+      "Vylezt po široké rampě na vysokou nástupnici (více než polovina desky); cíl je uprostřed vrcholu — na plošině je klid, na hraně srazu sklon svažuje dolů.",
+    start: { x: 180, y: 578 },
+    goal: { x: 180, y: 248, r: 22 },
     traps: [
-      { x: 178, y: 520, r: 14 },
-      { x: 118, y: 268, r: 13 },
-      { x: 248, y: 268, r: 13 }
+      { x: 88, y: 532, r: 15 },
+      { x: 272, y: 532, r: 15 }
     ],
     slopes: [
       {
         shape: "ramp",
         axis: "horizontal",
-        split: 418,
+        split: 468,
         band: 52,
         hLow: 0,
         hHigh: rampRiseForBand(52),
         lowSide: "bottom"
-      },
-      {
-        shape: "bowlRect",
-        cx: 180,
-        cy: 350,
-        w: 120,
-        h: 72,
-        amplitude: bowlRectAmplitude(120, 72)
       }
     ],
-    walls: [...border(), { cx: 178, cy: 448, w: 140, h: 14 }]
+    walls: [...border()]
   }
 ];

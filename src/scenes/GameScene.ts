@@ -12,10 +12,15 @@ import {
   type StorageLike
 } from "../sensorBannerSession";
 import {
+  bakeFloorHeightCanvas,
+  composeBoardHoleAndFloorTilts,
+  floorHeightTilt,
+  type FloorHeightFeature
+} from "../floorHeight";
+import {
   ballCenterDistance,
   ballCenterTriggersHoleSink,
   ballInHoleSlopeAnnulus,
-  composeBoardAndHoleTilts,
   holeLocalTilt,
   type HoleDef
 } from "../holeSlope";
@@ -35,6 +40,12 @@ const BALL_RESTITUTION = 0.5;
 const FORCE_MULT = 0.00085;
 const MAX_SPEED = 7;
 
+const DEPTH_BOARD_BG = -20;
+const DEPTH_FLOOR_SHADE = -5;
+const DEPTH_WALL = 5;
+const DEPTH_HOLE = 6;
+const DEPTH_BALL = 15;
+
 /** Čas sesazení v cíli před výhrou (Phaser tween). */
 const GOAL_SETTLE_MS = 460;
 /** Krátký propad v pasti. */
@@ -53,6 +64,8 @@ export class GameScene extends Phaser.Scene {
   private running = false;
   private wallBodies: MatterJS.BodyType[] = [];
   private decorative: Phaser.GameObjects.Graphics[] = [];
+  private floorHeightTexKey: string | null = null;
+  private floorShadeImage: Phaser.GameObjects.Image | null = null;
   private trapBodies: MatterJS.BodyType[] = [];
   private hud!: HTMLElement;
   private timerEl!: HTMLElement;
@@ -159,6 +172,8 @@ export class GameScene extends Phaser.Scene {
         };
         __e2eTickHoles?: () => void;
         __e2eHoleLocalMag?: (trapIndex?: number) => number;
+        __e2eFloorSlopeMag?: (slopeIndex?: number) => number;
+        __e2eRenderDepthOk?: () => boolean;
       };
       w.__e2ePlaceBall = (x: number, y: number) => this.e2ePlaceBall(x, y);
       w.__e2eHoleState = () => ({
@@ -176,6 +191,16 @@ export class GameScene extends Phaser.Scene {
         const t = holeLocalTilt(bb.position.x, bb.position.y, h);
         return Math.hypot(t.ax, t.ay);
       };
+      w.__e2eFloorSlopeMag = (slopeIndex = 0) => {
+        const slopes = LEVELS[this.levelIndex].slopes;
+        const s = slopes[slopeIndex];
+        if (!s || !this.ball?.body) return 0;
+        const bb = this.ball.body as MatterJS.BodyType;
+        const t = floorHeightTilt(bb.position.x, bb.position.y, LEVELS[this.levelIndex].slopes);
+        return Math.hypot(t.ax, t.ay);
+      };
+      w.__e2eRenderDepthOk = () =>
+        this.verifyDecorAboveFloorShade() && this.verifyFloorShadeClippedToInterior();
     }
 
     this.removeBuildInfo = attachBuildInfoLabel();
@@ -274,7 +299,15 @@ export class GameScene extends Phaser.Scene {
       const trapBowls: HoleDef[] = lvl.traps
         .map((tr) => ({ cx: tr.x, cy: tr.y, r: tr.r }))
         .filter((h) => ballInHoleSlopeAnnulus(pos.x, pos.y, h));
-      const composed = composeBoardAndHoleTilts(t.ax, t.ay, pos.x, pos.y, this.goalHole, trapBowls);
+      const composed = composeBoardHoleAndFloorTilts(
+        t.ax,
+        t.ay,
+        pos.x,
+        pos.y,
+        this.goalHole,
+        trapBowls,
+        lvl.slopes
+      );
       const fx = composed.ax * FORCE_MULT;
       const fy = composed.ay * FORCE_MULT;
       this.matter.body.applyForce(bb, bb.position, { x: fx, y: fy });
@@ -414,6 +447,7 @@ export class GameScene extends Phaser.Scene {
     g.fillRect(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
     g.lineStyle(3, 0x2d1f12, 1);
     g.strokeRect(2, 2, DESIGN_WIDTH - 4, DESIGN_HEIGHT - 4);
+    g.setDepth(DEPTH_BOARD_BG);
   }
 
   private buildHud(): void {
@@ -749,6 +783,12 @@ export class GameScene extends Phaser.Scene {
       }
     }
     this.decorative = [];
+    this.floorShadeImage?.destroy();
+    this.floorShadeImage = null;
+    if (this.floorHeightTexKey && this.textures.exists(this.floorHeightTexKey)) {
+      this.textures.remove(this.floorHeightTexKey);
+      this.floorHeightTexKey = null;
+    }
   }
 
   /** Odstraní všechna tělesa ze světa Matter (i po opětovném startu scény). */
@@ -794,8 +834,11 @@ export class GameScene extends Phaser.Scene {
     const gStroke = 0x2d1f12;
     const gFill = 0x8b6914;
 
+    this.bakeFloorHeightShading(lvl.slopes);
+
     for (const w of lvl.walls) {
       const gr = this.add.graphics();
+      gr.setDepth(DEPTH_WALL);
       gr.fillStyle(gFill, 1);
       gr.lineStyle(2, gStroke, 1);
       gr.fillRoundedRect(w.cx - w.w / 2, w.cy - w.h / 2, w.w, w.h, 6);
@@ -844,10 +887,35 @@ export class GameScene extends Phaser.Scene {
       restitution: BALL_RESTITUTION
     }) as Phaser.Physics.Matter.Image;
     this.ball.setDisplaySize(BALL_RADIUS * 2, BALL_RADIUS * 2);
+    this.ball.setDepth(DEPTH_BALL);
+  }
+
+  /** E2E: bake stínu nesmí přetékat přes vnitřní hrany obvodových zdí. */
+  verifyFloorShadeClippedToInterior(): boolean {
+    if (!this.floorHeightTexKey || !this.textures.exists(this.floorHeightTexKey)) return true;
+    const source = this.textures.get(this.floorHeightTexKey).getSourceImage();
+    if (!(source instanceof HTMLCanvasElement)) return true;
+    const ctx = source.getContext("2d");
+    if (!ctx) return false;
+    return ctx.getImageData(8, 8, 1, 1).data[3] === 0;
+  }
+
+  /** E2E: stínovaná podlaha musí být pod všemi herními grafikami úrovně. */
+  verifyDecorAboveFloorShade(): boolean {
+    if (!this.floorShadeImage) return true;
+    const fd = this.floorShadeImage.depth;
+    for (const g of this.decorative) {
+      const any = g as { depth?: number; destroy?: () => void };
+      if (typeof any.depth !== "number") continue;
+      if (any.depth <= fd) return false;
+    }
+    if (this.ball && this.ball.depth <= fd) return false;
+    return true;
   }
 
   private drawHole(cx: number, cy: number, r: number, inner: number): void {
     const gr = this.add.graphics();
+    gr.setDepth(DEPTH_HOLE);
     this.decorative.push(gr);
     gr.fillStyle(0x1a120a, 1);
     gr.fillCircle(cx, cy, r + 2);
@@ -855,6 +923,19 @@ export class GameScene extends Phaser.Scene {
     gr.fillCircle(cx, cy, r - 2);
     gr.lineStyle(2, 0x0a0604, 1);
     gr.strokeCircle(cx, cy, r);
+  }
+
+  /** Jednorázový bake mapy výšky → odstín dřeva (pod zdmi a dírami). */
+  private bakeFloorHeightShading(features: FloorHeightFeature[]): void {
+    if (!features.length) return;
+    const key = `floor-height-${this.levelIndex}`;
+    if (this.floorHeightTexKey && this.textures.exists(this.floorHeightTexKey)) {
+      this.textures.remove(this.floorHeightTexKey);
+    }
+    const canvas = bakeFloorHeightCanvas(features, 3);
+    this.textures.addCanvas(key, canvas);
+    this.floorHeightTexKey = key;
+    this.floorShadeImage = this.add.image(0, 0, key).setOrigin(0, 0).setDepth(DEPTH_FLOOR_SHADE);
   }
 
   private onCollisionStart(event: Phaser.Physics.Matter.Events.CollisionStartEvent): void {

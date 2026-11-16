@@ -5,23 +5,37 @@
  *
  * Profil úhlu (nominalní ° ekvivalent u hrany, ne doslovný 3D úhel):
  *   mimo (d > r) → 0; při překročení okraje náhlý skok na max;
- *   uvnitř mezikruhu úhel lineárně klesá k 0 při d → 0.25r (slabší směrem ke středu).
- *   θ(d) = θ_rim · (d/r) pro 0.25r < d ≤ r.
+ *   uvnitř mezikruhu úhel lineárně klesá k 0 při d → trigger poloměr (slabší směrem ke středu).
+ *   θ(d) = θ_rim · (d/r) pro trigger < d ≤ r.
  * Mapování na jednotky board tiltu: |a| = TILT_SIN_SCALE · sin(θ), stejně jako tiltMapping u orientace.
  */
 
 export type HoleDef = { cx: number; cy: number; r: number };
+
+export type BowlTiltProfile = {
+  rimAngleDeg: number;
+  triggerFrac: number;
+};
 
 export const HOLE_TRIGGER_FRAC = 0.25;
 
 /** Úhel na viditelném okraji díry (d = r). */
 export const HOLE_RIM_ANGLE_DEG = 45;
 
+export const HOLE_BOWL_PROFILE: BowlTiltProfile = {
+  rimAngleDeg: HOLE_RIM_ANGLE_DEG,
+  triggerFrac: HOLE_TRIGGER_FRAC
+};
+
 /** Odpovídá sin-faktoru v computeRawTiltAxes (γ/β → raw). */
 export const TILT_SIN_SCALE = 2.2;
 
+export function bowlTriggerRadius(visibleR: number, triggerFrac: number): number {
+  return visibleR * triggerFrac;
+}
+
 export function holeTriggerRadius(visibleR: number): number {
-  return visibleR * HOLE_TRIGGER_FRAC;
+  return bowlTriggerRadius(visibleR, HOLE_TRIGGER_FRAC);
 }
 
 export function ballCenterDistance(ballX: number, ballY: number, hole: HoleDef): number {
@@ -42,29 +56,53 @@ export function ballCenterTriggersHoleSink(ballX: number, ballY: number, hole: H
 }
 
 /** Nominalní úhel misky [°] pro vzdálenost d od středu; 0 mimo mezikruh. */
+export function bowlLocalTiltAngleDeg(d: number, visibleR: number, profile: BowlTiltProfile): number {
+  const inner = bowlTriggerRadius(visibleR, profile.triggerFrac);
+  if (d > visibleR || d <= inner) return 0;
+  return profile.rimAngleDeg * (d / visibleR);
+}
+
 export function holeLocalTiltAngleDeg(d: number, visibleR: number): number {
-  if (d > visibleR || d <= holeTriggerRadius(visibleR)) return 0;
-  return HOLE_RIM_ANGLE_DEG * (d / visibleR);
+  return bowlLocalTiltAngleDeg(d, visibleR, HOLE_BOWL_PROFILE);
 }
 
 /** Velikost lokální složky ax/ay (před FORCE_MULT) z úhlu. */
-export function holeLocalTiltMagnitude(d: number, visibleR: number): number {
-  const deg = holeLocalTiltAngleDeg(d, visibleR);
+export function bowlLocalTiltMagnitude(d: number, visibleR: number, profile: BowlTiltProfile): number {
+  const deg = bowlLocalTiltAngleDeg(d, visibleR, profile);
   if (deg <= 0) return 0;
   return TILT_SIN_SCALE * Math.sin((deg * Math.PI) / 180);
 }
 
-export function holeLocalTilt(ballX: number, ballY: number, hole: HoleDef): { ax: number; ay: number } {
-  const d = ballCenterDistance(ballX, ballY, hole);
-  const inner = holeTriggerRadius(hole.r);
-  if (d > hole.r || d <= inner) return { ax: 0, ay: 0 };
+export function holeLocalTiltMagnitude(d: number, visibleR: number): number {
+  return bowlLocalTiltMagnitude(d, visibleR, HOLE_BOWL_PROFILE);
+}
 
-  const dx = hole.cx - ballX;
-  const dy = hole.cy - ballY;
+/**
+ * Lokální tilt miso do středu (downhill = směr ke středu kruhu).
+ * `towardCenter: false` invertuje sílu (kopec).
+ */
+export function bowlLocalTiltToward(
+  ballX: number,
+  ballY: number,
+  bowl: HoleDef,
+  profile: BowlTiltProfile,
+  towardCenter: boolean
+): { ax: number; ay: number } {
+  const d = ballCenterDistance(ballX, ballY, bowl);
+  const inner = bowlTriggerRadius(bowl.r, profile.triggerFrac);
+  if (d > bowl.r || d <= inner) return { ax: 0, ay: 0 };
+
+  const dx = bowl.cx - ballX;
+  const dy = bowl.cy - ballY;
   const towardX = d > 1e-6 ? dx / d : 0;
   const towardY = d > 1e-6 ? dy / d : 0;
-  const mag = holeLocalTiltMagnitude(d, hole.r);
-  return { ax: towardX * mag, ay: towardY * mag };
+  const mag = bowlLocalTiltMagnitude(d, bowl.r, profile);
+  const sign = towardCenter ? 1 : -1;
+  return { ax: towardX * mag * sign, ay: towardY * mag * sign };
+}
+
+export function holeLocalTilt(ballX: number, ballY: number, hole: HoleDef): { ax: number; ay: number } {
+  return bowlLocalTiltToward(ballX, ballY, hole, HOLE_BOWL_PROFILE, true);
 }
 
 export function composeBoardAndHoleTilts(

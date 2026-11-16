@@ -169,7 +169,7 @@ export class MenuScene extends Phaser.Scene {
 
     const main = document.createElement("div");
     main.style.cssText = [
-      "flex:1",
+      "flex:1 1 0%",
       "min-height:0",
       "display:flex",
       "flex-direction:column",
@@ -189,8 +189,8 @@ export class MenuScene extends Phaser.Scene {
     levelScroll.setAttribute("aria-label", "Výběr úrovně");
     levelScroll.style.cssText = [
       "overflow-y:auto",
-      "flex:0 1 auto",
-      "max-height:min(44vh,360px)",
+      "flex:1",
+      "min-height:0",
       "display:flex",
       "flex-direction:column",
       "gap:12px",
@@ -239,7 +239,7 @@ export class MenuScene extends Phaser.Scene {
 
     const actions = document.createElement("div");
     actions.style.cssText =
-      "display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;flex-shrink:0;padding-top:4px";
+      "display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;flex-shrink:0;padding-top:4px;width:100%;box-sizing:border-box";
 
     const btnPlay = document.createElement("button");
     btnPlay.type = "button";
@@ -259,11 +259,11 @@ export class MenuScene extends Phaser.Scene {
 
     const hint = document.createElement("p");
     hint.style.cssText =
-      "margin:0;font-size:0.75rem;opacity:0.75;text-align:center;flex-shrink:0;width:100%;box-sizing:border-box";
+      "margin:0;margin-top:auto;font-size:0.75rem;opacity:0.75;text-align:center;flex-shrink:0;width:100%;box-sizing:border-box";
     hint.textContent = "Šipky / Tab: výběr úrovně · Enter: hrát · H: nápověda";
 
-    main.append(levelLabel, levelScroll, actions);
-    root.append(header, main, hint);
+    main.append(levelLabel, levelScroll);
+    root.append(header, main, hint, actions);
     document.body.appendChild(root);
     this.rootEl = root;
 

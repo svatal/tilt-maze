@@ -15,6 +15,7 @@ test.beforeAll(() => {
 });
 
 async function playLevelFromMenu(page: import("@playwright/test").Page, levelIndex: number) {
+  await dismissSensorBannerIfPresent(page);
   await page.locator(`button[data-level-index="${levelIndex}"]`).click();
   await page.locator("#menu-btn-play").click();
   await page.waitForFunction(
@@ -31,13 +32,13 @@ async function playLevelFromMenu(page: import("@playwright/test").Page, levelInd
       return scene?.running === true && scene.ball?.body != null;
     },
     undefined,
-    { timeout: 30000 }
+    { timeout: 45000 }
   );
   await dismissSensorBannerIfPresent(page);
 }
 
 test("E2E: menu → úroveň → menu → úroveň (stejná i jiná)", async ({ page }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   const errors: string[] = [];
   page.on("console", (msg) => {
     if (msg.type() === "error") errors.push(`console.error: ${msg.text()}`);

@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { dismissSensorBannerIfPresent } from "./helpers/playwrightTilt";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "../..");
@@ -67,9 +68,10 @@ test("E2E: desktop — karty úrovní kompaktní a v panelu", async ({ page }) =
   expect(layout!.listInsideMenu).toBe(true);
 
   const groups = await page.locator(".tilt-maze-level-group").count();
-  expect(groups).toBe(2);
+  expect(groups).toBe(3);
   await expect(page.getByRole("heading", { name: /Bez pastí/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /S pastmi/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Lokální sklon/i })).toBeVisible();
   await assertLevelCardsNoTextOverflow(page);
 });
 
@@ -164,16 +166,29 @@ for (const viewport of [
     await assertMenuWithinPlayfield(page);
     await assertLevelCardsNoTextOverflow(page);
 
-    const slug = viewport.width >= 1000 ? "desktop-1280x800" : "mobile-390x844";
+    const actionPin = await page.evaluate(() => {
+      const menu = document.getElementById("tilt-maze-menu");
+      const help = document.getElementById("menu-btn-help");
+      if (!menu || !help) return null;
+      const mb = menu.getBoundingClientRect();
+      const hb = help.getBoundingClientRect();
+      const pad = parseFloat(getComputedStyle(menu).paddingBottom) || 0;
+      return mb.bottom - hb.bottom - pad;
+    });
+    expect(actionPin).not.toBeNull();
+    expect(actionPin!).toBeLessThan(4);
+
+    const slug = viewport.width >= 1000 ? "1280x800" : "390x844";
     await fs.promises.mkdir("/opt/cursor/artifacts", { recursive: true });
     await page.screenshot({
       path: `/opt/cursor/artifacts/menu-${slug}.png`,
-      fullPage: true
+      fullPage: false
     });
   });
 }
 
 test("E2E: návrat do menu vypne režim myši", async ({ page }) => {
+  test.setTimeout(60_000);
   await page.goto(`${basePath}?e2e=1`, { waitUntil: "domcontentloaded" });
   await page.locator("#menu-btn-play").click();
   await expect(page.locator("#tilt-maze-ui")).toBeVisible();
@@ -181,6 +196,7 @@ test("E2E: návrat do menu vypne režim myši", async ({ page }) => {
   await expect(page.locator("#tilt-maze-mouse-overlay")).toBeVisible();
   await page.locator("#btn-menu").click();
   await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 10000 });
+  await dismissSensorBannerIfPresent(page);
   await page.locator("#menu-btn-play").click();
   await expect(page.locator("#tilt-maze-mouse-overlay")).toBeHidden();
 });

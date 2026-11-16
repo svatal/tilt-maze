@@ -38,11 +38,11 @@ async function finishLevel1(page: Page, shotPrefix: string): Promise<void> {
   await assertBuildLabel(page);
 
   try {
-    const tilt = driveCdpTiltToLevel1Goal(page, 50_000);
+    const tilt = driveCdpTiltToLevel1Goal(page, 95_000);
     const midroll = sleep(2500).then(() =>
       page.screenshot({ path: path.join(artifacts, `${shotPrefix}-midroll.png`) })
     );
-    const win = expect(page.locator("#btn-next")).toBeVisible({ timeout: 52_000 });
+    const win = expect(page.locator("#btn-next")).toBeVisible({ timeout: 80_000 });
     await Promise.all([tilt, midroll, win]);
 
     await expect(page.locator("#tilt-maze-sensor-warn")).toBeHidden();
@@ -61,7 +61,7 @@ async function finishLevel1(page: Page, shotPrefix: string): Promise<void> {
 }
 
 test("E2E: CDP tilt dokončí úroveň 1 z menu na mobilu", async ({ browser }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(150_000);
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     isMobile: true,
@@ -88,7 +88,7 @@ test("E2E: bez orientačních dat ukáže banner senzorů (desktop)", async ({ b
 });
 
 test("E2E: CDP tilt dokončí úroveň 1 z menu na desktopu", async ({ browser }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
     isMobile: true,

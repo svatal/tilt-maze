@@ -1,5 +1,11 @@
 import Phaser from "phaser";
-import { ballLayerAt, levelUsesGradeSeparation, pointInBridgeSpan, resolveBallLayer } from "../ballLayer";
+import {
+  ballLayerAt,
+  deckEnterHeight,
+  levelUsesGradeSeparation,
+  pointInBridgeSpan,
+  resolveBallLayer
+} from "../ballLayer";
 import { BALL_RADIUS, DESIGN_HEIGHT, DESIGN_WIDTH } from "../constants";
 import { LEVELS, type BridgeSpan, type LevelDef } from "../levels";
 import {
@@ -22,6 +28,7 @@ import {
 import {
   bakeFloorHeightCanvas,
   composeBoardHoleAndFloorTilts,
+  floorHeightAt,
   floorHeightTilt,
   type FloorHeightFeature
 } from "../floorHeight";
@@ -52,9 +59,11 @@ const DEPTH_BOARD_BG = -20;
 const DEPTH_FLOOR_SHADE = -5;
 const DEPTH_WALL = 5;
 const DEPTH_HOLE = 6;
-const DEPTH_BALL_OUTLINE = 14;
 const DEPTH_BALL = 15;
+const DEPTH_BALL_UNDER_BRIDGE = 13;
 const DEPTH_BRIDGE = 18;
+const DEPTH_BRIDGE_BALL = 20;
+const DEPTH_BRIDGE_BALL_OUTLINE = 19;
 
 /** Čas sesazení v cíli před výhrou (Phaser tween). */
 const GOAL_SETTLE_MS = 460;
@@ -186,8 +195,10 @@ export class GameScene extends Phaser.Scene {
         __e2eHoleLocalMag?: (trapIndex?: number) => number;
         __e2eFloorSlopeMag?: (slopeIndex?: number) => number;
         __e2eRenderDepthOk?: () => boolean;
+        __e2eHideBallForScreenshot?: () => void;
       };
       w.__e2ePlaceBall = (x: number, y: number) => this.e2ePlaceBall(x, y);
+      w.__e2eHideBallForScreenshot = () => this.e2eHideBallForScreenshot();
       w.__e2eHoleState = () => ({
         goalSettling: this.goalSettling,
         trapSinking: this.trapSinking,
@@ -273,7 +284,13 @@ export class GameScene extends Phaser.Scene {
     const lvl = LEVELS[this.levelIndex];
     this.ballLayer = ballLayerAt(x, y, lvl);
     bb.collisionFilter.mask = ballCollisionMask(this.ballLayer);
+    this.ball?.setVisible(true);
     this.syncBallLayerAndBridgeVisual(x, y, lvl);
+  }
+
+  e2eHideBallForScreenshot(): void {
+    this.ball?.setVisible(false);
+    this.ballOutline?.setVisible(false);
   }
 
   /** E2E: vyhodnotí trigger zóny bez čekání na další snímek update smyčky. */
@@ -357,20 +374,29 @@ export class GameScene extends Phaser.Scene {
       this.ball?.setAlpha(1);
       return;
     }
-    const inSpanX = x >= span.x0 && x <= span.x1;
-    const underBridge =
+    const enter = deckEnterHeight(lvl);
+    const onBridgeDeck =
+      this.ballLayer === "deck" && pointInBridgeSpan(x, y, span);
+    const underBridgeDeck =
       this.ballLayer === "ground" &&
-      inSpanX &&
-      (pointInBridgeSpan(x, y, span) || y > span.y1) &&
-      y > span.y0 + (span.y1 - span.y0) * 0.22;
-    if (underBridge) {
-      this.ball.setAlpha(0.1);
+      pointInBridgeSpan(x, y, span) &&
+      floorHeightAt(x, y, lvl.slopes) < enter;
+    if (underBridgeDeck) {
+      this.ball.setAlpha(0.12);
+      this.ball.setDepth(DEPTH_BALL_UNDER_BRIDGE);
+      this.ballOutline.setDepth(DEPTH_BRIDGE_BALL_OUTLINE);
       this.ballOutline.setVisible(true);
       this.ballOutline.clear();
       this.ballOutline.lineStyle(3, 0xe8c878, 0.95);
       this.ballOutline.strokeCircle(x, y, BALL_RADIUS + 1);
+    } else if (onBridgeDeck) {
+      this.ball.setAlpha(1);
+      this.ball.setDepth(DEPTH_BRIDGE_BALL);
+      this.ballOutline.setVisible(false);
     } else {
       this.ball.setAlpha(1);
+      this.ball.setDepth(DEPTH_BALL);
+      this.ballOutline.setDepth(DEPTH_BRIDGE_BALL_OUTLINE);
       this.ballOutline.setVisible(false);
     }
   }
@@ -936,7 +962,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.ballOutline = this.add.graphics();
-    this.ballOutline.setDepth(DEPTH_BALL_OUTLINE);
+    this.ballOutline.setDepth(DEPTH_BRIDGE_BALL_OUTLINE);
     this.ballOutline.setVisible(false);
     this.decorative.push(this.ballOutline);
 

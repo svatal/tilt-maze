@@ -28,9 +28,11 @@ describe("bridge mechanic", () => {
     expect(isLevelSolvable(l16)).toBe(true);
   });
 
-  it("koridor pod mostem zůstane na přízemí", () => {
-    expect(ballLayerAt(180, 392, l16)).toBe("ground");
-    expect(resolveBallLayer("deck", 180, 392, l16)).toBe("ground");
+  it("tunel uvnitř patky mostu zůstane na přízemí", () => {
+    const under = { x: 168, y: 300 };
+    expect(ballLayerAt(under.x, under.y, l16)).toBe("ground");
+    expect(pointInBridgeSpan(under.x, under.y, l16.bridge!.span)).toBe(true);
+    expect(resolveBallLayer("ground", under.x, under.y, l16)).toBe("ground");
   });
 
   it("hystereze vrstvy na nástupnici", () => {

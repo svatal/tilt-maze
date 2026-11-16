@@ -224,7 +224,17 @@ function bridgeUnderZoneHit(
   y: number,
   span: NonNullable<LevelDef["bridge"]>["span"]
 ): boolean {
-  return y >= span.y1 + 8 && x >= span.x0 + 12 && x <= span.x1 - 12;
+  const marginX = 12;
+  const marginY = 8;
+  const spanH = span.y1 - span.y0;
+  /** Průjezd přízemím uvnitř patky mostu (spodní část rozsahu, ne jen jižně od patky). */
+  const yMax = span.y0 + spanH * 0.55;
+  return (
+    x >= span.x0 + marginX &&
+    x <= span.x1 - marginX &&
+    y >= span.y0 + marginY &&
+    y <= yMax
+  );
 }
 
 function bfsTraverse(

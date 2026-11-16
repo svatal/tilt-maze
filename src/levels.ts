@@ -400,17 +400,30 @@ export const LEVELS: LevelDef[] = [
     id: 16,
     name: "Pod mostem",
     idea:
-      "Jet nízko pod mostem, vyjet po rampě na patro, krátce se vrátit po desce a přejet přes vrchol mostu k cíli.",
+      "Nízký tunel uvnitř patky mostu (záporná miska v mese), výšší patra na západě a východě; po průjezdu tunelom vyletět na desku a přejet most k cíli.",
     start: { x: 72, y: 562 },
     goal: { x: 292, y: 108, r: 22 },
     traps: [],
     bridge: { span: { x0: 108, y0: 288, x1: 252, y1: 360 } },
-    slopes: [{ shape: "mesa", splitTop: 268, splitBottom: 478, band: 48 }],
+    slopes: [
+      { shape: "mesa", splitTop: 235, splitBottom: 365, band: 44 },
+      {
+        shape: "bowlRect",
+        cx: 180,
+        cy: 288,
+        w: 136,
+        h: 52,
+        amplitude: -bowlRectAmplitude(136, 52)
+      }
+    ],
     walls: [
       ...border(),
-      { cx: 142, cy: 358, w: 220, h: 14, layer: "deck" },
+      { cx: 142, cy: 358, w: 226, h: 14, layer: "deck" },
       { cx: 213, cy: 228, w: 230, h: 14, layer: "ground" },
-      { cx: 104, cy: 255, w: 14, h: 66, layer: "ground" }
+      { cx: 98, cy: 410, w: 14, h: 220, layer: "ground" },
+      { cx: 262, cy: 410, w: 14, h: 220, layer: "ground" },
+      { cx: 180, cy: 334, w: 155, h: 14, layer: "ground" },
+      { cx: 180, cy: 372, w: 164, h: 14, layer: "ground" }
     ]
   }
 ];

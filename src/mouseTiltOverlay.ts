@@ -119,5 +119,7 @@ export class MouseTiltOverlay {
     this.strengthBar.style.left = `${area.left + 8}px`;
     this.strengthBar.style.top = `${area.top + area.height / 2 - 24}px`;
     if (fill) fill.style.height = `${Math.round(mag * 100)}%`;
+    /** Středová značka až při skutečném náklonu — neplést s kuličkou pod mostem. */
+    this.centerMark.style.opacity = active && mag > 0.07 ? "1" : "0";
   }
 }

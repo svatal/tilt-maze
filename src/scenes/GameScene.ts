@@ -392,6 +392,7 @@ export class GameScene extends Phaser.Scene {
     } else if (onBridgeDeck) {
       this.ball.setAlpha(1);
       this.ball.setDepth(DEPTH_BRIDGE_BALL);
+      this.ballOutline.clear();
       this.ballOutline.setVisible(false);
     } else {
       this.ball.setAlpha(1);

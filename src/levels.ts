@@ -404,7 +404,7 @@ export const LEVELS: LevelDef[] = [
     start: { x: 72, y: 562 },
     goal: { x: 292, y: 108, r: 22 },
     traps: [],
-    bridge: { span: { x0: 108, y0: 288, x1: 252, y1: 360 } },
+    bridge: { span: { x0: 108, y0: 288, x1: 252, y1: 328 } },
     slopes: [
       { shape: "mesa", splitTop: 235, splitBottom: 365, band: 44 },
       {

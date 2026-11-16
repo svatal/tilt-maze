@@ -36,7 +36,7 @@ export class MenuScene extends Phaser.Scene {
     this.removeBuildInfo = attachBuildInfoLabel();
     this.buildDomMenu();
     this.scale.on("resize", this.layoutMenu, this);
-    this.layoutMenu();
+    this.syncMenuOverlayToScale();
 
     this.events.off(Phaser.Scenes.Events.SLEEP, this.onSceneSleep, this);
     this.events.on(Phaser.Scenes.Events.SLEEP, this.onSceneSleep, this);
@@ -67,11 +67,21 @@ export class MenuScene extends Phaser.Scene {
   private readonly onSceneWake = (): void => {
     this.removeBuildInfo?.();
     this.removeBuildInfo = attachBuildInfoLabel();
-    this.rootEl?.style.removeProperty("display");
+    // removeProperty("display") po sleep obnoví výchozí block u <div>, ne flex z původního layoutu
+    this.rootEl?.style.setProperty("display", "flex");
     this.helpLayer?.style.removeProperty("display");
     this.attachKeyboard();
-    this.layoutMenu();
+    this.syncMenuOverlayToScale();
   };
+
+  private syncMenuOverlayToScale(): void {
+    const container = document.getElementById("game-container");
+    if (container) {
+      this.scale.setParentSize(container.clientWidth, container.clientHeight);
+    }
+    this.game.scale.refresh();
+    this.layoutMenu();
+  }
 
   private layoutMenu = (): void => {
     if (!this.rootEl) return;

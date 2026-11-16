@@ -628,6 +628,8 @@ export class GameScene extends Phaser.Scene {
     const bounds = this.game.scale.canvasBounds;
     this.hud.style.left = `${Math.max(0, Math.round(bounds.left))}px`;
     this.hud.style.width = `${Math.max(0, Math.round(bounds.width))}px`;
+    this.hud.style.paddingLeft = "8px";
+    this.hud.style.paddingRight = "8px";
     this.mouseOverlay?.layout();
     if (refreshScale) {
       this.game.scale.refresh();

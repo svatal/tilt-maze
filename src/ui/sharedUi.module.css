@@ -9,7 +9,6 @@
   cursor: pointer;
   min-height: 44px;
   min-width: 44px;
-  font-family: var(--tilt-ui-font);
 }
 
 .btnSecondary {
@@ -22,7 +21,6 @@
   cursor: pointer;
   min-height: 44px;
   min-width: 44px;
-  font-family: var(--tilt-ui-font);
 }
 
 .btnHud {
@@ -33,7 +31,6 @@
   color: #f5e6d3;
   font-size: 0.85rem;
   cursor: pointer;
-  font-family: var(--tilt-ui-font);
 }
 
 .btnLevelWalls {
@@ -53,7 +50,6 @@
   min-width: 0;
   box-sizing: border-box;
   overflow: hidden;
-  font-family: var(--tilt-ui-font);
 }
 
 .btnLevelTraps {
@@ -73,7 +69,6 @@
   min-width: 0;
   box-sizing: border-box;
   overflow: hidden;
-  font-family: var(--tilt-ui-font);
 }
 
 .winBtnPrimary {
@@ -86,7 +81,6 @@
   font-weight: 700;
   cursor: pointer;
   min-height: 44px;
-  font-family: var(--tilt-ui-font);
 }
 
 .winBtnMenu {
@@ -99,5 +93,4 @@
   font-weight: 600;
   cursor: pointer;
   min-height: 44px;
-  font-family: var(--tilt-ui-font);
 }

@@ -105,7 +105,6 @@
   font-size: 0.92rem;
   line-height: 1.4;
   box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
-  font-family: var(--tilt-ui-font);
 }
 
 .sensorWarn {
@@ -123,7 +122,6 @@
   pointer-events: auto;
   text-align: left;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-  font-family: var(--tilt-ui-font);
 }
 
 .sensorWarn :global(.sensor-warn-title) {

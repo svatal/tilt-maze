@@ -26,7 +26,6 @@ test("E2E: úvodní menu — výběr úrovně a návrat z hry", async ({ page })
   await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 15000 });
 
   await page.locator('button[data-level-index="1"]').click();
-  await page.locator("#menu-btn-play").click();
 
   await expect(page.getByTestId("main-menu")).toBeHidden({ timeout: 10000 });
   await expect(page.locator("#tilt-maze-menu")).toBeHidden();
@@ -127,9 +126,7 @@ async function assertMenuWithinPlayfield(page: import("@playwright/test").Page) 
       { label: "header", el: document.querySelector("#tilt-maze-menu header") },
       { label: "levels-label", el: document.getElementById("tilt-maze-levels-label") },
       { label: "level-list", el: document.getElementById("tilt-maze-level-list") },
-      { label: "play", el: document.getElementById("menu-btn-play") },
-      { label: "help", el: document.getElementById("menu-btn-help") },
-      { label: "hint", el: document.querySelector("#tilt-maze-menu > p") }
+      { label: "help", el: document.getElementById("menu-btn-help") }
     ];
 
     document.querySelectorAll("#tilt-maze-level-list button").forEach((btn, i) => {
@@ -190,14 +187,14 @@ for (const viewport of [
 test("E2E: návrat do menu vypne režim myši", async ({ page }) => {
   test.setTimeout(60_000);
   await page.goto(`${basePath}?e2e=1`, { waitUntil: "domcontentloaded" });
-  await page.locator("#menu-btn-play").click();
+  await page.locator('button[data-level-index="0"]').click();
   await expect(page.locator("#tilt-maze-ui")).toBeVisible();
   await page.getByRole("button", { name: "Myš", exact: true }).click();
   await expect(page.locator("#tilt-maze-mouse-overlay")).toBeVisible();
   await page.locator("#btn-menu").click();
   await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 10000 });
   await dismissSensorBannerIfPresent(page);
-  await page.locator("#menu-btn-play").click();
+  await page.locator('button[data-level-index="0"]').click();
   await expect(page.locator("#tilt-maze-mouse-overlay")).toBeHidden();
 });
 

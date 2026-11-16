@@ -23,13 +23,9 @@ export class MouseTiltOverlay {
     this.root = document.createElement("div");
     this.root.id = OVERLAY_ID;
     this.root.setAttribute("aria-hidden", "true");
-    this.root.style.cssText = [
-      "position:fixed",
-      "inset:0",
-      "pointer-events:none",
-      "z-index:5",
-      "display:none"
-    ].join(";");
+    this.root.className = "tilt-maze-mouse-overlay";
+    this.root.hidden = true;
+    this.root.style.cssText = ["position:fixed", "inset:0", "pointer-events:none", "z-index:5"].join(";");
 
     this.centerMark = document.createElement("div");
     this.centerMark.style.cssText = [
@@ -77,7 +73,7 @@ export class MouseTiltOverlay {
   }
 
   setVisible(show: boolean): void {
-    this.root.style.display = show ? "block" : "none";
+    this.root.hidden = !show;
   }
 
   setArmed(armed: boolean): void {

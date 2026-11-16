@@ -15,5 +15,3 @@ export const BTN_LEVEL_WALLS =
 export const BTN_LEVEL_TRAPS =
   "padding:10px 8px 10px 10px;border-radius:10px;border:1px solid rgba(175,105,68,0.5);border-left:3px solid rgba(172,86,48,0.95);background:#2a1712;color:#faece0;font-size:0.82rem;cursor:pointer;min-height:52px;height:auto;text-align:left;width:100%;max-width:100%;min-width:0;box-sizing:border-box;overflow:hidden";
 
-export const PANEL_OVERLAY =
-  `position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(15,10,6,0.92);pointer-events:auto;padding:16px 20px;box-sizing:border-box;text-align:left;color:#f5e6d3;overflow:auto;font-family:${UI_FONT_FAMILY}`;

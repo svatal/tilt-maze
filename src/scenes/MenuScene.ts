@@ -10,7 +10,6 @@ import {
   BTN_LEVEL_WALLS,
   BTN_PRIMARY,
   BTN_SECONDARY,
-  PANEL_OVERLAY,
   UI_FONT_FAMILY
 } from "../ui/domTheme";
 import { HELP_SECTIONS } from "../ui/sensorHelpContent";
@@ -60,16 +59,15 @@ export class MenuScene extends Phaser.Scene {
   /** sleep() nevolá SHUTDOWN — DOM menu jinak zůstane jako overlay nad hrou. */
   private readonly onSceneSleep = (): void => {
     this.detachKeyboard();
-    this.rootEl?.style.setProperty("display", "none");
-    this.helpLayer?.style.setProperty("display", "none");
+    if (this.rootEl) this.rootEl.hidden = true;
+    if (this.helpLayer) this.helpLayer.hidden = true;
   };
 
   private readonly onSceneWake = (): void => {
     this.removeBuildInfo?.();
     this.removeBuildInfo = attachBuildInfoLabel();
-    // removeProperty("display") po sleep obnoví výchozí block u <div>, ne flex z původního layoutu
-    this.rootEl?.style.setProperty("display", "flex");
-    this.helpLayer?.style.removeProperty("display");
+    if (this.rootEl) this.rootEl.hidden = false;
+    if (this.helpLayer) this.helpLayer.hidden = false;
     this.attachKeyboard();
     this.syncMenuOverlayToScale();
   };
@@ -113,47 +111,16 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private buildDomMenu(): void {
-    if (!document.getElementById("tilt-maze-menu-styles")) {
-      const style = document.createElement("style");
-      style.id = "tilt-maze-menu-styles";
-      style.textContent = `
-        .tilt-maze-level-group-grid {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 8px;
-          width: 100%;
-          box-sizing: border-box;
-        }
-        #tilt-maze-level-list button {
-          overflow: hidden;
-          max-width: 100%;
-        }
-        .tilt-maze-level-card-label {
-          display: block;
-          font-weight: 700;
-          line-height: 1.22;
-          font-size: clamp(0.68rem, 1.45vw, 0.8rem);
-          overflow-wrap: anywhere;
-          word-break: break-word;
-          hyphens: auto;
-          max-width: 100%;
-        }
-      `;
-      document.head.appendChild(style);
-    }
-
     const root = document.createElement("div");
     root.id = "tilt-maze-menu";
     root.dataset.testid = "main-menu";
+    root.className = "tilt-maze-menu-root";
     root.style.cssText = [
       "position:fixed",
       "z-index:20",
       "pointer-events:auto",
       `font-family:${UI_FONT_FAMILY}`,
       "color:#f5e6d3",
-      "display:flex",
-      "flex-direction:column",
-      "align-items:center",
       "box-sizing:border-box",
       "padding-top:max(12px,env(safe-area-inset-top))",
       "padding-bottom:max(12px,env(safe-area-inset-bottom))",
@@ -173,11 +140,10 @@ export class MenuScene extends Phaser.Scene {
     `;
 
     const main = document.createElement("div");
+    main.className = "tilt-maze-menu-main";
     main.style.cssText = [
       "flex:1 1 0%",
       "min-height:0",
-      "display:flex",
-      "flex-direction:column",
       "gap:12px",
       "width:100%",
       "box-sizing:border-box"
@@ -191,12 +157,11 @@ export class MenuScene extends Phaser.Scene {
     const levelScroll = document.createElement("div");
     levelScroll.id = "tilt-maze-level-list";
     levelScroll.setAttribute("aria-label", "Úrovně");
+    levelScroll.className = "tilt-maze-menu-level-scroll";
     levelScroll.style.cssText = [
       "overflow-y:auto",
       "flex:1",
       "min-height:0",
-      "display:flex",
-      "flex-direction:column",
       "gap:12px",
       "padding:0",
       "width:100%",
@@ -238,8 +203,9 @@ export class MenuScene extends Phaser.Scene {
     }
 
     const actions = document.createElement("div");
+    actions.className = "tilt-maze-menu-actions";
     actions.style.cssText =
-      "display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;flex-shrink:0;padding-top:4px;width:100%;box-sizing:border-box";
+      "gap:10px;flex-shrink:0;padding-top:4px;width:100%;box-sizing:border-box";
 
     const btnHelp = document.createElement("button");
     btnHelp.type = "button";
@@ -299,7 +265,7 @@ export class MenuScene extends Phaser.Scene {
     const layer = document.createElement("div");
     layer.id = "tilt-maze-help";
     layer.dataset.testid = "help-overlay";
-    layer.style.cssText = `${PANEL_OVERLAY};position:fixed;z-index:30`;
+    layer.className = "tilt-maze-panel-overlay tilt-maze-help-layer";
     layer.setAttribute("role", "dialog");
     layer.setAttribute("aria-modal", "true");
     layer.setAttribute("aria-label", "Nápověda");
@@ -331,7 +297,7 @@ export class MenuScene extends Phaser.Scene {
       <h2 style="margin:0 0 12px;font-size:1.25rem;text-align:center">Nápověda</h2>
       ${sections}
       <div id="sensor-perm-status" style="margin:12px 0;padding:10px;border-radius:8px;background:rgba(0,0,0,0.25);font-size:0.85rem;line-height:1.4" aria-live="polite"></div>
-      <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:8px">
+      <div class="tilt-maze-help-actions">
         <button type="button" id="help-btn-perms" style="${BTN_SECONDARY}">Zkontrolovat oprávnění senzorů</button>
         <button type="button" id="help-btn-ios" style="${BTN_SECONDARY}">Požádat o přístup (iOS)</button>
         <button type="button" id="help-btn-close" style="${BTN_PRIMARY}">Zavřít</button>

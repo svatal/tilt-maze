@@ -13,6 +13,7 @@ import {
   UI_FONT_FAMILY
 } from "../ui/domTheme";
 import { HELP_SECTIONS } from "../ui/sensorHelpContent";
+import menuStyles from "./menuOverlay.module.css";
 
 export type GameSceneStartData = {
   levelIndex: number;
@@ -114,7 +115,7 @@ export class MenuScene extends Phaser.Scene {
     const root = document.createElement("div");
     root.id = "tilt-maze-menu";
     root.dataset.testid = "main-menu";
-    root.className = "tilt-maze-menu-root";
+    root.className = menuStyles.menuRoot;
     root.style.cssText = [
       "position:fixed",
       "z-index:20",
@@ -140,7 +141,7 @@ export class MenuScene extends Phaser.Scene {
     `;
 
     const main = document.createElement("div");
-    main.className = "tilt-maze-menu-main";
+    main.className = menuStyles.menuMain;
     main.style.cssText = [
       "flex:1 1 0%",
       "min-height:0",
@@ -157,7 +158,7 @@ export class MenuScene extends Phaser.Scene {
     const levelScroll = document.createElement("div");
     levelScroll.id = "tilt-maze-level-list";
     levelScroll.setAttribute("aria-label", "Úrovně");
-    levelScroll.className = "tilt-maze-menu-level-scroll";
+    levelScroll.className = menuStyles.menuLevelScroll;
     levelScroll.style.cssText = [
       "overflow-y:auto",
       "flex:1",
@@ -174,7 +175,6 @@ export class MenuScene extends Phaser.Scene {
     const groups = menuLevelGroups(LEVELS);
     for (const group of groups) {
       const section = document.createElement("section");
-      section.className = "tilt-maze-level-group";
       section.setAttribute("aria-label", group.title);
       section.style.cssText = "width:100%;box-sizing:border-box";
 
@@ -184,7 +184,7 @@ export class MenuScene extends Phaser.Scene {
         "margin:0 0 6px;font-size:0.82rem;font-weight:600;opacity:0.88;letter-spacing:0.02em;width:100%";
 
       const grid = document.createElement("div");
-      grid.className = "tilt-maze-level-group-grid";
+      grid.className = menuStyles.levelGroupGrid;
 
       for (const i of group.indices) {
         const lvl = LEVELS[i];
@@ -192,7 +192,7 @@ export class MenuScene extends Phaser.Scene {
         b.type = "button";
         b.dataset.levelIndex = String(i);
         b.dataset.levelGroup = group.id;
-        b.innerHTML = `<span class="tilt-maze-level-card-label" lang="cs">${i + 1}. ${lvl.name}</span>`;
+        b.innerHTML = `<span class="${menuStyles.levelCardLabel}" data-testid="level-card-label" lang="cs">${i + 1}. ${lvl.name}</span>`;
         b.style.cssText = this.levelButtonStyle(i);
         b.addEventListener("click", () => void this.startLevel(i));
         grid.append(b);
@@ -203,7 +203,7 @@ export class MenuScene extends Phaser.Scene {
     }
 
     const actions = document.createElement("div");
-    actions.className = "tilt-maze-menu-actions";
+    actions.className = menuStyles.menuActions;
     actions.style.cssText =
       "gap:10px;flex-shrink:0;padding-top:4px;width:100%;box-sizing:border-box";
 
@@ -265,7 +265,7 @@ export class MenuScene extends Phaser.Scene {
     const layer = document.createElement("div");
     layer.id = "tilt-maze-help";
     layer.dataset.testid = "help-overlay";
-    layer.className = "tilt-maze-panel-overlay tilt-maze-help-layer";
+    layer.className = `${menuStyles.panelOverlay} ${menuStyles.helpLayer}`;
     layer.setAttribute("role", "dialog");
     layer.setAttribute("aria-modal", "true");
     layer.setAttribute("aria-label", "Nápověda");
@@ -297,7 +297,7 @@ export class MenuScene extends Phaser.Scene {
       <h2 style="margin:0 0 12px;font-size:1.25rem;text-align:center">Nápověda</h2>
       ${sections}
       <div id="sensor-perm-status" style="margin:12px 0;padding:10px;border-radius:8px;background:rgba(0,0,0,0.25);font-size:0.85rem;line-height:1.4" aria-live="polite"></div>
-      <div class="tilt-maze-help-actions">
+      <div class="${menuStyles.helpActions}">
         <button type="button" id="help-btn-perms" style="${BTN_SECONDARY}">Zkontrolovat oprávnění senzorů</button>
         <button type="button" id="help-btn-ios" style="${BTN_SECONDARY}">Požádat o přístup (iOS)</button>
         <button type="button" id="help-btn-close" style="${BTN_PRIMARY}">Zavřít</button>

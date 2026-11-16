@@ -1,8 +1,4 @@
-[hidden] {
-  display: none !important;
-}
-
-.tilt-maze-level-group-grid {
+.levelGroupGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
@@ -10,12 +6,12 @@
   box-sizing: border-box;
 }
 
-#tilt-maze-level-list button {
+.menuLevelScroll button {
   overflow: hidden;
   max-width: 100%;
 }
 
-.tilt-maze-level-card-label {
+.levelCardLabel {
   display: block;
   font-weight: 700;
   line-height: 1.22;
@@ -26,30 +22,30 @@
   max-width: 100%;
 }
 
-.tilt-maze-menu-root {
+.menuRoot {
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
-.tilt-maze-menu-main {
+.menuMain {
   display: flex;
   flex-direction: column;
 }
 
-.tilt-maze-menu-level-scroll {
+.menuLevelScroll {
   display: flex;
   flex-direction: column;
 }
 
-.tilt-maze-menu-actions {
+.menuActions {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
 }
 
-.tilt-maze-panel-overlay {
+.panelOverlay {
   position: absolute;
   inset: 0;
   display: flex;
@@ -63,57 +59,18 @@
   text-align: left;
   color: #f5e6d3;
   overflow: auto;
-  font-family: system-ui, Segoe UI, Roboto, sans-serif;
+  font-family: var(--tilt-ui-font);
 }
 
-.tilt-maze-help-layer {
+.helpLayer {
   position: fixed;
   z-index: 30;
 }
 
-.tilt-maze-help-actions {
+.helpActions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   justify-content: center;
   margin-top: 8px;
-}
-
-.tilt-maze-game-hud {
-  display: flex;
-  flex-direction: column;
-}
-
-.tilt-maze-hud-title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-  width: 100%;
-}
-
-.tilt-maze-hud-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
-  width: 100%;
-}
-
-.tilt-maze-win-layer {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.tilt-maze-win-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
-}
-
-.tilt-maze-mouse-overlay {
-  display: block;
 }

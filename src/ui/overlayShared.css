@@ -1,0 +1,7 @@
+[hidden] {
+  display: none !important;
+}
+
+:root {
+  --tilt-ui-font: system-ui, Segoe UI, Roboto, sans-serif;
+}

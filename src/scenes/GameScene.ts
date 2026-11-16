@@ -27,6 +27,7 @@ import {
 import { playAreaFromCanvasBounds, type PlayAreaRect } from "../mouseTiltMapping";
 import { MouseTiltOverlay } from "../mouseTiltOverlay";
 import { attachBuildInfoLabel } from "../ui/attachBuildInfo";
+import gameStyles from "./gameOverlay.module.css";
 import {
   DESKTOP_SENSOR_HINT_TEXT,
   SENSOR_DISMISS_BUTTON_LABEL,
@@ -463,7 +464,7 @@ export class GameScene extends Phaser.Scene {
     ].join(";");
 
     const hud = document.createElement("div");
-    hud.className = "tilt-maze-game-hud";
+    hud.className = gameStyles.gameHud;
     hud.hidden = true;
     hud.style.cssText = [
       "position:absolute",
@@ -480,7 +481,7 @@ export class GameScene extends Phaser.Scene {
     this.hud = hud;
 
     const titleRow = document.createElement("div");
-    titleRow.className = "tilt-maze-hud-title-row";
+    titleRow.className = gameStyles.hudTitleRow;
 
     this.levelEl = document.createElement("div");
     this.levelEl.style.fontWeight = "700";
@@ -494,7 +495,7 @@ export class GameScene extends Phaser.Scene {
     titleRow.append(this.levelEl, this.timerEl);
 
     const actions = document.createElement("div");
-    actions.className = "tilt-maze-hud-actions";
+    actions.className = gameStyles.hudActions;
 
     const mkBtn = (id: string, label: string) => {
       const b = document.createElement("button");
@@ -519,7 +520,7 @@ export class GameScene extends Phaser.Scene {
     hud.append(titleRow, actions);
 
     this.winLayer = document.createElement("div");
-    this.winLayer.className = "tilt-maze-win-layer";
+    this.winLayer.className = gameStyles.winLayer;
     this.winLayer.hidden = true;
     this.winLayer.style.cssText = [
       "position:absolute",
@@ -987,7 +988,7 @@ export class GameScene extends Phaser.Scene {
       <h2 style="margin:0 0 12px;font-size:1.4rem">Výhra!</h2>
       <p style="margin:0 0 8px">Čas: <strong>${this.formatTime(this.elapsedMs)}</strong></p>
       <p style="margin:0 0 20px">${finishedAll ? "Gratulujeme, zvládli jste všechny úrovně!" : "Připravte se na další úroveň."}</p>
-      <div class="tilt-maze-win-actions">
+      <div class="${gameStyles.winActions}">
         <button id="btn-next" type="button" style="padding:12px 24px;font-size:1rem;border-radius:12px;border:none;background:#c9a227;color:#1a120a;font-weight:700;cursor:pointer;min-height:44px">
           ${finishedAll ? "Hrát znovu od začátku" : "Další úroveň"}
         </button>

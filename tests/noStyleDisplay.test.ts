@@ -10,7 +10,7 @@ const DISPLAY_WRITE =
   /(?:\.style\.display\s*=|\.style\.setProperty\s*\(\s*["']display["']|\.style\.removeProperty\s*\(\s*["']display["'])/;
 
 const HINT =
-  "Use the hidden attribute and layout classes in src/ui/domOverlays.css instead of style.display.";
+  "Use the hidden attribute and colocated *.module.css layout classes instead of style.display.";
 
 function walkTsFiles(dir: string): string[] {
   const out: string[] = [];

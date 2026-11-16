@@ -1,4 +1,4 @@
-import "./ui/domOverlays.css";
+import "./ui/overlayShared.css";
 import Phaser from "phaser";
 import { DESIGN_HEIGHT, DESIGN_WIDTH } from "./constants";
 import { validateLevelSet } from "./levelGeometry";

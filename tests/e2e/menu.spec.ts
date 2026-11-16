@@ -66,7 +66,7 @@ test("E2E: desktop — karty úrovní kompaktní a v panelu", async ({ page }) =
   expect(layout!.listCenterDelta).toBeLessThan(24);
   expect(layout!.listInsideMenu).toBe(true);
 
-  const groups = await page.locator(".tilt-maze-level-group").count();
+  const groups = await page.locator("#tilt-maze-level-list section").count();
   expect(groups).toBe(3);
   await expect(page.getByRole("heading", { name: /Bez pastí/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /S pastmi/i })).toBeVisible();
@@ -80,7 +80,7 @@ async function assertLevelCardsNoTextOverflow(page: import("@playwright/test").P
     const failures: string[] = [];
     buttons.forEach((btn) => {
       const el = btn as HTMLElement;
-      const label = el.querySelector(".tilt-maze-level-card-label") as HTMLElement | null;
+      const label = el.querySelector('[data-testid="level-card-label"]') as HTMLElement | null;
       if (el.scrollWidth > el.clientWidth + 1) {
         failures.push(`btn-${el.dataset.levelIndex}: scroll ${el.scrollWidth} > ${el.clientWidth}`);
       }

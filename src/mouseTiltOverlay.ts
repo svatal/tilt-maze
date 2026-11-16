@@ -1,4 +1,5 @@
 import type { PlayAreaRect } from "./mouseTiltMapping";
+import styles from "./mouseTiltOverlay.module.css";
 
 const OVERLAY_ID = "tilt-maze-mouse-overlay";
 
@@ -23,7 +24,7 @@ export class MouseTiltOverlay {
     this.root = document.createElement("div");
     this.root.id = OVERLAY_ID;
     this.root.setAttribute("aria-hidden", "true");
-    this.root.className = "tilt-maze-mouse-overlay";
+    this.root.className = styles.root;
     this.root.hidden = true;
     this.root.style.cssText = ["position:fixed", "inset:0", "pointer-events:none", "z-index:5"].join(";");
 

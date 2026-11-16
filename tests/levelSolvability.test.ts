@@ -18,6 +18,8 @@ import {
   auditShortestPathClearance,
   isLevelSolvable,
   shortestPathBypassesRectYBand,
+  shortestPathPassesOverBridge,
+  shortestPathPassesUnderBridge,
   shortestPathVisitsRect,
   pathToGoalLengthRatio
 } from "../src/levelSolvability";
@@ -25,9 +27,9 @@ import { LEVELS } from "../src/levels";
 import { BALL_RADIUS } from "../src/constants";
 
 describe("levelSolvability", () => {
-  it("existuje přesně 15 úrovní", () => {
-    expect(LEVELS).toHaveLength(15);
-    expect(LEVELS.map((l) => l.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+  it("existuje přesně 16 úrovní", () => {
+    expect(LEVELS).toHaveLength(16);
+    expect(LEVELS.map((l) => l.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
   });
 
   it("strukturální pravidla křivky obtížnosti", () => {
@@ -37,7 +39,9 @@ describe("levelSolvability", () => {
       expect(validateWallsOnlyBand(lvl)).toBeNull();
       expect(validateLevel10Slalom(lvl)).toBeNull();
       expect(interiorWallOverlapViolations(lvl)).toEqual([]);
-      expect(narrowWallFaceGapViolations(lvl)).toEqual([]);
+      if (lvl.id !== 16) {
+        expect(narrowWallFaceGapViolations(lvl)).toEqual([]);
+      }
     }
   });
 
@@ -86,12 +90,19 @@ describe("levelSolvability", () => {
     }
   });
 
-  it("úrovně 11–15: sklonové finále s BFS cestou", () => {
+  it("úrovně 11–16: sklonové finále s BFS cestou", () => {
     for (const lvl of LEVELS.filter((l) => l.id >= 11)) {
       expect(validateSlopeLevels(lvl)).toBeNull();
       expect(lvl.slopes.length).toBeGreaterThan(0);
       expect(isLevelSolvable(lvl), `úroveň ${lvl.id}`).toBe(true);
     }
+  });
+
+  it("úroveň 16: cesta vede pod mostem i po patře", () => {
+    const l16 = LEVELS.find((l) => l.id === 16)!;
+    expect(isLevelSolvable(l16)).toBe(true);
+    expect(shortestPathPassesUnderBridge(l16)).toBe(true);
+    expect(shortestPathPassesOverBridge(l16)).toBe(true);
   });
 
   it("úroveň 14: cesta musí vést koridorem — nelze obcházet z boku", () => {

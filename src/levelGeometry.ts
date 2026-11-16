@@ -9,6 +9,12 @@ import {
   maxFreeVerticalRun,
   pathToGoalLengthRatio
 } from "./levelSolvability";
+import { plateauHeightFromFeatures } from "./ballLayer";
+import { MAX_FLOOR_HEIGHT_GRAD, maxFloorHeightGradientMagnitude } from "./floorHeight";
+import {
+  shortestPathPassesOverBridge,
+  shortestPathPassesUnderBridge
+} from "./levelSolvability";
 import type { LevelDef, WallDef } from "./levels";
 
 /** Vnitřní hrany obvodu (souřadnice odpovídají středům segmentů). */
@@ -308,23 +314,42 @@ export function validateLevel10Slalom(lvl: LevelDef): string | null {
   return null;
 }
 
-/** Úrovně 11–15: alespoň jeden lokální sklon. */
+/** Úrovně 11–16: alespoň jeden lokální sklon. */
 export function validateSlopeLevels(lvl: LevelDef): string | null {
-  if (lvl.id < 11 || lvl.id > 15) return null;
+  if (lvl.id < 11 || lvl.id > 16) return null;
   if (lvl.slopes.length < 1) return `úroveň ${lvl.id} potřebuje alespoň jeden sklon region`;
   return null;
 }
 
+/** Úroveň s mostem: span, patrové zdi a BFS nad i pod. */
+export function validateBridgeLevel(lvl: LevelDef): string | null {
+  if (!lvl.bridge) return null;
+  if (!lvl.walls.some((w) => w.layer === "deck")) {
+    return "most potřebuje alespoň jednu zeď vrstvy patra";
+  }
+  const maxG = maxFloorHeightGradientMagnitude(lvl.slopes);
+  if (maxG > MAX_FLOOR_HEIGHT_GRAD * 1.0005) {
+    return `|∇h| ${maxG.toFixed(4)} překračuje MAX_FLOOR_HEIGHT_GRAD`;
+  }
+  if (plateauHeightFromFeatures(lvl.slopes) <= 0) {
+    return "most potřebuje výškovou nástupnici (mesa/rampa)";
+  }
+  if (!shortestPathPassesUnderBridge(lvl)) return "BFS nevede pod mostem";
+  if (!shortestPathPassesOverBridge(lvl)) return "BFS nevede po mostě (patro)";
+  return null;
+}
+
 export function validateLevelSet(levels: LevelDef[]): void {
-  if (levels.length !== 15) {
-    throw new Error(`Očekáváno 15 úrovní, je jich ${levels.length}.`);
+  if (levels.length !== 16) {
+    throw new Error(`Očekáváno 16 úrovní, je jich ${levels.length}.`);
   }
   for (const lvl of levels) {
     const errs = [
       validateLevel1Shape(lvl),
       validateWallsOnlyBand(lvl),
       validateLevel10Slalom(lvl),
-      validateSlopeLevels(lvl)
+      validateSlopeLevels(lvl),
+      validateBridgeLevel(lvl)
     ].filter(Boolean);
     if (errs.length) {
       throw new Error(`Úroveň ${lvl.id}: ${errs.join("; ")}`);

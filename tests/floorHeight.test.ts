@@ -92,7 +92,7 @@ describe("floorHeight", () => {
     expect(Math.abs(floorHeightGradient(180, 318, [m]).dy)).toBeLessThan(1e-6);
   });
 
-  it("úrovně 11–15: |∇h| nikde nepřekročí MAX_FLOOR_HEIGHT_GRAD", () => {
+  it("úrovně 11–16: |∇h| nikde nepřekročí MAX_FLOOR_HEIGHT_GRAD", () => {
     const eps = 1.0005;
     for (const lvl of LEVELS.filter((l) => l.id >= 11)) {
       const maxG = maxFloorHeightGradientMagnitude(lvl.slopes);

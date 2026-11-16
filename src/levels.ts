@@ -16,8 +16,11 @@ import {
   FRAME_TOP,
   PERIMETER_WALLS
 } from "./levelGeometry";
+import type { WallLayer } from "./matterCollision";
 
-export type WallDef = { cx: number; cy: number; w: number; h: number };
+export type WallDef = { cx: number; cy: number; w: number; h: number; layer?: WallLayer };
+
+export type BridgeSpan = { x0: number; y0: number; x1: number; y1: number };
 
 export type LevelDef = {
   id: number;
@@ -30,6 +33,10 @@ export type LevelDef = {
   /** Lokální sklon podlahy (bez propadu). */
   slopes: FloorHeightFeature[];
   walls: WallDef[];
+  /** Vizuální most + kontrola solvability (průjezd nad/pod). */
+  bridge?: { span: BridgeSpan };
+  /** Prahová výška pro vrstvu patra; výchozí odvozená z mesa/rampy. */
+  deckHeightMin?: number;
 };
 
 const border = () => [...PERIMETER_WALLS];
@@ -388,5 +395,36 @@ export const LEVELS: LevelDef[] = [
     traps: [],
     slopes: [{ shape: "mesa", splitTop: 140, splitBottom: 512, band: 52 }],
     walls: [...border()]
+  },
+  {
+    id: 16,
+    name: "Pod mostem",
+    idea:
+      "Jet nízko pod mostem, vyjet po rampě na patro, krátce se vrátit po desce a přejet přes vrchol mostu k cíli.",
+    start: { x: 72, y: 562 },
+    goal: { x: 292, y: 108, r: 22 },
+    traps: [],
+    bridge: { span: { x0: 108, y0: 288, x1: 252, y1: 360 } },
+    slopes: [
+      {
+        shape: "ramp",
+        axis: "vertical",
+        split: 214,
+        band: 48,
+        hLow: 0,
+        hHigh: rampRiseForBand(48),
+        lowSide: "left"
+      }
+    ],
+    walls: [
+      ...border(),
+      { cx: 76, cy: 402, w: 68, h: 14, layer: "ground" },
+      { cx: 284, cy: 402, w: 68, h: 14, layer: "ground" },
+      { cx: 220, cy: 174, w: 140, h: 14, layer: "ground" },
+      { cx: 114, cy: 336, w: 14, h: 36, layer: "deck" },
+      { cx: 246, cy: 336, w: 14, h: 36, layer: "deck" },
+      { cx: 124, cy: 274, w: 92, h: 14, layer: "deck" },
+      { cx: 210, cy: 254, w: 108, h: 14, layer: "deck" }
+    ]
   }
 ];

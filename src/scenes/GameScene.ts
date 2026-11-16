@@ -1,6 +1,14 @@
 import Phaser from "phaser";
+import { ballLayerAt, levelUsesGradeSeparation, pointInBridgeSpan, resolveBallLayer } from "../ballLayer";
 import { BALL_RADIUS, DESIGN_HEIGHT, DESIGN_WIDTH } from "../constants";
-import { LEVELS, type LevelDef } from "../levels";
+import { LEVELS, type BridgeSpan, type LevelDef } from "../levels";
+import {
+  ballCollisionMask,
+  COLLISION_BALL,
+  wallCollisionCategory,
+  wallCollisionLayer,
+  type BallLayer
+} from "../matterCollision";
 import { TiltController } from "../tilt";
 import {
   hasShownDesktopSensorHint,
@@ -44,7 +52,9 @@ const DEPTH_BOARD_BG = -20;
 const DEPTH_FLOOR_SHADE = -5;
 const DEPTH_WALL = 5;
 const DEPTH_HOLE = 6;
+const DEPTH_BALL_OUTLINE = 14;
 const DEPTH_BALL = 15;
+const DEPTH_BRIDGE = 18;
 
 /** Čas sesazení v cíli před výhrou (Phaser tween). */
 const GOAL_SETTLE_MS = 460;
@@ -86,6 +96,8 @@ export class GameScene extends Phaser.Scene {
   private trapSinking = false;
   private terminalTween: Phaser.Tweens.Tween | null = null;
   private goalHole: HoleDef | null = null;
+  private ballLayer: BallLayer = "ground";
+  private ballOutline: Phaser.GameObjects.Graphics | null = null;
   /** E2E: vzdálenost středu v okamžiku spuštění trigger animace. */
   private e2eLastTriggerDist: number | null = null;
   private lastHudBandPx = 0;
@@ -322,7 +334,41 @@ export class GameScene extends Phaser.Scene {
       this.checkHoleTerminals(pos, lvl);
     }
 
+    this.syncBallLayerAndBridgeVisual(pos.x, pos.y, lvl);
     this.timerEl.textContent = this.formatTime(this.elapsedMs);
+  }
+
+  private syncBallLayerAndBridgeVisual(x: number, y: number, lvl: LevelDef): void {
+    if (!this.ball?.body) return;
+    if (levelUsesGradeSeparation(lvl)) {
+      const layer = levelUsesGradeSeparation(lvl)
+        ? resolveBallLayer(this.ballLayer, x, y, lvl)
+        : "ground";
+      if (layer !== this.ballLayer) {
+        this.ballLayer = layer;
+        const bb = this.ball.body as MatterJS.BodyType;
+        bb.collisionFilter.mask = ballCollisionMask(layer);
+      }
+    }
+    const span = lvl.bridge?.span;
+    if (!span || !this.ballOutline) {
+      this.ball?.setAlpha(1);
+      return;
+    }
+    const underBridge =
+      this.ballLayer === "ground" &&
+      pointInBridgeSpan(x, y, span) &&
+      y > span.y0 + (span.y1 - span.y0) * 0.22;
+    if (underBridge) {
+      this.ball.setAlpha(0.1);
+      this.ballOutline.setVisible(true);
+      this.ballOutline.clear();
+      this.ballOutline.lineStyle(3, 0xe8c878, 0.95);
+      this.ballOutline.strokeCircle(x, y, BALL_RADIUS + 1);
+    } else {
+      this.ball.setAlpha(1);
+      this.ballOutline.setVisible(false);
+    }
   }
 
   private checkHoleTerminals(pos: { x: number; y: number }, lvl: LevelDef): void {
@@ -836,24 +882,33 @@ export class GameScene extends Phaser.Scene {
   private spawnLevel(lvl: LevelDef): void {
     const gStroke = 0x2d1f12;
     const gFill = 0x8b6914;
+  const deckFill = 0xa8844c;
 
     this.bakeFloorHeightShading(lvl.slopes);
+    this.ballLayer = ballLayerAt(lvl.start.x, lvl.start.y, lvl);
+    if (lvl.bridge) this.spawnBridgeOverlay(lvl.bridge.span);
 
     for (const w of lvl.walls) {
       const gr = this.add.graphics();
       gr.setDepth(DEPTH_WALL);
-      gr.fillStyle(gFill, 1);
+      const isDeck = w.layer === "deck";
+      gr.fillStyle(isDeck ? deckFill : gFill, 1);
       gr.lineStyle(2, gStroke, 1);
       gr.fillRoundedRect(w.cx - w.w / 2, w.cy - w.h / 2, w.w, w.h, 6);
       gr.strokeRoundedRect(w.cx - w.w / 2, w.cy - w.h / 2, w.w, w.h, 6);
       this.decorative.push(gr);
 
+      const wl = wallCollisionLayer(w);
       const body = this.matter.add.rectangle(w.cx, w.cy, w.w, w.h, {
         isStatic: true,
         friction: WALL_FRICTION,
         restitution: 0.05,
         chamfer: { radius: 4 },
-        label: "wall"
+        label: isDeck ? "wall-deck" : "wall",
+        collisionFilter: {
+          category: wallCollisionCategory(wl),
+          mask: COLLISION_BALL
+        }
       });
       this.wallBodies.push(body);
     }
@@ -876,6 +931,11 @@ export class GameScene extends Phaser.Scene {
       this.drawHole(tr.x, tr.y, tr.r, 0x2a0a0a);
     }
 
+    this.ballOutline = this.add.graphics();
+    this.ballOutline.setDepth(DEPTH_BALL_OUTLINE);
+    this.ballOutline.setVisible(false);
+    this.decorative.push(this.ballOutline);
+
     const ballGo = this.add.image(lvl.start.x, lvl.start.y, "ball_tex");
     this.ball = this.matter.add.gameObject(ballGo, {
       shape: {
@@ -887,10 +947,26 @@ export class GameScene extends Phaser.Scene {
       label: "ball",
       friction: 0.02,
       frictionAir: 0.012,
-      restitution: BALL_RESTITUTION
+      restitution: BALL_RESTITUTION,
+      collisionFilter: {
+        category: COLLISION_BALL,
+        mask: ballCollisionMask(this.ballLayer)
+      }
     }) as Phaser.Physics.Matter.Image;
     this.ball.setDisplaySize(BALL_RADIUS * 2, BALL_RADIUS * 2);
     this.ball.setDepth(DEPTH_BALL);
+  }
+
+  private spawnBridgeOverlay(span: BridgeSpan): void {
+    const g = this.add.graphics();
+    g.setDepth(DEPTH_BRIDGE);
+    const w = span.x1 - span.x0;
+    const h = span.y1 - span.y0;
+    g.fillStyle(0x5c4528, 0.78);
+    g.fillRoundedRect(span.x0, span.y0, w, h, 10);
+    g.lineStyle(2, 0x2d1f12, 0.92);
+    g.strokeRoundedRect(span.x0, span.y0, w, h, 10);
+    this.decorative.push(g);
   }
 
   /** E2E: bake stínu nesmí přetékat přes vnitřní hrany obvodových zdí. */

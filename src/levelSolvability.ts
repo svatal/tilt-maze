@@ -3,9 +3,16 @@
  * Dokládá existenci cesty v diskretizovaném modelu — ne subjektivní obtížnost hry na zařízení.
  */
 
+import {
+  ballLayerAt,
+  canOccupyDeckAt,
+  canOccupyGroundUnderBridge,
+  levelUsesGradeSeparation
+} from "./ballLayer";
 import { BALL_RADIUS } from "./constants";
 import { DESIGN_HEIGHT, DESIGN_WIDTH } from "./constants";
 import type { LevelDef } from "./levels";
+import { wallBlocksBallLayer, wallCollisionLayer, type BallLayer } from "./matterCollision";
 
 const MARGIN = 2;
 /** Hrubá mřížka pro rychlou kontrolu; detailnější pro měření délky trasy. */
@@ -23,12 +30,20 @@ function pointRectDist(px: number, py: number, cx: number, cy: number, hw: numbe
   return Math.hypot(adx, ady);
 }
 
-function circleWallBlocked(px: number, py: number, radius: number, walls: LevelDef["walls"]): boolean {
+function circleWallBlocked(
+  px: number,
+  py: number,
+  radius: number,
+  walls: LevelDef["walls"],
+  ballLayer: BallLayer
+): boolean {
   if (px < radius + MARGIN || px > DESIGN_WIDTH - radius - MARGIN || py < radius + MARGIN || py > DESIGN_HEIGHT - radius - MARGIN) {
     return true;
   }
   const rBall = radius + MARGIN;
   for (const w of walls) {
+    const wl = wallCollisionLayer(w);
+    if (!wallBlocksBallLayer(wl, ballLayer)) continue;
     const hw = w.w / 2;
     const hh = w.h / 2;
     const d = pointRectDist(px, py, w.cx, w.cy, hw, hh);
@@ -45,9 +60,15 @@ function circleTrapOverlaps(px: number, py: number, radius: number, lvl: LevelDe
   return false;
 }
 
+function ballLayerForPoint(px: number, py: number, lvl: LevelDef, layer?: BallLayer): BallLayer {
+  if (layer) return layer;
+  return levelUsesGradeSeparation(lvl) ? ballLayerAt(px, py, lvl) : "ground";
+}
+
 /** Je bod ve „volném“ prostoru (kulička se sem vejde a není v díře)? */
-export function isFreePoint(px: number, py: number, radius: number, lvl: LevelDef): boolean {
-  if (circleWallBlocked(px, py, radius, lvl.walls)) return false;
+export function isFreePoint(px: number, py: number, radius: number, lvl: LevelDef, layer?: BallLayer): boolean {
+  const ballLayer = ballLayerForPoint(px, py, lvl, layer);
+  if (circleWallBlocked(px, py, radius, lvl.walls, ballLayer)) return false;
   if (circleTrapOverlaps(px, py, radius, lvl)) return false;
   return true;
 }
@@ -105,7 +126,106 @@ type BfsResult = {
   goalKey?: string;
   xs?: number[];
   ys?: number[];
+  pathLayers?: Map<string, BallLayer>;
 };
+
+function cellOk(px: number, py: number, ballRadius: number, lvl: LevelDef, layer: BallLayer): boolean {
+  if (!isFreePoint(px, py, ballRadius, lvl, layer)) return false;
+  if (layer === "deck") return canOccupyDeckAt(px, py, lvl);
+  return canOccupyGroundUnderBridge(px, py, lvl);
+}
+
+function bfsTraverseGradeSeparatedSimple(
+  lvl: LevelDef,
+  ballRadius: number,
+  onGoal?: (ix: number, iy: number, dist: number) => boolean,
+  cell = CELL,
+  recordParent = false
+): BfsResult {
+  const goalReach = lvl.goal.r + ballRadius + 4;
+  const grid = buildBfsGrid(lvl, ballRadius, cell);
+  if (!grid) return { solved: false, dist: null };
+
+  const { xs, ys, startCells } = grid;
+  const key = (ix: number, iy: number, layer: BallLayer) => `${ix},${iy},${layer}`;
+  const dist = new Map<string, number>();
+  const parent = recordParent ? new Map<string, string | null>() : undefined;
+  const pathLayers = recordParent ? new Map<string, BallLayer>() : undefined;
+  const q: { ix: number; iy: number; layer: BallLayer }[] = [];
+
+  for (const c of startCells) {
+    const px = xs[c.ix];
+    const py = ys[c.iy];
+    if (!cellOk(px, py, ballRadius, lvl, "ground")) continue;
+    const k = key(c.ix, c.iy, "ground");
+    if (!dist.has(k)) {
+      dist.set(k, 0);
+      if (parent) parent.set(k, null);
+      pathLayers?.set(k, "ground");
+      q.push({ ...c, layer: "ground" });
+    }
+  }
+
+  const tryEnqueue = (
+    ix: number,
+    iy: number,
+    layer: BallLayer,
+    fromKey: string,
+    curD: number,
+    px: number,
+    py: number,
+    nx: number,
+    ny: number
+  ): void => {
+    const k = key(ix, iy, layer);
+    if (dist.has(k)) return;
+    if (!cellOk(nx, ny, ballRadius, lvl, layer)) return;
+    if (!canTraverse({ x: px, y: py }, { x: nx, y: ny }, ballRadius, lvl)) return;
+    const step = Math.hypot(nx - px, ny - py);
+    dist.set(k, curD + step);
+    if (parent) parent.set(k, fromKey);
+    pathLayers?.set(k, layer);
+    q.push({ ix, iy, layer });
+  };
+
+  while (q.length) {
+    const cur = q.shift()!;
+    const px = xs[cur.ix];
+    const py = ys[cur.iy];
+    const curKey = key(cur.ix, cur.iy, cur.layer);
+    const curD = dist.get(curKey) ?? 0;
+
+    if (Math.hypot(px - lvl.goal.x, py - lvl.goal.y) <= goalReach) {
+      if (onGoal?.(cur.ix, cur.iy, curD)) {
+        return { solved: true, dist: curD, parent, goalKey: curKey, xs, ys, pathLayers };
+      }
+      return { solved: true, dist: curD, parent, goalKey: curKey, xs, ys, pathLayers };
+    }
+
+    const alt: BallLayer = cur.layer === "ground" ? "deck" : "ground";
+    if (cellOk(px, py, ballRadius, lvl, alt)) {
+      tryEnqueue(cur.ix, cur.iy, alt, curKey, curD, px, py, px, py);
+    }
+
+    for (const [dx, dy] of NEIGH) {
+      const nix = cur.ix + dx;
+      const niy = cur.iy + dy;
+      if (nix < 0 || niy < 0 || nix >= xs.length || niy >= ys.length) continue;
+      const nx = xs[nix];
+      const ny = ys[niy];
+      tryEnqueue(nix, niy, cur.layer, curKey, curD, px, py, nx, ny);
+    }
+  }
+  return { solved: false, dist: null };
+}
+
+function bridgeUnderZoneHit(
+  x: number,
+  y: number,
+  span: NonNullable<LevelDef["bridge"]>["span"]
+): boolean {
+  return y >= span.y1 + 8 && x >= span.x0 + 12 && x <= span.x1 - 12;
+}
 
 function bfsTraverse(
   lvl: LevelDef,
@@ -114,6 +234,9 @@ function bfsTraverse(
   cell = CELL,
   recordParent = false
 ): BfsResult {
+  if (levelUsesGradeSeparation(lvl)) {
+    return bfsTraverseGradeSeparatedSimple(lvl, ballRadius, onGoal, cell, recordParent);
+  }
   const goalReach = lvl.goal.r + ballRadius + 4;
   const grid = buildBfsGrid(lvl, ballRadius, cell);
   if (!grid) return { solved: false, dist: null };
@@ -239,19 +362,30 @@ export function shortestPathBypassesRectYBand(
   return band.every((p) => p.x < x0 || p.x > x1);
 }
 
-export function shortestPathPoints(lvl: LevelDef, ballRadius: number = BALL_RADIUS): { x: number; y: number }[] | null {
+export type PathNode = { x: number; y: number; layer: BallLayer };
+
+export function shortestPathNodes(lvl: LevelDef, ballRadius: number = BALL_RADIUS): PathNode[] | null {
   const result = bfsTraverse(lvl, ballRadius, undefined, CELL, true);
   if (!result.solved || !result.parent || !result.goalKey || !result.xs || !result.ys) return null;
-  const { parent, goalKey, xs, ys } = result;
-  const pts: { x: number; y: number }[] = [];
+  const { parent, goalKey, xs, ys, pathLayers } = result;
+  const pts: PathNode[] = [];
   let cur: string | null | undefined = goalKey;
   while (cur) {
-    const [ix, iy] = cur.split(",").map(Number);
-    pts.push({ x: xs[ix], y: ys[iy] });
+    const parts = cur.split(",");
+    const ix = Number(parts[0]);
+    const iy = Number(parts[1]);
+    const layer = (parts[2] ?? pathLayers?.get(cur) ?? "ground") as BallLayer;
+    pts.push({ x: xs[ix], y: ys[iy], layer });
     cur = parent.get(cur) ?? null;
   }
   pts.reverse();
   return pts;
+}
+
+export function shortestPathPoints(lvl: LevelDef, ballRadius: number = BALL_RADIUS): { x: number; y: number }[] | null {
+  const nodes = shortestPathNodes(lvl, ballRadius);
+  if (!nodes) return null;
+  return nodes.map(({ x, y }) => ({ x, y }));
 }
 
 export type PathClearanceAudit = {
@@ -368,4 +502,28 @@ export function assertAllLevelsSolvable(levels: LevelDef[]): void {
       throw new Error(`Úroveň ${l.id} (${l.name}) není BFS řešitelná s poloměrem ${BALL_RADIUS}.`);
     }
   }
+}
+
+/** BFS trasa prochází pod vizuálním mostem (spodní koridor). */
+export function shortestPathPassesUnderBridge(lvl: LevelDef, ballRadius: number = BALL_RADIUS): boolean {
+  const span = lvl.bridge?.span;
+  if (!span) return false;
+  const pts = shortestPathNodes(lvl, ballRadius);
+  if (!pts) return false;
+  return pts.some((p) => p.layer === "ground" && bridgeUnderZoneHit(p.x, p.y, span));
+}
+
+/** BFS trasa vede po mostě (vrstva patra v rozsahu mostu). */
+export function shortestPathPassesOverBridge(lvl: LevelDef, ballRadius: number = BALL_RADIUS): boolean {
+  const span = lvl.bridge?.span;
+  if (!span) return false;
+  const pts = shortestPathNodes(lvl, ballRadius);
+  if (!pts) return false;
+  return pts.some(
+    (p) =>
+      p.layer === "deck" &&
+      p.x >= span.x0 &&
+      p.x <= span.x1 &&
+      p.y <= span.y1 + 12
+  );
 }

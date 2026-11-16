@@ -10,12 +10,12 @@ describe("úvodní menu — data", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("menu skupiny 5+5+5 podle pastí a sklonů v LEVELS", () => {
+  it("menu skupiny podle pastí a sklonů v LEVELS (5+5+6)", () => {
     const groups = menuLevelGroups(LEVELS);
     expect(groups).toHaveLength(3);
     expect(groups[0].indices).toHaveLength(5);
     expect(groups[1].indices).toHaveLength(5);
-    expect(groups[2].indices).toHaveLength(5);
+    expect(groups[2].indices).toHaveLength(6);
     expect(groups[0].indices.every((i) => LEVELS[i].traps.length === 0 && LEVELS[i].slopes.length === 0)).toBe(true);
     expect(groups[1].indices.every((i) => LEVELS[i].traps.length > 0 && LEVELS[i].slopes.length === 0)).toBe(true);
     expect(groups[2].indices.every((i) => LEVELS[i].slopes.length > 0)).toBe(true);

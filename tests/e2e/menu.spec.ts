@@ -198,6 +198,77 @@ test("E2E: návrat do menu vypne režim myši", async ({ page }) => {
   await expect(page.locator("#tilt-maze-mouse-overlay")).toBeHidden();
 });
 
+async function assertHelpFooterLayout(page: import("@playwright/test").Page) {
+  const layout = await page.evaluate(() => {
+    const vpH = window.innerHeight;
+    const scroll = document.querySelector('[data-testid="help-scroll"]') as HTMLElement | null;
+    const close = document.getElementById("help-btn-close");
+    const perms = document.getElementById("help-btn-perms");
+    const ios = document.getElementById("help-btn-ios");
+    if (!scroll || !close || !perms || !ios) return null;
+    const inView = (el: HTMLElement) => {
+      const r = el.getBoundingClientRect();
+      return r.top >= 0 && r.bottom <= vpH + 0.5;
+    };
+    return {
+      scrollTop: scroll.scrollTop,
+      closeInView: inView(close),
+      permsInView: inView(perms),
+      iosInView: inView(ios)
+    };
+  });
+
+  expect(layout).not.toBeNull();
+  expect(layout!.scrollTop).toBe(0);
+  expect(layout!.closeInView).toBe(true);
+  expect(layout!.permsInView).toBe(true);
+  expect(layout!.iosInView).toBe(true);
+}
+
+async function openHelpFromMenu(page: import("@playwright/test").Page) {
+  await page.goto(`${basePath}?e2e=1`, { waitUntil: "domcontentloaded" });
+  await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 15000 });
+  await page.locator("#menu-btn-help").click();
+  await expect(page.getByTestId("help-overlay")).toBeVisible();
+}
+
+for (const viewport of [
+  { name: "desktop 1280×800", width: 1280, height: 800 },
+  { name: "mobile 390×844", width: 390, height: 844 },
+  { name: "landscape 900×520", width: 900, height: 520 }
+]) {
+  test(`E2E: nápověda — patička viditelná, scroll nahoře — ${viewport.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await openHelpFromMenu(page);
+    await assertHelpFooterLayout(page);
+  });
+}
+
+for (const viewport of [
+  { slug: "1280x800", width: 1280, height: 800 },
+  { slug: "390x844", width: 390, height: 844 }
+]) {
+  test(`E2E: nápověda screenshoty — ${viewport.slug}`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await openHelpFromMenu(page);
+    await assertHelpFooterLayout(page);
+
+    await fs.promises.mkdir("/opt/cursor/artifacts", { recursive: true });
+    await page.screenshot({
+      path: `/opt/cursor/artifacts/help-${viewport.slug}-top.png`,
+      fullPage: false
+    });
+
+    await page.getByTestId("help-scroll").evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    await page.screenshot({
+      path: `/opt/cursor/artifacts/help-${viewport.slug}-bottom.png`,
+      fullPage: false
+    });
+  });
+}
+
 test("E2E: nápověda senzorů v menu", async ({ page }) => {
   await page.goto(`${basePath}?e2e=1`, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 15000 });

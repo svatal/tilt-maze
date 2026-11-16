@@ -145,6 +145,8 @@
 }
 
 .helpCard {
+  display: flex;
+  flex-direction: column;
   max-width: min(480px, 100%);
   width: 100%;
   background: rgba(35, 22, 12, 0.96);
@@ -152,15 +154,28 @@
   border-radius: 14px;
   padding: 16px 18px;
   max-height: min(85vh, 640px);
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
   font-family: var(--tilt-ui-font);
+  box-sizing: border-box;
 }
 
 .helpCardTitle {
   margin: 0 0 12px;
   font-size: 1.25rem;
   text-align: center;
+  flex-shrink: 0;
+}
+
+.helpScroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 .helpSection {
@@ -197,5 +212,8 @@
   flex-wrap: wrap;
   gap: 10px;
   justify-content: center;
-  margin-top: 8px;
+  flex-shrink: 0;
+  padding-top: 8px;
+  width: 100%;
+  box-sizing: border-box;
 }

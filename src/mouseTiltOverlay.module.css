@@ -1,0 +1,50 @@
+.root {
+  display: block;
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.centerMark {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 2px solid rgba(201, 162, 39, 0.85);
+  border-radius: 50%;
+  background: rgba(26, 18, 10, 0.35);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+
+.vector {
+  position: absolute;
+  height: 3px;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, rgba(201, 162, 39, 0.9), rgba(245, 230, 150, 0.75));
+  border-radius: 2px;
+  opacity: 0.35;
+}
+
+.vectorActive {
+  opacity: 0.92;
+}
+
+.strengthBar {
+  position: absolute;
+  width: 4px;
+  height: 48px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.strengthFill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 0%;
+  background: rgba(201, 162, 39, 0.92);
+  transition: height 60ms linear;
+}

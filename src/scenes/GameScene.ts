@@ -27,6 +27,8 @@ import {
 import { playAreaFromCanvasBounds, type PlayAreaRect } from "../mouseTiltMapping";
 import { MouseTiltOverlay } from "../mouseTiltOverlay";
 import { attachBuildInfoLabel } from "../ui/attachBuildInfo";
+import gameStyles from "./gameOverlay.module.css";
+import sharedUi from "../ui/sharedUi.module.css";
 import {
   DESKTOP_SENSOR_HINT_TEXT,
   SENSOR_DISMISS_BUTTON_LABEL,
@@ -53,7 +55,7 @@ const TRAP_SINK_MS = 280;
 const DESKTOP_HINT_MS = 5500;
 
 const SENSOR_HTML = `${SENSOR_WARNING_INNER_HTML}
-  <button type="button" id="sensor-dismiss" style="padding:10px 20px;border-radius:10px;border:1px solid #c9a227;background:#3d2918;color:#f5e6d3;cursor:pointer;font-size:0.9rem;min-height:44px">${SENSOR_DISMISS_BUTTON_LABEL}</button>
+  <button type="button" id="sensor-dismiss" class="${sharedUi.btnSecondary}">${SENSOR_DISMISS_BUTTON_LABEL}</button>
 `;
 
 export class GameScene extends Phaser.Scene {
@@ -238,7 +240,7 @@ export class GameScene extends Phaser.Scene {
 
   /** Okamžitě zobrazí HUD a spustí herní smyčku (nezávisle na senzorech). */
   private showPlayHud(): void {
-    this.hud.style.display = "flex";
+    this.hud.hidden = false;
     this.running = true;
     if (new URLSearchParams(typeof location !== "undefined" ? location.search : "").get("e2e") === "1") {
       (window as unknown as { __tiltMazeScene?: GameScene }).__tiltMazeScene = this;
@@ -454,55 +456,31 @@ export class GameScene extends Phaser.Scene {
     document.getElementById("tilt-maze-ui")?.remove();
     const root = document.createElement("div");
     root.id = "tilt-maze-ui";
-    root.style.cssText = [
-      "position:fixed",
-      "inset:0",
-      "pointer-events:none",
-      "font-family:system-ui,Segoe UI,Roboto,sans-serif",
-      "z-index:10"
-    ].join(";");
+    root.className = gameStyles.uiRoot;
 
     const hud = document.createElement("div");
-    hud.style.cssText = [
-      "position:absolute",
-      "top:0",
-      "left:0",
-      "right:0",
-      "display:none",
-      "flex-direction:column",
-      "gap:6px",
-      "padding:8px 12px",
-      "pointer-events:auto",
-      "color:#fff",
-      "text-shadow:0 1px 2px #000",
-      "box-sizing:border-box"
-    ].join(";");
+    hud.className = gameStyles.gameHud;
+    hud.hidden = true;
     this.hud = hud;
 
     const titleRow = document.createElement("div");
-    titleRow.style.cssText = "display:flex;justify-content:space-between;align-items:baseline;gap:12px;width:100%";
+    titleRow.className = gameStyles.hudTitleRow;
 
     this.levelEl = document.createElement("div");
-    this.levelEl.style.fontWeight = "700";
-    this.levelEl.style.flex = "1 1 auto";
-    this.levelEl.style.minWidth = "0";
-    this.levelEl.style.minHeight = "2.55em";
-    this.levelEl.style.lineHeight = "1.22";
+    this.levelEl.className = gameStyles.hudLevel;
     this.timerEl = document.createElement("div");
-    this.timerEl.style.flex = "0 0 auto";
-    this.timerEl.style.whiteSpace = "nowrap";
+    this.timerEl.className = gameStyles.hudTimer;
     titleRow.append(this.levelEl, this.timerEl);
 
     const actions = document.createElement("div");
-    actions.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;justify-content:center;width:100%";
+    actions.className = gameStyles.hudActions;
 
     const mkBtn = (id: string, label: string) => {
       const b = document.createElement("button");
       b.type = "button";
       b.id = id;
       b.textContent = label;
-      b.style.cssText =
-        "padding:8px 12px;border-radius:10px;border:1px solid #c9a227;background:#3d2918;color:#f5e6d3;font-size:0.85rem;cursor:pointer";
+      b.className = sharedUi.btnHud;
       return b;
     };
 
@@ -519,19 +497,8 @@ export class GameScene extends Phaser.Scene {
     hud.append(titleRow, actions);
 
     this.winLayer = document.createElement("div");
-    this.winLayer.style.cssText = [
-      "position:absolute",
-      "inset:0",
-      "display:none",
-      "flex-direction:column",
-      "align-items:center",
-      "justify-content:center",
-      "background:rgba(10,8,5,0.92)",
-      "pointer-events:auto",
-      "color:#f5e6d3",
-      "text-align:center",
-      "padding:24px"
-    ].join(";");
+    this.winLayer.className = gameStyles.winLayer;
+    this.winLayer.hidden = true;
 
     root.append(hud, this.winLayer);
     document.body.appendChild(root);
@@ -569,12 +536,7 @@ export class GameScene extends Phaser.Scene {
 
   private onMouseArmedChanged(armed: boolean): void {
     this.btnMouseToggle?.setAttribute("aria-pressed", String(armed));
-    this.btnMouseToggle?.classList.toggle("mouse-armed-active", armed);
-    if (armed) {
-      this.btnMouseToggle!.style.outline = "2px solid rgba(201,162,39,0.85)";
-    } else {
-      this.btnMouseToggle!.style.outline = "";
-    }
+    this.btnMouseToggle?.classList.toggle(gameStyles.mouseArmedActive, armed);
     this.mouseOverlay?.setArmed(armed);
     this.mouseOverlay?.layout();
   }
@@ -600,24 +562,7 @@ export class GameScene extends Phaser.Scene {
     this.removeSensorBanner();
     const el = document.createElement("div");
     el.id = "tilt-maze-sensor-desktop-hint";
-    el.style.cssText = [
-      "position:fixed",
-      "left:50%",
-      "bottom:18px",
-      "transform:translateX(-50%)",
-      "max-width:min(360px,calc(100vw - 24px))",
-      "background:rgba(35,22,12,0.94)",
-      "border:1px solid rgba(201,162,39,0.6)",
-      "border-radius:12px",
-      "padding:12px 16px",
-      "color:#e8dcc8",
-      "z-index:2147483647",
-      "pointer-events:none",
-      "text-align:center",
-      "font-size:0.92rem",
-      "line-height:1.4",
-      "box-shadow:0 3px 12px rgba(0,0,0,0.35)"
-    ].join(";");
+    el.className = gameStyles.sensorDesktopHint;
     el.textContent = DESKTOP_SENSOR_HINT_TEXT;
     document.body.appendChild(el);
     this.sensorBanner = el;
@@ -642,22 +587,7 @@ export class GameScene extends Phaser.Scene {
     this.removeSensorBanner();
     const el = document.createElement("div");
     el.id = "tilt-maze-sensor-warn";
-    el.style.cssText = [
-      "position:fixed",
-      "left:50%",
-      "bottom:18px",
-      "transform:translateX(-50%)",
-      "max-width:min(420px,calc(100vw - 24px))",
-      "background:rgba(35,22,12,0.96)",
-      "border:1px solid #c9a227",
-      "border-radius:12px",
-      "padding:14px 16px",
-      "color:#f5e6d3",
-      "z-index:2147483647",
-      "pointer-events:auto",
-      "text-align:left",
-      "box-shadow:0 4px 16px rgba(0,0,0,0.4)"
-    ].join(";");
+    el.className = gameStyles.sensorWarn;
     el.innerHTML = SENSOR_HTML;
     const dismiss = el.querySelector("#sensor-dismiss") as HTMLButtonElement;
     dismiss.addEventListener("click", () => {
@@ -684,23 +614,18 @@ export class GameScene extends Phaser.Scene {
   private layoutHud(_size: Phaser.Structs.Size): void {
     if (!this.hud?.isConnected) return;
     const container = document.getElementById("game-container");
-    const hudBandPx =
-      this.hud.style.display !== "none"
-        ? Math.ceil(this.hud.getBoundingClientRect().height) + 16
-        : 96;
+    const hudBandPx = !this.hud.hidden ? Math.ceil(this.hud.getBoundingClientRect().height) + 16 : 96;
     let refreshScale = false;
     if (container) {
-      container.style.boxSizing = "border-box";
+      container.classList.add("tiltHudActive");
       if (hudBandPx !== this.lastHudBandPx) {
         this.lastHudBandPx = hudBandPx;
-        container.style.paddingTop = "0";
         container.style.marginTop = `${hudBandPx}px`;
         container.style.height = `calc(100% - ${hudBandPx}px)`;
         refreshScale = true;
       }
     }
     const bounds = this.game.scale.canvasBounds;
-    this.hud.style.top = "6px";
     this.hud.style.left = `${Math.max(0, Math.round(bounds.left))}px`;
     this.hud.style.width = `${Math.max(0, Math.round(bounds.width))}px`;
     this.hud.style.paddingLeft = "8px";
@@ -713,7 +638,7 @@ export class GameScene extends Phaser.Scene {
 
   /** E2E: HUD je celý nad horním okrajem herní desky (nebo v horním letterboxu). */
   verifyHudAboveBoard(): boolean {
-    if (!this.hud || this.hud.style.display === "none") return true;
+    if (!this.hud || this.hud.hidden) return true;
     const hb = this.hud.getBoundingClientRect();
     const canvas = this.game.canvas as HTMLCanvasElement;
     const cb = canvas.getBoundingClientRect();
@@ -747,8 +672,7 @@ export class GameScene extends Phaser.Scene {
     const container = document.getElementById("game-container");
     if (container) {
       container.removeAttribute("style");
-      container.style.width = "100%";
-      container.style.height = "100%";
+      container.classList.remove("tiltHudActive");
       this.lastHudBandPx = 0;
       void container.offsetHeight;
     }
@@ -824,7 +748,7 @@ export class GameScene extends Phaser.Scene {
     this.levelEl.textContent = `Úroveň ${this.levelIndex + 1}/${LEVELS.length} — ${lvl.name}`;
     this.timerEl.textContent = this.formatTime(0);
     this.elapsedMs = 0;
-    this.winLayer.style.display = "none";
+    this.winLayer.hidden = true;
     this.winLayer.innerHTML = "";
     this.layoutHud(this.scale.gameSize);
     requestAnimationFrame(() => {
@@ -979,7 +903,7 @@ export class GameScene extends Phaser.Scene {
       this.matter.body.setVelocity(bb, { x: 0, y: 0 });
     }
     this.elapsedMs = 0;
-    this.winLayer.style.display = "none";
+    this.winLayer.hidden = true;
     this.winLayer.innerHTML = "";
   }
 
@@ -989,17 +913,17 @@ export class GameScene extends Phaser.Scene {
     const next = this.levelIndex + 1;
     const finishedAll = next >= LEVELS.length;
     this.winLayer.innerHTML = `
-      <h2 style="margin:0 0 12px;font-size:1.4rem">Výhra!</h2>
-      <p style="margin:0 0 8px">Čas: <strong>${this.formatTime(this.elapsedMs)}</strong></p>
-      <p style="margin:0 0 20px">${finishedAll ? "Gratulujeme, zvládli jste všechny úrovně!" : "Připravte se na další úroveň."}</p>
-      <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center">
-        <button id="btn-next" type="button" style="padding:12px 24px;font-size:1rem;border-radius:12px;border:none;background:#c9a227;color:#1a120a;font-weight:700;cursor:pointer;min-height:44px">
+      <h2 class="${gameStyles.winHeading}">Výhra!</h2>
+      <p class="${gameStyles.winTime}">Čas: <strong>${this.formatTime(this.elapsedMs)}</strong></p>
+      <p class="${gameStyles.winMessage}">${finishedAll ? "Gratulujeme, zvládli jste všechny úrovně!" : "Připravte se na další úroveň."}</p>
+      <div class="${gameStyles.winActions}">
+        <button id="btn-next" type="button" class="${sharedUi.winBtnPrimary}">
           ${finishedAll ? "Hrát znovu od začátku" : "Další úroveň"}
         </button>
-        <button id="btn-win-menu" type="button" style="padding:12px 24px;font-size:1rem;border-radius:12px;border:1px solid #c9a227;background:#3d2918;color:#f5e6d3;font-weight:600;cursor:pointer;min-height:44px">Menu</button>
+        <button id="btn-win-menu" type="button" class="${sharedUi.winBtnMenu}">Menu</button>
       </div>
     `;
-    this.winLayer.style.display = "flex";
+    this.winLayer.hidden = false;
     const btn = this.winLayer.querySelector("#btn-next") as HTMLButtonElement;
     btn.addEventListener(
       "click",

@@ -5,15 +5,9 @@ import { querySensorPermissions } from "../sensorMonitor";
 import { requestIOSMotionPermission } from "../tilt";
 import { attachBuildInfoLabel } from "../ui/attachBuildInfo";
 import { levelMenuGroupId, menuLevelGroups } from "../menuLevelGroups";
-import {
-  BTN_LEVEL_TRAPS,
-  BTN_LEVEL_WALLS,
-  BTN_PRIMARY,
-  BTN_SECONDARY,
-  PANEL_OVERLAY,
-  UI_FONT_FAMILY
-} from "../ui/domTheme";
 import { HELP_SECTIONS } from "../ui/sensorHelpContent";
+import sharedUi from "../ui/sharedUi.module.css";
+import menuStyles from "./menuOverlay.module.css";
 
 export type GameSceneStartData = {
   levelIndex: number;
@@ -60,16 +54,15 @@ export class MenuScene extends Phaser.Scene {
   /** sleep() nevolá SHUTDOWN — DOM menu jinak zůstane jako overlay nad hrou. */
   private readonly onSceneSleep = (): void => {
     this.detachKeyboard();
-    this.rootEl?.style.setProperty("display", "none");
-    this.helpLayer?.style.setProperty("display", "none");
+    if (this.rootEl) this.rootEl.hidden = true;
+    if (this.helpLayer) this.helpLayer.hidden = true;
   };
 
   private readonly onSceneWake = (): void => {
     this.removeBuildInfo?.();
     this.removeBuildInfo = attachBuildInfoLabel();
-    // removeProperty("display") po sleep obnoví výchozí block u <div>, ne flex z původního layoutu
-    this.rootEl?.style.setProperty("display", "flex");
-    this.helpLayer?.style.removeProperty("display");
+    if (this.rootEl) this.rootEl.hidden = false;
+    if (this.helpLayer) this.helpLayer.hidden = false;
     this.attachKeyboard();
     this.syncMenuOverlayToScale();
   };
@@ -106,120 +99,51 @@ export class MenuScene extends Phaser.Scene {
     g.strokeRect(2, 2, DESIGN_WIDTH - 4, DESIGN_HEIGHT - 4);
   }
 
-  private levelButtonStyle(index: number): string {
+  private levelButtonClass(index: number): string {
     const g = levelMenuGroupId(LEVELS[index]);
-    if (g === "traps") return BTN_LEVEL_TRAPS;
-    return BTN_LEVEL_WALLS;
+    return g === "traps" ? sharedUi.btnLevelTraps : sharedUi.btnLevelWalls;
   }
 
   private buildDomMenu(): void {
-    if (!document.getElementById("tilt-maze-menu-styles")) {
-      const style = document.createElement("style");
-      style.id = "tilt-maze-menu-styles";
-      style.textContent = `
-        .tilt-maze-level-group-grid {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 8px;
-          width: 100%;
-          box-sizing: border-box;
-        }
-        #tilt-maze-level-list button {
-          overflow: hidden;
-          max-width: 100%;
-        }
-        .tilt-maze-level-card-label {
-          display: block;
-          font-weight: 700;
-          line-height: 1.22;
-          font-size: clamp(0.68rem, 1.45vw, 0.8rem);
-          overflow-wrap: anywhere;
-          word-break: break-word;
-          hyphens: auto;
-          max-width: 100%;
-        }
-      `;
-      document.head.appendChild(style);
-    }
-
     const root = document.createElement("div");
     root.id = "tilt-maze-menu";
     root.dataset.testid = "main-menu";
-    root.style.cssText = [
-      "position:fixed",
-      "z-index:20",
-      "pointer-events:auto",
-      `font-family:${UI_FONT_FAMILY}`,
-      "color:#f5e6d3",
-      "display:flex",
-      "flex-direction:column",
-      "align-items:center",
-      "box-sizing:border-box",
-      "padding-top:max(12px,env(safe-area-inset-top))",
-      "padding-bottom:max(12px,env(safe-area-inset-bottom))",
-      "padding-left:max(14px,env(safe-area-inset-left))",
-      "padding-right:max(14px,env(safe-area-inset-right))",
-      "overflow:hidden",
-      "overflow-x:hidden"
-    ].join(";");
+    root.className = menuStyles.menuRoot;
 
     const header = document.createElement("header");
-    header.style.cssText = "text-align:center;flex-shrink:0;margin-bottom:12px;width:100%;box-sizing:border-box";
+    header.className = menuStyles.menuHeader;
     header.innerHTML = `
-      <h1 style="margin:0 0 6px;font-size:clamp(1.35rem,4vw,1.75rem);font-weight:700">Sklopený labyrint</h1>
-      <p style="margin:0;font-size:0.9rem;line-height:1.4;opacity:0.88;max-width:520px;margin-left:auto;margin-right:auto">
+      <h1 class="${menuStyles.menuHeaderTitle}">Sklopený labyrint</h1>
+      <p class="${menuStyles.menuHeaderLead}">
         Klepněte na úroveň a začněte hrát. Všechny úrovně jsou pro testování odemčené.
       </p>
     `;
 
     const main = document.createElement("div");
-    main.style.cssText = [
-      "flex:1 1 0%",
-      "min-height:0",
-      "display:flex",
-      "flex-direction:column",
-      "gap:12px",
-      "width:100%",
-      "box-sizing:border-box"
-    ].join(";");
+    main.className = menuStyles.menuMain;
 
     const levelLabel = document.createElement("div");
     levelLabel.id = "tilt-maze-levels-label";
+    levelLabel.className = menuStyles.levelsLabel;
     levelLabel.textContent = "Úrovně";
-    levelLabel.style.cssText = "font-weight:700;font-size:0.95rem;width:100%;box-sizing:border-box";
 
     const levelScroll = document.createElement("div");
     levelScroll.id = "tilt-maze-level-list";
     levelScroll.setAttribute("aria-label", "Úrovně");
-    levelScroll.style.cssText = [
-      "overflow-y:auto",
-      "flex:1",
-      "min-height:0",
-      "display:flex",
-      "flex-direction:column",
-      "gap:12px",
-      "padding:0",
-      "width:100%",
-      "max-width:100%",
-      "box-sizing:border-box",
-      "overflow-x:hidden",
-      "-webkit-overflow-scrolling:touch"
-    ].join(";");
+    levelScroll.className = menuStyles.menuLevelScroll;
 
     const groups = menuLevelGroups(LEVELS);
     for (const group of groups) {
       const section = document.createElement("section");
-      section.className = "tilt-maze-level-group";
+      section.className = menuStyles.levelGroupSection;
       section.setAttribute("aria-label", group.title);
-      section.style.cssText = "width:100%;box-sizing:border-box";
 
       const groupTitle = document.createElement("h3");
+      groupTitle.className = menuStyles.levelGroupTitle;
       groupTitle.textContent = group.title;
-      groupTitle.style.cssText =
-        "margin:0 0 6px;font-size:0.82rem;font-weight:600;opacity:0.88;letter-spacing:0.02em;width:100%";
 
       const grid = document.createElement("div");
-      grid.className = "tilt-maze-level-group-grid";
+      grid.className = menuStyles.levelGroupGrid;
 
       for (const i of group.indices) {
         const lvl = LEVELS[i];
@@ -227,8 +151,8 @@ export class MenuScene extends Phaser.Scene {
         b.type = "button";
         b.dataset.levelIndex = String(i);
         b.dataset.levelGroup = group.id;
-        b.innerHTML = `<span class="tilt-maze-level-card-label" lang="cs">${i + 1}. ${lvl.name}</span>`;
-        b.style.cssText = this.levelButtonStyle(i);
+        b.className = this.levelButtonClass(i);
+        b.innerHTML = `<span class="${menuStyles.levelCardLabel}" data-testid="level-card-label" lang="cs">${i + 1}. ${lvl.name}</span>`;
         b.addEventListener("click", () => void this.startLevel(i));
         grid.append(b);
       }
@@ -238,14 +162,13 @@ export class MenuScene extends Phaser.Scene {
     }
 
     const actions = document.createElement("div");
-    actions.style.cssText =
-      "display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;flex-shrink:0;padding-top:4px;width:100%;box-sizing:border-box";
+    actions.className = menuStyles.menuActions;
 
     const btnHelp = document.createElement("button");
     btnHelp.type = "button";
     btnHelp.id = "menu-btn-help";
     btnHelp.textContent = "Nápověda ovládání a senzorů";
-    btnHelp.style.cssText = BTN_SECONDARY;
+    btnHelp.className = sharedUi.btnSecondary;
     btnHelp.addEventListener("click", () => this.openHelp());
 
     actions.append(btnHelp);
@@ -299,42 +222,31 @@ export class MenuScene extends Phaser.Scene {
     const layer = document.createElement("div");
     layer.id = "tilt-maze-help";
     layer.dataset.testid = "help-overlay";
-    layer.style.cssText = `${PANEL_OVERLAY};position:fixed;z-index:30`;
+    layer.className = `${menuStyles.panelOverlay} ${menuStyles.helpLayer}`;
     layer.setAttribute("role", "dialog");
     layer.setAttribute("aria-modal", "true");
     layer.setAttribute("aria-label", "Nápověda");
 
     const card = document.createElement("div");
-    card.style.cssText = [
-      "max-width:min(480px,100%)",
-      "width:100%",
-      "background:rgba(35,22,12,0.96)",
-      "border:1px solid #c9a227",
-      "border-radius:14px",
-      "padding:16px 18px",
-      "max-height:min(85vh,640px)",
-      "overflow-y:auto",
-      "box-shadow:0 4px 20px rgba(0,0,0,0.45)",
-      `font-family:${UI_FONT_FAMILY}`
-    ].join(";");
+    card.className = menuStyles.helpCard;
 
     const sections = HELP_SECTIONS.map(
       (s) => `
-      <section style="margin-bottom:16px" aria-labelledby="help-${s.id}">
-        <h2 id="help-${s.id}" style="margin:0 0 8px;font-size:1.05rem">${s.title}</h2>
-        <div style="line-height:1.45;font-size:0.92rem">${s.bodyHtml}</div>
+      <section class="${menuStyles.helpSection}" aria-labelledby="help-${s.id}">
+        <h2 id="help-${s.id}">${s.title}</h2>
+        <div class="${menuStyles.helpSectionBody}">${s.bodyHtml}</div>
       </section>
     `
     ).join("");
 
     card.innerHTML = `
-      <h2 style="margin:0 0 12px;font-size:1.25rem;text-align:center">Nápověda</h2>
+      <h2 class="${menuStyles.helpCardTitle}">Nápověda</h2>
       ${sections}
-      <div id="sensor-perm-status" style="margin:12px 0;padding:10px;border-radius:8px;background:rgba(0,0,0,0.25);font-size:0.85rem;line-height:1.4" aria-live="polite"></div>
-      <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:8px">
-        <button type="button" id="help-btn-perms" style="${BTN_SECONDARY}">Zkontrolovat oprávnění senzorů</button>
-        <button type="button" id="help-btn-ios" style="${BTN_SECONDARY}">Požádat o přístup (iOS)</button>
-        <button type="button" id="help-btn-close" style="${BTN_PRIMARY}">Zavřít</button>
+      <div id="sensor-perm-status" class="${menuStyles.helpPermStatus}" aria-live="polite"></div>
+      <div class="${menuStyles.helpActions}">
+        <button type="button" id="help-btn-perms" class="${sharedUi.btnSecondary}">Zkontrolovat oprávnění senzorů</button>
+        <button type="button" id="help-btn-ios" class="${sharedUi.btnSecondary}">Požádat o přístup (iOS)</button>
+        <button type="button" id="help-btn-close" class="${sharedUi.btnPrimary}">Zavřít</button>
       </div>
     `;
 

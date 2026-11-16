@@ -32,12 +32,23 @@ export function deckExitHeight(lvl: LevelDef): number {
   return plateau * DECK_EXIT_FRAC;
 }
 
+function inBridgeUnderCorridor(
+  x: number,
+  y: number,
+  lvl: LevelDef
+): boolean {
+  const span = lvl.bridge?.span;
+  if (!span) return false;
+  return x >= span.x0 && x <= span.x1 && y > span.y1 + 6;
+}
+
 /** Height-only layer estimate (BFS / spawn). */
 export function ballLayerAt(
   x: number,
   y: number,
   lvl: LevelDef
 ): BallLayer {
+  if (inBridgeUnderCorridor(x, y, lvl)) return "ground";
   const h = floorHeightAt(x, y, lvl.slopes);
   return h >= deckEnterHeight(lvl) ? "deck" : "ground";
 }
@@ -48,6 +59,7 @@ export function resolveBallLayer(
   y: number,
   lvl: LevelDef
 ): BallLayer {
+  if (inBridgeUnderCorridor(x, y, lvl)) return "ground";
   const h = floorHeightAt(x, y, lvl.slopes);
   const enter = deckEnterHeight(lvl);
   const exit = deckExitHeight(lvl);

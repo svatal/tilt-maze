@@ -270,6 +270,10 @@ export class GameScene extends Phaser.Scene {
     this.matter.body.setPosition(bb, { x, y });
     this.matter.body.setVelocity(bb, { x: 0, y: 0 });
     this.e2eLastTriggerDist = null;
+    const lvl = LEVELS[this.levelIndex];
+    this.ballLayer = ballLayerAt(x, y, lvl);
+    bb.collisionFilter.mask = ballCollisionMask(this.ballLayer);
+    this.syncBallLayerAndBridgeVisual(x, y, lvl);
   }
 
   /** E2E: vyhodnotí trigger zóny bez čekání na další snímek update smyčky. */
@@ -355,9 +359,11 @@ export class GameScene extends Phaser.Scene {
       this.ball?.setAlpha(1);
       return;
     }
+    const inSpanX = x >= span.x0 && x <= span.x1;
     const underBridge =
       this.ballLayer === "ground" &&
-      pointInBridgeSpan(x, y, span) &&
+      inSpanX &&
+      (pointInBridgeSpan(x, y, span) || y > span.y1) &&
       y > span.y0 + (span.y1 - span.y0) * 0.22;
     if (underBridge) {
       this.ball.setAlpha(0.1);

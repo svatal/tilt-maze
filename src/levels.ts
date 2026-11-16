@@ -382,24 +382,11 @@ export const LEVELS: LevelDef[] = [
     id: 15,
     name: "Nástupní plošina",
     idea:
-      "Vylezt po široké rampě na vysokou nástupnici (více než polovina desky); cíl je uprostřed vrcholu — na plošině je klid, na hraně srazu sklon svažuje dolů.",
+      "Uprostřed desky plochá nástupnice (nížiny dole i nahoře); vystoupat z dolní nížiny a zastavit cíl na vrcholu — po stranách srazu sklon stahuje kuličku.",
     start: { x: 180, y: 578 },
-    goal: { x: 180, y: 248, r: 22 },
-    traps: [
-      { x: 88, y: 532, r: 15 },
-      { x: 272, y: 532, r: 15 }
-    ],
-    slopes: [
-      {
-        shape: "ramp",
-        axis: "horizontal",
-        split: 468,
-        band: 52,
-        hLow: 0,
-        hHigh: rampRiseForBand(52),
-        lowSide: "bottom"
-      }
-    ],
+    goal: { x: 180, y: 318, r: 22 },
+    traps: [],
+    slopes: [{ shape: "mesa", splitTop: 140, splitBottom: 512, band: 52 }],
     walls: [...border()]
   }
 ];

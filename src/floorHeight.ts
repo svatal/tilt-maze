@@ -46,7 +46,19 @@ export type FloorRamp = {
   lowSide: "top" | "bottom" | "left" | "right";
 };
 
-export type FloorHeightFeature = FloorBowlCircle | FloorBowlRect | FloorRamp;
+/**
+ * Vodorovná nástupnice: min dvou ramp (zdola + shora) ⇒ nížiny nahoře i dole,
+ * plochý vrchol uprostřed. Stejné pásma sklonu a |∇h| jako u rampy.
+ */
+export type FloorMesa = {
+  shape: "mesa";
+  splitTop: number;
+  splitBottom: number;
+  band: number;
+  rise?: number;
+};
+
+export type FloorHeightFeature = FloorBowlCircle | FloorBowlRect | FloorRamp | FloorMesa;
 
 const GRAD_EPS = 1.25;
 /** Převod |∇h| na ekvivalent sklonu (~dřívější misky). */
@@ -126,6 +138,29 @@ function rampBandHeight(coord: number, f: FloorRamp): number {
   return 0;
 }
 
+function mesaHeightAt(y: number, f: FloorMesa): number {
+  const rise = f.rise ?? rampRiseForBand(f.band);
+  const fromTop: FloorRamp = {
+    shape: "ramp",
+    axis: "horizontal",
+    split: f.splitTop,
+    band: f.band,
+    hLow: 0,
+    hHigh: rise,
+    lowSide: "top"
+  };
+  const fromBottom: FloorRamp = {
+    shape: "ramp",
+    axis: "horizontal",
+    split: f.splitBottom,
+    band: f.band,
+    hLow: 0,
+    hHigh: rise,
+    lowSide: "bottom"
+  };
+  return Math.min(rampBandHeight(y, fromTop), rampBandHeight(y, fromBottom));
+}
+
 export function featureHeightAt(x: number, y: number, f: FloorHeightFeature): number {
   if (f.shape === "bowl") {
     const d = Math.hypot(x - f.cx, y - f.cy);
@@ -141,6 +176,7 @@ export function featureHeightAt(x: number, y: number, f: FloorHeightFeature): nu
     if (norm > 1) return 0;
     return f.amplitude * (1 - norm);
   }
+  if (f.shape === "mesa") return mesaHeightAt(y, f);
   const coord = f.axis === "horizontal" ? y : x;
   return rampBandHeight(coord, f);
 }
@@ -292,7 +328,7 @@ export function bakeFloorHeightCanvas(
 /** Pro testy: je bod v ovlivněné oblasti kterékoli feature? */
 export function ballOverFloorFeature(ballX: number, ballY: number, features: FloorHeightFeature[]): boolean {
   for (const f of features) {
-    if (f.shape === "ramp") return true;
+    if (f.shape === "ramp" || f.shape === "mesa") return true;
     if (featureHeightAt(ballX, ballY, f) !== 0) return true;
   }
   const eps = 0.5;

@@ -81,6 +81,17 @@ describe("floorHeight", () => {
     expect(t.ay).toBe(0);
   });
 
+  it("mesa: nížiny nahoře i dole, plochý střed", () => {
+    const m = LEVELS[14].slopes[0];
+    expect(m.shape).toBe("mesa");
+    expect(featureHeightAt(180, 50, m)).toBeLessThan(0.02);
+    expect(featureHeightAt(180, 590, m)).toBeLessThan(0.02);
+    const mid = featureHeightAt(180, 318, m);
+    expect(mid).toBeGreaterThan(0.4);
+    expect(floorHeightGradient(180, 318, [m]).dx).toBe(0);
+    expect(Math.abs(floorHeightGradient(180, 318, [m]).dy)).toBeLessThan(1e-6);
+  });
+
   it("úrovně 11–15: |∇h| nikde nepřekročí MAX_FLOOR_HEIGHT_GRAD", () => {
     const eps = 1.0005;
     for (const lvl of LEVELS.filter((l) => l.id >= 11)) {

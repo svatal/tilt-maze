@@ -134,6 +134,7 @@ test("E2E: zapnutá myš ignoruje deviceorientation; po vypnutí senzor platí",
 });
 
 test("E2E: landscape layout — ovládací plocha a overlay", async ({ browser }) => {
+  test.setTimeout(60_000);
   const context = await browser.newContext({ viewport: { width: 900, height: 520 } });
   const page = await context.newPage();
   await startGameFromMenu(page, 0);

@@ -345,9 +345,7 @@ export class GameScene extends Phaser.Scene {
   private syncBallLayerAndBridgeVisual(x: number, y: number, lvl: LevelDef): void {
     if (!this.ball?.body) return;
     if (levelUsesGradeSeparation(lvl)) {
-      const layer = levelUsesGradeSeparation(lvl)
-        ? resolveBallLayer(this.ballLayer, x, y, lvl)
-        : "ground";
+      const layer = resolveBallLayer(this.ballLayer, x, y, lvl);
       if (layer !== this.ballLayer) {
         this.ballLayer = layer;
         const bb = this.ball.body as MatterJS.BodyType;

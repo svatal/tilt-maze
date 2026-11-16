@@ -28,6 +28,11 @@ describe("bridge mechanic", () => {
     expect(isLevelSolvable(l16)).toBe(true);
   });
 
+  it("koridor pod mostem zůstane na přízemí", () => {
+    expect(ballLayerAt(180, 392, l16)).toBe("ground");
+    expect(resolveBallLayer("deck", 180, 392, l16)).toBe("ground");
+  });
+
   it("hystereze vrstvy na nástupnici", () => {
     const onDeck = { x: 260, y: 330 };
     expect(ballLayerAt(onDeck.x, onDeck.y, l16)).toBe("deck");

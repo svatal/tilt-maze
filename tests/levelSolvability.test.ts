@@ -39,9 +39,7 @@ describe("levelSolvability", () => {
       expect(validateWallsOnlyBand(lvl)).toBeNull();
       expect(validateLevel10Slalom(lvl)).toBeNull();
       expect(interiorWallOverlapViolations(lvl)).toEqual([]);
-      if (lvl.id !== 16) {
-        expect(narrowWallFaceGapViolations(lvl)).toEqual([]);
-      }
+      expect(narrowWallFaceGapViolations(lvl)).toEqual([]);
     }
   });
 

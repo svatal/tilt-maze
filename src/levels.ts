@@ -405,26 +405,12 @@ export const LEVELS: LevelDef[] = [
     goal: { x: 292, y: 108, r: 22 },
     traps: [],
     bridge: { span: { x0: 108, y0: 288, x1: 252, y1: 360 } },
-    slopes: [
-      {
-        shape: "ramp",
-        axis: "vertical",
-        split: 214,
-        band: 48,
-        hLow: 0,
-        hHigh: rampRiseForBand(48),
-        lowSide: "left"
-      }
-    ],
+    slopes: [{ shape: "mesa", splitTop: 268, splitBottom: 478, band: 48 }],
     walls: [
       ...border(),
-      { cx: 76, cy: 402, w: 68, h: 14, layer: "ground" },
-      { cx: 284, cy: 402, w: 68, h: 14, layer: "ground" },
-      { cx: 220, cy: 174, w: 140, h: 14, layer: "ground" },
-      { cx: 114, cy: 336, w: 14, h: 36, layer: "deck" },
-      { cx: 246, cy: 336, w: 14, h: 36, layer: "deck" },
-      { cx: 124, cy: 274, w: 92, h: 14, layer: "deck" },
-      { cx: 210, cy: 254, w: 108, h: 14, layer: "deck" }
+      { cx: 142, cy: 358, w: 220, h: 14, layer: "deck" },
+      { cx: 213, cy: 228, w: 230, h: 14, layer: "ground" },
+      { cx: 104, cy: 255, w: 14, h: 66, layer: "ground" }
     ]
   }
 ];

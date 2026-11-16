@@ -882,7 +882,7 @@ export class GameScene extends Phaser.Scene {
   private spawnLevel(lvl: LevelDef): void {
     const gStroke = 0x2d1f12;
     const gFill = 0x8b6914;
-  const deckFill = 0xa8844c;
+    const deckFill = 0xa8844c;
 
     this.bakeFloorHeightShading(lvl.slopes);
     this.ballLayer = ballLayerAt(lvl.start.x, lvl.start.y, lvl);

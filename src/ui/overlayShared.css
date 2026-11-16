@@ -5,3 +5,9 @@
 :root {
   --tilt-ui-font: system-ui, Segoe UI, Roboto, sans-serif;
 }
+
+#game-container.tiltHudActive {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+}

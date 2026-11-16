@@ -1,14 +1,102 @@
+.menuRoot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: fixed;
+  z-index: 20;
+  pointer-events: auto;
+  font-family: var(--tilt-ui-font);
+  color: #f5e6d3;
+  box-sizing: border-box;
+  padding-top: max(12px, env(safe-area-inset-top));
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  padding-left: max(14px, env(safe-area-inset-left));
+  padding-right: max(14px, env(safe-area-inset-right));
+  overflow: hidden;
+  overflow-x: hidden;
+}
+
+.menuHeader {
+  text-align: center;
+  flex-shrink: 0;
+  margin-bottom: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.menuHeaderTitle {
+  margin: 0 0 6px;
+  font-size: clamp(1.35rem, 4vw, 1.75rem);
+  font-weight: 700;
+}
+
+.menuHeaderLead {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  opacity: 0.88;
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.menuMain {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  min-height: 0;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.levelsLabel {
+  font-weight: 700;
+  font-size: 0.95rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.menuLevelScroll {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  gap: 12px;
+  padding: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.menuLevelScroll button {
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.levelGroupSection {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.levelGroupTitle {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  opacity: 0.88;
+  letter-spacing: 0.02em;
+  width: 100%;
+}
+
 .levelGroupGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   width: 100%;
   box-sizing: border-box;
-}
-
-.menuLevelScroll button {
-  overflow: hidden;
-  max-width: 100%;
 }
 
 .levelCardLabel {
@@ -22,27 +110,16 @@
   max-width: 100%;
 }
 
-.menuRoot {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.menuMain {
-  display: flex;
-  flex-direction: column;
-}
-
-.menuLevelScroll {
-  display: flex;
-  flex-direction: column;
-}
-
 .menuActions {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding-top: 4px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .panelOverlay {
@@ -65,6 +142,54 @@
 .helpLayer {
   position: fixed;
   z-index: 30;
+}
+
+.helpCard {
+  max-width: min(480px, 100%);
+  width: 100%;
+  background: rgba(35, 22, 12, 0.96);
+  border: 1px solid #c9a227;
+  border-radius: 14px;
+  padding: 16px 18px;
+  max-height: min(85vh, 640px);
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+  font-family: var(--tilt-ui-font);
+}
+
+.helpCardTitle {
+  margin: 0 0 12px;
+  font-size: 1.25rem;
+  text-align: center;
+}
+
+.helpSection {
+  margin-bottom: 16px;
+}
+
+.helpSection h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+
+.helpSectionBody {
+  line-height: 1.45;
+  font-size: 0.92rem;
+}
+
+.helpSectionBody :global(.help-list) {
+  margin: 0;
+  padding-left: 1.1rem;
+  line-height: 1.45;
+}
+
+.helpPermStatus {
+  margin: 12px 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  font-size: 0.85rem;
+  line-height: 1.4;
 }
 
 .helpActions {

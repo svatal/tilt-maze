@@ -3,8 +3,8 @@
  */
 
 export const SENSOR_WARNING_INNER_HTML = `
-  <div style="margin-bottom:12px;font-size:1.05rem;font-weight:700">Senzory nepřijímají data</div>
-  <p style="margin:0 0 10px;max-width:340px;line-height:1.45;font-size:0.9rem">
+  <div class="sensor-warn-title">Senzory nepřijímají data</div>
+  <p class="sensor-warn-text">
     Prohlížeč neposílá údaje o naklonění. Na <strong>Androidu v Brave</strong> zkontrolujte stránkové oprávnění
     <strong>Pohybové senzory</strong> (ikonka zámku v adresním řádku → oprávnění) a že
     <strong>Brave Shields</strong> neblokují senzory. V <strong>Chrome</strong> musí být stránka na <strong>HTTPS</strong>.
@@ -32,7 +32,7 @@ export const HELP_SECTIONS: HelpSection[] = [
     id: "mouse",
     title: "Ovládání myší",
     bodyHtml: `
-      <ul style="margin:0;padding-left:1.1rem;line-height:1.45">
+      <ul class="help-list">
         <li><strong>Střed kruhu</strong> na herní ploše = rovina (žádný sklon).</li>
         <li><strong>Směr od středu</strong> = směr kutálení; <strong>vzdálenost</strong> = síla.</li>
         <li>Kurzor držte <strong>uvnitř tmavé herní plochy</strong> (ne v pruhu tlačítek).</li>

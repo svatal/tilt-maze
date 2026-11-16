@@ -17,7 +17,6 @@ test.beforeAll(() => {
 async function playLevelFromMenu(page: import("@playwright/test").Page, levelIndex: number) {
   await dismissSensorBannerIfPresent(page);
   await page.locator(`button[data-level-index="${levelIndex}"]`).click();
-  await page.locator("#menu-btn-play").click();
   await page.waitForFunction(
     () => {
       const s = window as unknown as {

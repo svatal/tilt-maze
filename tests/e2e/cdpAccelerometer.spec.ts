@@ -33,7 +33,6 @@ test("E2E: CDP accelerometer override → devicemotion tilt", async ({ browser }
     });
     await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 15000 });
     await page.locator('button[data-level-index="0"]').click();
-    await page.locator("#menu-btn-play").click();
     await page.waitForFunction(
       () =>
         !!(window as unknown as { __tiltMazeScene?: { running: boolean } }).__tiltMazeScene?.running,

@@ -100,7 +100,6 @@ export async function startGameFromMenu(
   if (cdpPrime) await setCdpTilt(page, cdpPrime);
   await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 15000 });
   await page.locator(`button[data-level-index="${levelIndex}"]`).click();
-  await page.locator("#menu-btn-play").click();
   if (cdpPrime) await setCdpTilt(page, cdpPrime);
   await assertMenuHiddenAfterPlay(page);
   await expect(page.locator("#tilt-maze-ui")).toBeVisible({ timeout: 10000 });

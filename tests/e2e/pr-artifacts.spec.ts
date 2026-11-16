@@ -32,7 +32,6 @@ async function waitBoardReady(page: import("@playwright/test").Page) {
 
 async function playLevelFromMenu(page: import("@playwright/test").Page, levelIndex: number) {
   await page.locator(`button[data-level-index="${levelIndex}"]`).click();
-  await page.locator("#menu-btn-play").click();
   await expect(page.getByTestId("main-menu")).toBeHidden({ timeout: 15000 });
   await expect(page.locator("#tilt-maze-menu")).toBeHidden();
   await page.waitForFunction(

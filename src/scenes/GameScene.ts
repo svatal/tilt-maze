@@ -682,7 +682,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private layoutHud(_size: Phaser.Structs.Size): void {
-    if (!this.hud) return;
+    if (!this.hud?.isConnected) return;
     const container = document.getElementById("game-container");
     const hudBandPx =
       this.hud.style.display !== "none"
@@ -739,15 +739,18 @@ export class GameScene extends Phaser.Scene {
     this.tilt?.setMouseArmed(false);
     this.cancelTerminalMotion();
     this.removeSensorBanner();
-    const container = document.getElementById("game-container");
-    if (container) {
-      container.style.paddingTop = "";
-      container.style.marginTop = "";
-      container.style.height = "";
-      this.lastHudBandPx = 0;
-    }
+    this.uiRoot = null!;
+    this.hud = null!;
     for (const el of document.querySelectorAll("#tilt-maze-ui")) {
       el.remove();
+    }
+    const container = document.getElementById("game-container");
+    if (container) {
+      container.removeAttribute("style");
+      container.style.width = "100%";
+      container.style.height = "100%";
+      this.lastHudBandPx = 0;
+      void container.offsetHeight;
     }
     this.scene.sleep("GameScene");
     this.scene.run("MenuScene");

@@ -15,6 +15,27 @@ test.beforeAll(() => {
   }
 });
 
+type HelpButtonBox = { x: number; y: number; width: number; height: number };
+
+async function readHelpButtonBox(page: import("@playwright/test").Page): Promise<HelpButtonBox> {
+  const box = await page.evaluate(() => {
+    const el = document.getElementById("menu-btn-help");
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: r.x, y: r.y, width: r.width, height: r.height };
+  });
+  expect(box).not.toBeNull();
+  return box!;
+}
+
+function expectHelpBoxEqual(a: HelpButtonBox, b: HelpButtonBox, label: string) {
+  const tol = 0.6;
+  expect(Math.abs(a.x - b.x), `${label}: x`).toBeLessThanOrEqual(tol);
+  expect(Math.abs(a.y - b.y), `${label}: y`).toBeLessThanOrEqual(tol);
+  expect(Math.abs(a.width - b.width), `${label}: width`).toBeLessThanOrEqual(tol);
+  expect(Math.abs(a.height - b.height), `${label}: height`).toBeLessThanOrEqual(tol);
+}
+
 test("E2E: úvodní menu — výběr úrovně a návrat z hry", async ({ page }) => {
   const errors: string[] = [];
   page.on("console", (msg) => {
@@ -26,7 +47,6 @@ test("E2E: úvodní menu — výběr úrovně a návrat z hry", async ({ page })
   await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 15000 });
 
   await page.locator('button[data-level-index="1"]').click();
-  await page.locator("#menu-btn-play").click();
 
   await expect(page.getByTestId("main-menu")).toBeHidden({ timeout: 10000 });
   await expect(page.locator("#tilt-maze-menu")).toBeHidden();
@@ -127,9 +147,7 @@ async function assertMenuWithinPlayfield(page: import("@playwright/test").Page) 
       { label: "header", el: document.querySelector("#tilt-maze-menu header") },
       { label: "levels-label", el: document.getElementById("tilt-maze-levels-label") },
       { label: "level-list", el: document.getElementById("tilt-maze-level-list") },
-      { label: "play", el: document.getElementById("menu-btn-play") },
-      { label: "help", el: document.getElementById("menu-btn-help") },
-      { label: "hint", el: document.querySelector("#tilt-maze-menu > p") }
+      { label: "help", el: document.getElementById("menu-btn-help") }
     ];
 
     document.querySelectorAll("#tilt-maze-level-list button").forEach((btn, i) => {
@@ -187,17 +205,44 @@ for (const viewport of [
   });
 }
 
+for (const viewport of [
+  { name: "desktop 1280×800", width: 1280, height: 800, slug: "1280x800" },
+  { name: "mobile 390×844", width: 390, height: 844, slug: "390x844" }
+]) {
+  test(`E2E: pozice nápovědy po návratu z hry — ${viewport.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto(`${basePath}?e2e=1`, { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 15000 });
+
+    const initial = await readHelpButtonBox(page);
+
+    await page.locator('button[data-level-index="0"]').click();
+    await expect(page.locator("#tilt-maze-ui")).toBeVisible({ timeout: 10000 });
+    await page.locator("#btn-menu").click();
+    await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 10000 });
+
+    const after = await readHelpButtonBox(page);
+    expectHelpBoxEqual(initial, after, "nápověda po roundtripu");
+
+    await fs.promises.mkdir("/opt/cursor/artifacts", { recursive: true });
+    await page.screenshot({
+      path: `/opt/cursor/artifacts/menu-after-roundtrip-${viewport.slug}.png`,
+      fullPage: false
+    });
+  });
+}
+
 test("E2E: návrat do menu vypne režim myši", async ({ page }) => {
   test.setTimeout(60_000);
   await page.goto(`${basePath}?e2e=1`, { waitUntil: "domcontentloaded" });
-  await page.locator("#menu-btn-play").click();
+  await page.locator('button[data-level-index="0"]').click();
   await expect(page.locator("#tilt-maze-ui")).toBeVisible();
   await page.getByRole("button", { name: "Myš", exact: true }).click();
   await expect(page.locator("#tilt-maze-mouse-overlay")).toBeVisible();
   await page.locator("#btn-menu").click();
   await expect(page.getByTestId("main-menu")).toBeVisible({ timeout: 10000 });
   await dismissSensorBannerIfPresent(page);
-  await page.locator("#menu-btn-play").click();
+  await page.locator('button[data-level-index="0"]').click();
   await expect(page.locator("#tilt-maze-mouse-overlay")).toBeHidden();
 });
 

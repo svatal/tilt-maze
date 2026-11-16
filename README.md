@@ -58,7 +58,7 @@ Přidejte do URL **`?matterDebug=1`** — zobrazí se kontury Matter těles (mě
 1. Nahrajte `dist/` na HTTPS hosting nebo použijte GitHub Pages po zapnutí workflow (viz níže).
 2. V Chrome na telefonu otevřete nasazenou adresu.
 3. Přihlaste se přes **„Přidat na plochu“** / PWA (volitelné).
-4. Vyberte úroveň a **Hrát vybranou úroveň** — aplikace může vyžádat celoobrazovkový režim a zámek na výšku. Nápověda je v menu (**H** nebo tlačítko).
+4. Klepněte na úroveň a hra začne — aplikace může vyžádat celoobrazovkový režim a zámek na výšku. Nápověda je v menu (**H** nebo tlačítko).
 
 **Brave (Android):** pokud se po startu hry do ~1,5 s neobjeví žádná data ze senzorů, zobrazí se česká nápověda — zkontrolujte oprávnění **Motion sensors** u stránky a vypněte **Shields** pro tento web; Chrome vyžaduje HTTPS. (Některé buildy Brave události de/facto blokují nebo vracejí nuly.)
 

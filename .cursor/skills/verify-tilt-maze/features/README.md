@@ -13,7 +13,7 @@ This directory is the source for user-visible tilt-maze checks. Read it before a
 
 - Playwright project `chromium`.
 - Enter through the menu with `?e2e=1`. Do not add `skipMenu=1` for a menu, tilt, or screenshot proof.
-- Prefer `#tilt-maze-menu`, `#menu-btn-play`, `#btn-next`, and `[data-testid="main-menu"]`.
+- Prefer `#tilt-maze-menu`, `button[data-level-index]`, `#btn-next`, and `[data-testid="main-menu"]`.
 - Screenshot with `fullPage: false` at 1280×800 and at 390×844.
 - Keep files in `/opt/cursor/artifacts/`.
 

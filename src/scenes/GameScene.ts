@@ -14,7 +14,8 @@ import {
 import {
   bakeFloorHeightCanvas,
   composeBoardAndFloorTilts,
-  floorHeightTilt
+  floorHeightTilt,
+  type FloorHeightFieldFeature
 } from "../floorHeight";
 import { levelColliderBlocks, levelPlayHeightFeatures, levelTerrainFeatures } from "../levelFloor";
 import { ballCenterDistance, ballCenterTriggersHoleSink, type HoleDef } from "../holeSlope";
@@ -87,6 +88,7 @@ export class GameScene extends Phaser.Scene {
   /** E2E: jen `e2eAdvanceSimulation` posouvá fyziku (žádný paralelní Matter autoUpdate). */
   private e2eDriveMode = false;
   private lastHudBandPx = 0;
+  private playFloorFeatures: FloorHeightFieldFeature[] = [];
   constructor() {
     super({ key: "GameScene" });
   }
@@ -320,8 +322,7 @@ export class GameScene extends Phaser.Scene {
         this.tilt.monitor.markManualInputOverride(performance.now());
       }
       const t = this.tilt.update(delta, 1);
-      const playFloor = levelPlayHeightFeatures(lvl);
-      const composed = composeBoardAndFloorTilts(t.ax, t.ay, pos.x, pos.y, playFloor);
+      const composed = composeBoardAndFloorTilts(t.ax, t.ay, pos.x, pos.y, this.playFloorFeatures);
       const fx = composed.ax * FORCE_MULT;
       const fy = composed.ay * FORCE_MULT;
       this.matter.body.applyForce(bb, bb.position, { x: fx, y: fy });
@@ -745,7 +746,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnLevel(lvl: LevelDef): void {
-    this.bakeFloorHeightShading(levelPlayHeightFeatures(lvl));
+    this.playFloorFeatures = levelPlayHeightFeatures(lvl);
+    this.bakeFloorHeightShading(this.playFloorFeatures);
 
     for (const w of levelColliderBlocks(lvl)) {
       const body = this.matter.add.rectangle(w.cx, w.cy, w.w, w.h, {
@@ -828,7 +830,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Jednorázový bake mapy výšky → odstín dřeva (pod zdmi a dírami). */
-  private bakeFloorHeightShading(features: ReturnType<typeof levelPlayHeightFeatures>): void {
+  private bakeFloorHeightShading(features: FloorHeightFieldFeature[]): void {
     if (!features.length) return;
     const key = `floor-height-${this.levelIndex}`;
     if (this.floorHeightTexKey && this.textures.exists(this.floorHeightTexKey)) {

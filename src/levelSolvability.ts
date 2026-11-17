@@ -5,6 +5,7 @@
 
 import { BALL_RADIUS } from "./constants";
 import { DESIGN_HEIGHT, DESIGN_WIDTH } from "./constants";
+import { levelColliderBlocks } from "./levelFloor";
 import type { LevelDef } from "./levels";
 
 const MARGIN = 2;
@@ -23,7 +24,8 @@ function pointRectDist(px: number, py: number, cx: number, cy: number, hw: numbe
   return Math.hypot(adx, ady);
 }
 
-function circleWallBlocked(px: number, py: number, radius: number, walls: LevelDef["walls"]): boolean {
+function circleWallBlocked(px: number, py: number, radius: number, lvl: LevelDef): boolean {
+  const walls = levelColliderBlocks(lvl);
   if (px < radius + MARGIN || px > DESIGN_WIDTH - radius - MARGIN || py < radius + MARGIN || py > DESIGN_HEIGHT - radius - MARGIN) {
     return true;
   }
@@ -47,7 +49,7 @@ function circleTrapOverlaps(px: number, py: number, radius: number, lvl: LevelDe
 
 /** Je bod ve „volném“ prostoru (kulička se sem vejde a není v díře)? */
 export function isFreePoint(px: number, py: number, radius: number, lvl: LevelDef): boolean {
-  if (circleWallBlocked(px, py, radius, lvl.walls)) return false;
+  if (circleWallBlocked(px, py, radius, lvl)) return false;
   if (circleTrapOverlaps(px, py, radius, lvl)) return false;
   return true;
 }
@@ -171,7 +173,8 @@ export const ROUTE_TRAP_SURFACE_CLEARANCE_PX = 6;
 /** Minimální vzdálenost mezi protilehlými stěnami v úžině pro průměr 22 + 6 + 6. */
 export const ROUTE_MIN_CORRIDOR_FACE_PX = 34;
 
-function wallSurfaceClearance(px: number, py: number, ballRadius: number, walls: LevelDef["walls"]): number {
+function wallSurfaceClearance(px: number, py: number, ballRadius: number, lvl: LevelDef): number {
+  const walls = levelColliderBlocks(lvl);
   let minD = Number.POSITIVE_INFINITY;
   for (const w of walls) {
     const hw = w.w / 2;
@@ -192,7 +195,8 @@ function trapSurfaceClearance(px: number, py: number, ballRadius: number, lvl: L
 }
 
 /** Odhad šířky vodorovné „úžiny“ (vzdálenost obličí vlevo/vpravo). */
-function horizontalCorridorWidth(px: number, py: number, walls: LevelDef["walls"]): number {
+function horizontalCorridorWidth(px: number, py: number, lvl: LevelDef): number {
+  const walls = levelColliderBlocks(lvl);
   let left = Number.POSITIVE_INFINITY;
   let right = Number.POSITIVE_INFINITY;
   for (const w of walls) {
@@ -289,9 +293,9 @@ export function auditShortestPathClearance(lvl: LevelDef, ballRadius: number = B
   let narrowest = { x: samples[0].x, y: samples[0].y, wall: 0, trap: 0, corridor: 0 };
 
   for (const { x: px, y: py } of samples) {
-    const wall = wallSurfaceClearance(px, py, ballRadius, lvl.walls);
+    const wall = wallSurfaceClearance(px, py, ballRadius, lvl);
     const trap = trapSurfaceClearance(px, py, ballRadius, lvl);
-    const corridor = horizontalCorridorWidth(px, py, lvl.walls);
+    const corridor = horizontalCorridorWidth(px, py, lvl);
     if (wall < minWall || trap < minTrap || corridor < minCorridor) {
       narrowest = { x: px, y: py, wall, trap, corridor };
     }

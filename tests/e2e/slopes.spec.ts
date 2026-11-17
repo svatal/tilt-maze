@@ -8,10 +8,10 @@ import { startGameFromMenu } from "./helpers/playwrightTilt";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "../..");
 
-const SLOPE_LEVEL_INDEX = LEVELS.findIndex((l) => l.slopes.length > 0);
+const SLOPE_LEVEL_INDEX = LEVELS.findIndex((l) => l.floor.some((f) => f.shape !== "block"));
 if (SLOPE_LEVEL_INDEX < 0) throw new Error("LEVELS musí obsahovat úroveň se sklonem");
 const slopeLvl = LEVELS[SLOPE_LEVEL_INDEX];
-const basin = slopeLvl.slopes[0];
+const basin = slopeLvl.floor.find((f) => f.shape !== "block")!;
 
 test.beforeAll(() => {
   if (!fs.existsSync(path.join(root, "dist", "index.html"))) {

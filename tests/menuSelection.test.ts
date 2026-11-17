@@ -16,9 +16,10 @@ describe("úvodní menu — data", () => {
     expect(groups[0].indices).toHaveLength(5);
     expect(groups[1].indices).toHaveLength(5);
     expect(groups[2].indices).toHaveLength(5);
-    expect(groups[0].indices.every((i) => LEVELS[i].traps.length === 0 && LEVELS[i].slopes.length === 0)).toBe(true);
-    expect(groups[1].indices.every((i) => LEVELS[i].traps.length > 0 && LEVELS[i].slopes.length === 0)).toBe(true);
-    expect(groups[2].indices.every((i) => LEVELS[i].slopes.length > 0)).toBe(true);
+    const hasTerrain = (i: number) => LEVELS[i].floor.some((f) => f.shape !== "block");
+    expect(groups[0].indices.every((i) => LEVELS[i].traps.length === 0 && !hasTerrain(i))).toBe(true);
+    expect(groups[1].indices.every((i) => LEVELS[i].traps.length > 0 && !hasTerrain(i))).toBe(true);
+    expect(groups[2].indices.every((i) => hasTerrain(i))).toBe(true);
     expect([...groups[0].indices, ...groups[1].indices, ...groups[2].indices].sort((a, b) => a - b)).toEqual(
       Array.from({ length: LEVELS.length }, (_, i) => i)
     );

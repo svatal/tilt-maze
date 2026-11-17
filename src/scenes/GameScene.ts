@@ -13,17 +13,12 @@ import {
 } from "../sensorBannerSession";
 import {
   bakeFloorHeightCanvas,
-  composeBoardHoleAndFloorTilts,
+  composeBoardAndFloorTilts,
   floorHeightTilt,
-  type FloorHeightFeature
+  type FloorHeightFieldFeature
 } from "../floorHeight";
-import {
-  ballCenterDistance,
-  ballCenterTriggersHoleSink,
-  ballInHoleSlopeAnnulus,
-  holeLocalTilt,
-  type HoleDef
-} from "../holeSlope";
+import { levelColliderBlocks, levelPlayHeightFeatures, levelTerrainFeatures } from "../levelFloor";
+import { ballCenterDistance, ballCenterTriggersHoleSink, type HoleDef } from "../holeSlope";
 import { playAreaFromCanvasBounds, type PlayAreaRect } from "../mouseTiltMapping";
 import { MouseTiltOverlay } from "../mouseTiltOverlay";
 import { attachBuildInfoLabel } from "../ui/attachBuildInfo";
@@ -44,7 +39,6 @@ const MAX_SPEED = 7;
 
 const DEPTH_BOARD_BG = -20;
 const DEPTH_FLOOR_SHADE = -5;
-const DEPTH_WALL = 5;
 const DEPTH_HOLE = 6;
 const DEPTH_BALL = 15;
 
@@ -87,7 +81,6 @@ export class GameScene extends Phaser.Scene {
   private goalSettling = false;
   private trapSinking = false;
   private terminalTween: Phaser.Tweens.Tween | null = null;
-  private goalHole: HoleDef | null = null;
   /** E2E: vzdálenost středu v okamžiku spuštění trigger animace. */
   private e2eLastTriggerDist: number | null = null;
   /** E2E: po placeBall drží kuličku statickou a přeskočí fyziku mezi Playwright kroky. */
@@ -95,6 +88,7 @@ export class GameScene extends Phaser.Scene {
   /** E2E: jen `e2eAdvanceSimulation` posouvá fyziku (žádný paralelní Matter autoUpdate). */
   private e2eDriveMode = false;
   private lastHudBandPx = 0;
+  private playFloorFeatures: FloorHeightFieldFeature[] = [];
   constructor() {
     super({ key: "GameScene" });
   }
@@ -199,16 +193,16 @@ export class GameScene extends Phaser.Scene {
         const tr = LEVELS[this.levelIndex].traps[trapIndex];
         if (!tr || !this.ball?.body) return 0;
         const bb = this.ball.body as MatterJS.BodyType;
-        const h: HoleDef = { cx: tr.x, cy: tr.y, r: tr.r };
-        const t = holeLocalTilt(bb.position.x, bb.position.y, h);
+        const pit = { shape: "pit" as const, cx: tr.x, cy: tr.y, r: tr.r };
+        const t = floorHeightTilt(bb.position.x, bb.position.y, [pit]);
         return Math.hypot(t.ax, t.ay);
       };
       w.__e2eFloorSlopeMag = (slopeIndex = 0) => {
-        const slopes = LEVELS[this.levelIndex].slopes;
-        const s = slopes[slopeIndex];
+        const terrain = levelTerrainFeatures(LEVELS[this.levelIndex]);
+        const s = terrain[slopeIndex];
         if (!s || !this.ball?.body) return 0;
         const bb = this.ball.body as MatterJS.BodyType;
-        const t = floorHeightTilt(bb.position.x, bb.position.y, LEVELS[this.levelIndex].slopes);
+        const t = floorHeightTilt(bb.position.x, bb.position.y, [s]);
         return Math.hypot(t.ax, t.ay);
       };
       w.__e2eRenderDepthOk = () =>
@@ -328,18 +322,7 @@ export class GameScene extends Phaser.Scene {
         this.tilt.monitor.markManualInputOverride(performance.now());
       }
       const t = this.tilt.update(delta, 1);
-      const trapBowls: HoleDef[] = lvl.traps
-        .map((tr) => ({ cx: tr.x, cy: tr.y, r: tr.r }))
-        .filter((h) => ballInHoleSlopeAnnulus(pos.x, pos.y, h));
-      const composed = composeBoardHoleAndFloorTilts(
-        t.ax,
-        t.ay,
-        pos.x,
-        pos.y,
-        this.goalHole,
-        trapBowls,
-        lvl.slopes
-      );
+      const composed = composeBoardAndFloorTilts(t.ax, t.ay, pos.x, pos.y, this.playFloorFeatures);
       const fx = composed.ax * FORCE_MULT;
       const fy = composed.ay * FORCE_MULT;
       this.matter.body.applyForce(bb, bb.position, { x: fx, y: fy });
@@ -738,7 +721,6 @@ export class GameScene extends Phaser.Scene {
       this.ball.destroy();
     }
     this.wallBodies = [];
-    this.goalHole = null;
     this.trapBodies = [];
   }
 
@@ -764,20 +746,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnLevel(lvl: LevelDef): void {
-    const gStroke = 0x2d1f12;
-    const gFill = 0x8b6914;
+    this.playFloorFeatures = levelPlayHeightFeatures(lvl);
+    this.bakeFloorHeightShading(this.playFloorFeatures);
 
-    this.bakeFloorHeightShading(lvl.slopes);
-
-    for (const w of lvl.walls) {
-      const gr = this.add.graphics();
-      gr.setDepth(DEPTH_WALL);
-      gr.fillStyle(gFill, 1);
-      gr.lineStyle(2, gStroke, 1);
-      gr.fillRoundedRect(w.cx - w.w / 2, w.cy - w.h / 2, w.w, w.h, 6);
-      gr.strokeRoundedRect(w.cx - w.w / 2, w.cy - w.h / 2, w.w, w.h, 6);
-      this.decorative.push(gr);
-
+    for (const w of levelColliderBlocks(lvl)) {
       const body = this.matter.add.rectangle(w.cx, w.cy, w.w, w.h, {
         isStatic: true,
         friction: WALL_FRICTION,
@@ -793,7 +765,6 @@ export class GameScene extends Phaser.Scene {
       isSensor: true,
       label: "goal"
     });
-    this.goalHole = { cx: lvl.goal.x, cy: lvl.goal.y, r: lvl.goal.r };
     this.drawHole(lvl.goal.x, lvl.goal.y, lvl.goal.r, 0x0d3d0d);
 
     for (const tr of lvl.traps) {
@@ -859,7 +830,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Jednorázový bake mapy výšky → odstín dřeva (pod zdmi a dírami). */
-  private bakeFloorHeightShading(features: FloorHeightFeature[]): void {
+  private bakeFloorHeightShading(features: FloorHeightFieldFeature[]): void {
     if (!features.length) return;
     const key = `floor-height-${this.levelIndex}`;
     if (this.floorHeightTexKey && this.textures.exists(this.floorHeightTexKey)) {

@@ -13,7 +13,7 @@ export function menuLevelGroups(levels: LevelDef[]): MenuLevelGroup[] {
   const traps: number[] = [];
   const slopes: number[] = [];
   levels.forEach((lvl, i) => {
-    if (lvl.slopes.length > 0) slopes.push(i);
+    if (lvl.floor.some((f) => f.shape !== "block")) slopes.push(i);
     else if (lvl.traps.length > 0) traps.push(i);
     else walls.push(i);
   });
@@ -25,6 +25,6 @@ export function menuLevelGroups(levels: LevelDef[]): MenuLevelGroup[] {
 }
 
 export function levelMenuGroupId(lvl: LevelDef): MenuLevelGroup["id"] {
-  if (lvl.slopes.length > 0) return "slopes";
+  if (lvl.floor.some((f) => f.shape !== "block")) return "slopes";
   return lvl.traps.length > 0 ? "traps" : "walls";
 }

@@ -1,38 +1,42 @@
 /**
  * Definice úrovní v logickém prostoru 360×640 (portrét).
- * Obdélníky zdí: střed + šířka/výška.
+ * Podlaha = bloky (ostré schody) + terénní features; díry cíle/pastí doplní runtime profil propadu.
  */
 
 import {
+  BLOCK_PLATFORM_HEIGHT,
   bowlCircularAmplitude,
   bowlRectAmplitude,
   rampRiseForBand,
-  type FloorHeightFeature
+  type FloorBlockFeature,
+  type FloorTerrainFeature
 } from "./floorHeight";
 import {
   FRAME_BOTTOM,
   FRAME_INNER_LEFT,
   FRAME_INNER_RIGHT,
   FRAME_TOP,
-  PERIMETER_WALLS
+  PERIMETER_BLOCKS
 } from "./levelGeometry";
 
-export type WallDef = { cx: number; cy: number; w: number; h: number };
+export type BlockRect = { cx: number; cy: number; w: number; h: number };
+
+export type FloorBlock = FloorBlockFeature;
+
+export type FloorFeature = FloorBlock | FloorTerrainFeature;
 
 export type LevelDef = {
   id: number;
   name: string;
-  /** Stručná herní idea — co hráč musí zvládnout (hlavně úrovně 11–15). */
   idea?: string;
   start: { x: number; y: number };
   goal: { x: number; y: number; r: number };
   traps: { x: number; y: number; r: number }[];
-  /** Lokální sklon podlahy (bez propadu). */
-  slopes: FloorHeightFeature[];
-  walls: WallDef[];
+  floor: FloorFeature[];
 };
 
-const border = () => [...PERIMETER_WALLS];
+const border = (): FloorBlock[] =>
+  PERIMETER_BLOCKS.map((b) => ({ shape: "block", ...b, height: BLOCK_PLATFORM_HEIGHT }));
 
 const INNER_TOP = 44;
 const INNER_BOTTOM = 608;
@@ -43,28 +47,28 @@ const DOOR = 64;
 const T = 14;
 const XS = 180;
 
-function vWallBottom(cx: number): WallDef {
+function vWallBottom(cx: number): FloorBlock {
   const h = INNER_BOTTOM - INNER_TOP - GAP;
-  return { cx, cy: INNER_BOTTOM - h / 2, w: T, h };
+  return { shape: "block", cx, cy: INNER_BOTTOM - h / 2, w: T, h, height: BLOCK_PLATFORM_HEIGHT };
 }
 
-function vWallTop(cx: number): WallDef {
+function vWallTop(cx: number): FloorBlock {
   const baseH = INNER_BOTTOM - INNER_TOP - GAP;
   const h = baseH + (INNER_TOP - FRAME_TOP);
-  return { cx, cy: FRAME_TOP + h / 2, w: T, h };
+  return { shape: "block", cx, cy: FRAME_TOP + h / 2, w: T, h, height: BLOCK_PLATFORM_HEIGHT };
 }
 
-function slabH(cy: number, x0: number, x1: number): WallDef {
+function slabH(cy: number, x0: number, x1: number): FloorBlock {
   const w = x1 - x0;
-  return { cx: x0 + w / 2, cy, w, h: T };
+  return { shape: "block", cx: x0 + w / 2, cy, w, h: T, height: BLOCK_PLATFORM_HEIGHT };
 }
 
-function slabV(cx: number, y0: number, y1: number): WallDef {
+function slabV(cx: number, y0: number, y1: number): FloorBlock {
   const h = y1 - y0;
-  return { cx, cy: y0 + h / 2, w: T, h };
+  return { shape: "block", cx, cy: y0 + h / 2, w: T, h, height: BLOCK_PLATFORM_HEIGHT };
 }
 
-function rectRing(x0: number, y0: number, x1: number, y1: number, opening: "bl" | "tr"): WallDef[] {
+function rectRing(x0: number, y0: number, x1: number, y1: number, opening: "bl" | "tr"): FloorBlock[] {
   const xr = x1 - T / 2;
   const xl = x0 + T / 2;
   const yt = y0 + T / 2;
@@ -78,20 +82,20 @@ function rectRing(x0: number, y0: number, x1: number, y1: number, opening: "bl" 
     const botW = spanInnerX1 - (xl + GAP);
     const topW = spanInnerX1 - spanInnerX0;
     return [
-      { cx: spanInnerX0 + topW / 2, cy: yt, w: topW, h: T },
-      { cx: xr, cy: (y0 + y1) / 2, w: T, h: hSide },
-      { cx: xl + GAP + botW / 2, cy: yb, w: botW, h: T },
-      { cx: xl, cy: yt + leftH / 2, w: T, h: leftH }
+      { shape: "block", cx: spanInnerX0 + topW / 2, cy: yt, w: topW, h: T, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: xr, cy: (y0 + y1) / 2, w: T, h: hSide, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: xl + GAP + botW / 2, cy: yb, w: botW, h: T, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: xl, cy: yt + leftH / 2, w: T, h: leftH, height: BLOCK_PLATFORM_HEIGHT }
     ];
   }
   const rightH = hSide - GAP;
   const topW = spanInnerX1 - (xl + GAP);
   const botW = spanInnerX1 - spanInnerX0;
   return [
-    { cx: xl + GAP + topW / 2, cy: yt, w: topW, h: T },
-    { cx: xr, cy: yt + GAP + rightH / 2, w: T, h: rightH },
-    { cx: spanInnerX0 + botW / 2, cy: yb, w: botW, h: T },
-    { cx: xl, cy: (y0 + y1) / 2, w: T, h: hSide }
+    { shape: "block", cx: xl + GAP + topW / 2, cy: yt, w: topW, h: T, height: BLOCK_PLATFORM_HEIGHT },
+    { shape: "block", cx: xr, cy: yt + GAP + rightH / 2, w: T, h: rightH, height: BLOCK_PLATFORM_HEIGHT },
+    { shape: "block", cx: spanInnerX0 + botW / 2, cy: yb, w: botW, h: T, height: BLOCK_PLATFORM_HEIGHT },
+    { shape: "block", cx: xl, cy: (y0 + y1) / 2, w: T, h: hSide, height: BLOCK_PLATFORM_HEIGHT }
   ];
 }
 
@@ -103,7 +107,7 @@ const xr0 = XS + T / 2;
 const xr1 = INNER_RIGHT;
 const doorY = (y1 + y2) / 2;
 
-const L5_GRID: WallDef[] = [
+const L5_GRID: FloorBlock[] = [
   slabV(XS, INNER_TOP + T, doorY - DOOR / 2),
   slabV(XS, doorY + DOOR / 2, y2 + T / 2),
   slabV(XS, y2 + T, FRAME_BOTTOM),
@@ -128,8 +132,7 @@ export const LEVELS: LevelDef[] = [
     start: { x: 72, y: 565 },
     goal: { x: 248, y: 118, r: 26 },
     traps: [],
-    slopes: [],
-    walls: border()
+    floor: border()
   },
   {
     id: 2,
@@ -137,8 +140,7 @@ export const LEVELS: LevelDef[] = [
     start: { x: 68, y: 558 },
     goal: { x: 278, y: 108, r: 24 },
     traps: [],
-    slopes: [],
-    walls: [...border(), { cx: 228, cy: 395, w: 220, h: 16 }]
+    floor: [...border(), { shape: "block", cx: 228, cy: 395, w: 220, h: 16, height: BLOCK_PLATFORM_HEIGHT }]
   },
   {
     id: 3,
@@ -146,8 +148,7 @@ export const LEVELS: LevelDef[] = [
     start: { x: 62, y: 578 },
     goal: { x: 298, y: 568, r: 15 },
     traps: [],
-    slopes: [],
-    walls: [...border(), vWallBottom(100), vWallTop(180), vWallBottom(260)]
+    floor: [...border(), vWallBottom(100), vWallTop(180), vWallBottom(260)]
   },
   {
     id: 4,
@@ -155,15 +156,14 @@ export const LEVELS: LevelDef[] = [
     start: { x: 46, y: 120 },
     goal: { x: 180, y: 320, r: 23 },
     traps: [],
-    slopes: [],
-    walls: [
+    floor: [
       ...border(),
       ...rectRing(60, 90, 300, 550, "bl"),
-      { cx: 223, cy: 356, w: T, h: 154 },
-      { cx: 137, cy: 327, w: T, h: 212 },
-      { cx: 153, cy: 433, w: 40, h: T },
-      { cx: 216, cy: 433, w: 58, h: T },
-      { cx: 180, cy: 442, w: T, h: 132 }
+      { shape: "block", cx: 223, cy: 356, w: T, h: 154, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 137, cy: 327, w: T, h: 212, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 153, cy: 433, w: 40, h: T, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 216, cy: 433, w: 58, h: T, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 180, cy: 442, w: T, h: 132, height: BLOCK_PLATFORM_HEIGHT }
     ]
   },
   {
@@ -172,8 +172,7 @@ export const LEVELS: LevelDef[] = [
     start: { x: 72, y: 580 },
     goal: { x: 288, y: 95, r: 16 },
     traps: [],
-    slopes: [],
-    walls: [...border(), ...L5_GRID]
+    floor: [...border(), ...L5_GRID]
   },
   {
     id: 6,
@@ -184,11 +183,10 @@ export const LEVELS: LevelDef[] = [
       { x: 180, y: 380, r: 16 },
       { x: 260, y: 520, r: 15 }
     ],
-    slopes: [],
-    walls: [
+    floor: [
       ...border(),
-      { cx: 90, cy: 450, w: 140, h: 16 },
-      { cx: 265, cy: 280, w: 150, h: 16 }
+      { shape: "block", cx: 90, cy: 450, w: 140, h: 16, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 265, cy: 280, w: 150, h: 16, height: BLOCK_PLATFORM_HEIGHT }
     ]
   },
   {
@@ -201,13 +199,12 @@ export const LEVELS: LevelDef[] = [
       { x: 225, y: 480, r: 16 },
       { x: 180, y: 340, r: 15 }
     ],
-    slopes: [],
-    walls: [
+    floor: [
       ...border(),
-      { cx: 82, cy: 420, w: 108, h: 16 },
-      { cx: 278, cy: 420, w: 108, h: 16 },
-      { cx: 82, cy: 260, w: 108, h: 16 },
-      { cx: 278, cy: 260, w: 108, h: 16 }
+      { shape: "block", cx: 82, cy: 420, w: 108, h: 16, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 278, cy: 420, w: 108, h: 16, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 82, cy: 260, w: 108, h: 16, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 278, cy: 260, w: 108, h: 16, height: BLOCK_PLATFORM_HEIGHT }
     ]
   },
   {
@@ -222,13 +219,12 @@ export const LEVELS: LevelDef[] = [
       { x: 275, y: 360, r: 15 },
       { x: 180, y: 230, r: 15 }
     ],
-    slopes: [],
-    walls: [
+    floor: [
       ...border(),
-      { cx: 82, cy: 530, w: 100, h: 14 },
-      { cx: 278, cy: 530, w: 100, h: 14 },
-      { cx: 82, cy: 195, w: 100, h: 14 },
-      { cx: 278, cy: 195, w: 100, h: 14 }
+      { shape: "block", cx: 82, cy: 530, w: 100, h: 14, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 278, cy: 530, w: 100, h: 14, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 82, cy: 195, w: 100, h: 14, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 278, cy: 195, w: 100, h: 14, height: BLOCK_PLATFORM_HEIGHT }
     ]
   },
   {
@@ -246,21 +242,20 @@ export const LEVELS: LevelDef[] = [
       { x: 235, y: 348, r: 11 },
       { x: 225, y: 268, r: 11 }
     ],
-    slopes: [],
-    walls: [
+    floor: [
       ...border(),
-      { cx: 46, cy: 362, w: 12, h: 492 },
-      { cx: 314, cy: 362, w: 12, h: 492 },
-      { cx: 92, cy: 528, w: 80, h: 14 },
-      { cx: 280, cy: 528, w: 56, h: 14 },
-      { cx: 110, cy: 408, w: 70, h: 14 },
-      { cx: 260, cy: 408, w: 50, h: 14 },
-      { cx: 104, cy: 218, w: 24, h: 14 },
-      { cx: 272, cy: 218, w: 42, h: 14 },
-      { cx: 68, cy: 258, w: 14, h: 68 },
-      { cx: 68, cy: 462, w: 14, h: 117 },
-      { cx: 292, cy: 258, w: 14, h: 68 },
-      { cx: 292, cy: 462, w: 14, h: 117 }
+      { shape: "block", cx: 46, cy: 362, w: 12, h: 492, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 314, cy: 362, w: 12, h: 492, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 92, cy: 528, w: 80, h: 14, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 280, cy: 528, w: 56, h: 14, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 110, cy: 408, w: 70, h: 14, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 260, cy: 408, w: 50, h: 14, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 104, cy: 218, w: 24, h: 14, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 272, cy: 218, w: 42, h: 14, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 68, cy: 258, w: 14, h: 68, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 68, cy: 462, w: 14, h: 117, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 292, cy: 258, w: 14, h: 68, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 292, cy: 462, w: 14, h: 117, height: BLOCK_PLATFORM_HEIGHT }
     ]
   },
   {
@@ -289,8 +284,7 @@ export const LEVELS: LevelDef[] = [
       { x: 145, y: 165, r: 15 },
       { x: 215, y: 165, r: 15 }
     ],
-    slopes: [],
-    walls: border()
+    floor: border()
   },
   {
     id: 11,
@@ -300,8 +294,11 @@ export const LEVELS: LevelDef[] = [
     start: { x: 62, y: 570 },
     goal: { x: 292, y: 108, r: 22 },
     traps: [],
-    slopes: [{ shape: "bowl", cx: 178, cy: 390, r: 76, amplitude: -bowlCircularAmplitude(76) }],
-    walls: [...border(), { cx: 178, cy: 292, w: 196, h: 14 }]
+    floor: [
+      ...border(),
+      { shape: "block", cx: 178, cy: 292, w: 196, h: 14, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "bowl", cx: 178, cy: 390, r: 76, amplitude: -bowlCircularAmplitude(76) }
+    ]
   },
   {
     id: 12,
@@ -310,7 +307,8 @@ export const LEVELS: LevelDef[] = [
     start: { x: 72, y: 575 },
     goal: { x: 285, y: 105, r: 20 },
     traps: [],
-    slopes: [
+    floor: [
+      ...border(),
       {
         shape: "ramp",
         axis: "horizontal",
@@ -320,8 +318,7 @@ export const LEVELS: LevelDef[] = [
         hHigh: rampRiseForBand(56),
         lowSide: "bottom"
       }
-    ],
-    walls: [...border()]
+    ]
   },
   {
     id: 13,
@@ -334,7 +331,8 @@ export const LEVELS: LevelDef[] = [
       { x: 58, y: 418, r: 14 },
       { x: 302, y: 418, r: 14 }
     ],
-    slopes: [
+    floor: [
+      ...border(),
       {
         shape: "bowlRect",
         cx: 180,
@@ -343,8 +341,7 @@ export const LEVELS: LevelDef[] = [
         h: 96,
         amplitude: bowlRectAmplitude(252, 96)
       }
-    ],
-    walls: [...border()]
+    ]
   },
   {
     id: 14,
@@ -357,7 +354,8 @@ export const LEVELS: LevelDef[] = [
       { x: 140, y: 398, r: 15 },
       { x: 220, y: 398, r: 15 }
     ],
-    slopes: [
+    floor: [
+      ...border(),
       {
         shape: "ramp",
         axis: "vertical",
@@ -366,16 +364,13 @@ export const LEVELS: LevelDef[] = [
         hLow: 0,
         hHigh: rampRiseForBand(48),
         lowSide: "left"
-      }
-    ],
-    walls: [
-      ...border(),
-      { cx: 111, cy: 398, w: 14, h: 352 },
-      { cx: 249, cy: 398, w: 14, h: 352 },
-      { cx: 68, cy: 324, w: 72, h: 14 },
-      { cx: 68, cy: 488, w: 72, h: 14 },
-      { cx: 292, cy: 324, w: 72, h: 14 },
-      { cx: 292, cy: 488, w: 72, h: 14 }
+      },
+      { shape: "block", cx: 111, cy: 398, w: 14, h: 352, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 249, cy: 398, w: 14, h: 352, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 68, cy: 324, w: 72, h: 14, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 68, cy: 488, w: 72, h: 14, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 292, cy: 324, w: 72, h: 14, height: BLOCK_PLATFORM_HEIGHT },
+      { shape: "block", cx: 292, cy: 488, w: 72, h: 14, height: BLOCK_PLATFORM_HEIGHT }
     ]
   },
   {
@@ -386,7 +381,6 @@ export const LEVELS: LevelDef[] = [
     start: { x: 180, y: 578 },
     goal: { x: 180, y: 318, r: 22 },
     traps: [],
-    slopes: [{ shape: "mesa", splitTop: 140, splitBottom: 512, band: 52 }],
-    walls: [...border()]
+    floor: [...border(), { shape: "mesa", splitTop: 140, splitBottom: 512, band: 52 }]
   }
 ];

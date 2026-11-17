@@ -1,17 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
+  HOLE_TRIGGER_FRAC,
+  holeLocalTilt,
+  holeTriggerRadius
+} from "../src/holeSlope";
+import {
   MAX_FLOOR_HEIGHT_GRAD,
   bowlCircularAmplitude,
-  composeBoardHoleAndFloorTilts,
+  composeBoardAndFloorTilts,
   featureHeightAt,
   floorHeightAt,
   floorHeightGradient,
   floorHeightTilt,
   maxFloorHeightGradientMagnitude,
+  pitFeaturesFromHoles,
   rampRiseForBand,
   type FloorBowlCircle,
+  type FloorPit,
   type FloorRamp
 } from "../src/floorHeight";
+import { levelTerrainFeatures } from "../src/levelFloor";
 import { LEVELS } from "../src/levels";
 
 const basin: FloorBowlCircle = {
@@ -82,7 +90,7 @@ describe("floorHeight", () => {
   });
 
   it("mesa: nížiny nahoře i dole, plochý střed", () => {
-    const m = LEVELS[14].slopes[0];
+    const m = levelTerrainFeatures(LEVELS[14]).find((f) => f.shape === "mesa")!;
     expect(m.shape).toBe("mesa");
     expect(featureHeightAt(180, 50, m)).toBeLessThan(0.02);
     expect(featureHeightAt(180, 590, m)).toBeLessThan(0.02);
@@ -95,14 +103,37 @@ describe("floorHeight", () => {
   it("úrovně 11–15: |∇h| nikde nepřekročí MAX_FLOOR_HEIGHT_GRAD", () => {
     const eps = 1.0005;
     for (const lvl of LEVELS.filter((l) => l.id >= 11)) {
-      const maxG = maxFloorHeightGradientMagnitude(lvl.slopes);
+      const maxG = maxFloorHeightGradientMagnitude(levelTerrainFeatures(lvl));
       expect(maxG, `úroveň ${lvl.id}`).toBeLessThanOrEqual(MAX_FLOOR_HEIGHT_GRAD * eps);
     }
   });
 
-  it("composeBoardHoleAndFloorTilts přičítá tilt z pole", () => {
-    const c = composeBoardHoleAndFloorTilts(0.2, 0, 228, 320, null, [], [basin]);
+  it("composeBoardAndFloorTilts přičítá tilt z pole", () => {
+    const c = composeBoardAndFloorTilts(0.2, 0, 228, 320, [basin]);
     const local = floorHeightTilt(228, 320, [basin]);
     expect(c.ax).toBeCloseTo(0.2 + local.ax, 4);
+  });
+});
+
+describe("pit height field vs holeSlope", () => {
+  const goal = { x: 100, y: 100, r: 20 };
+  const hole = { cx: goal.x, cy: goal.y, r: goal.r };
+  const pit: FloorPit[] = pitFeaturesFromHoles(goal, []);
+
+  const inner = holeTriggerRadius(goal.r);
+  const samples = [inner + 3, goal.r * 0.5, goal.r - 1, goal.r - 0.2];
+
+  it.each(samples)("stejný tilt ve směru ke středu pro d≈%s", (d) => {
+    const x = goal.x + d;
+    const y = goal.y;
+    const oldT = holeLocalTilt(x, y, hole);
+    const newT = floorHeightTilt(x, y, pit);
+    expect(newT.ax).toBeCloseTo(oldT.ax, 2);
+    expect(newT.ay).toBeCloseTo(oldT.ay, 2);
+  });
+
+  it("trigger zóna: ploché dno ⇒ nulový tilt", () => {
+    const x = goal.x + goal.r * HOLE_TRIGGER_FRAC * 0.5;
+    expect(floorHeightTilt(x, goal.y, pit).ax).toBe(0);
   });
 });

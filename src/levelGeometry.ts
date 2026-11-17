@@ -9,7 +9,9 @@ import {
   maxFreeVerticalRun,
   pathToGoalLengthRatio
 } from "./levelSolvability";
-import type { LevelDef, WallDef } from "./levels";
+import { levelColliderBlocks, levelFloorBlocks, levelTerrainFeatures } from "./levelFloor";
+import type { BlockRect, LevelDef } from "./levels";
+import type { FloorBlockFeature } from "./floorHeight";
 
 /** Vnitřní hrany obvodu (souřadnice odpovídají středům segmentů). */
 export const FRAME_TOP = 32;
@@ -24,7 +26,7 @@ export const NARROW_FACE_GAP_MAX = 2 * BALL_RADIUS + 4;
 /** Vodorovné úseky do rohů (svislé segmenty končí na y=32 / y=608). */
 const PERIMETER_H_SPAN = 344;
 
-export const PERIMETER_WALLS: WallDef[] = [
+export const PERIMETER_BLOCKS: BlockRect[] = [
   { cx: 180, cy: 20, w: PERIMETER_H_SPAN, h: 24 },
   { cx: 180, cy: 620, w: PERIMETER_H_SPAN, h: 24 },
   { cx: 20, cy: 320, w: 24, h: FRAME_H_SPAN },
@@ -35,27 +37,27 @@ const WALL_EPS = 0.5;
 /** Min. mezera mezi obrysem pasti a obdélníkem zdi (logická kolize — ne vizuální halo). */
 const TRAP_WALL_CLEARANCE = 1;
 
-export function wallKey(w: WallDef): string {
-  return `${w.cx}|${w.cy}|${w.w}|${w.h}`;
+export function blockKey(b: BlockRect): string {
+  return `${b.cx}|${b.cy}|${b.w}|${b.h}`;
 }
 
-export function isPerimeterWall(w: WallDef): boolean {
-  return PERIMETER_WALLS.some(
+export function isPerimeterBlock(b: BlockRect): boolean {
+  return PERIMETER_BLOCKS.some(
     (p) =>
-      Math.abs(p.cx - w.cx) < WALL_EPS &&
-      Math.abs(p.cy - w.cy) < WALL_EPS &&
-      Math.abs(p.w - w.w) < WALL_EPS &&
-      Math.abs(p.h - w.h) < WALL_EPS
+      Math.abs(p.cx - b.cx) < WALL_EPS &&
+      Math.abs(p.cy - b.cy) < WALL_EPS &&
+      Math.abs(p.w - b.w) < WALL_EPS &&
+      Math.abs(p.h - b.h) < WALL_EPS
   );
 }
 
-export function interiorWalls(lvl: LevelDef): WallDef[] {
-  return lvl.walls.filter((w) => !isPerimeterWall(w));
+export function interiorBlocks(lvl: LevelDef): FloorBlockFeature[] {
+  return levelFloorBlocks(lvl).filter((w) => !isPerimeterBlock(w));
 }
 
-const TYPICAL_WALL_THICKNESS = 14;
+const TYPICAL_BLOCK_THICKNESS = 14;
 
-function wallAabbOverlapDepth(a: WallDef, b: WallDef): { ox: number; oy: number } | null {
+function blockAabbOverlapDepth(a: BlockRect, b: BlockRect): { ox: number; oy: number } | null {
   const hwA = a.w / 2;
   const hhA = a.h / 2;
   const hwB = b.w / 2;
@@ -67,13 +69,13 @@ function wallAabbOverlapDepth(a: WallDef, b: WallDef): { ox: number; oy: number 
 }
 
 /** Vnitřní zdi nesmí do sebe přesahovat více než jako čisté T-spoje (≈ tloušťka segmentu). */
-export function interiorWallOverlapViolations(lvl: LevelDef): string[] {
-  const walls = interiorWalls(lvl);
+export function interiorBlockOverlapViolations(lvl: LevelDef): string[] {
+  const walls = interiorBlocks(lvl);
   const viol: string[] = [];
-  const T = TYPICAL_WALL_THICKNESS;
+  const T = TYPICAL_BLOCK_THICKNESS;
   for (let i = 0; i < walls.length; i++) {
     for (let j = i + 1; j < walls.length; j++) {
-      const o = wallAabbOverlapDepth(walls[i], walls[j]);
+      const o = blockAabbOverlapDepth(walls[i], walls[j]);
       if (!o) continue;
       const m = Math.max(o.ox, o.oy);
       const n = Math.min(o.ox, o.oy);
@@ -87,7 +89,7 @@ export function interiorWallOverlapViolations(lvl: LevelDef): string[] {
   return viol;
 }
 
-function wallBox(w: WallDef) {
+function blockBox(w: BlockRect) {
   return { l: w.cx - w.w / 2, r: w.cx + w.w / 2, t: w.cy - w.h / 2, b: w.cy + w.h / 2 };
 }
 
@@ -95,11 +97,15 @@ function axisOverlap(a: number, b: number, c: number, d: number): number {
   return Math.min(b, d) - Math.max(a, c);
 }
 
-function gapChannelBlocked(walls: WallDef[], rect: { l: number; r: number; t: number; b: number }, skip: WallDef[]): boolean {
+function gapChannelBlocked(
+  walls: BlockRect[],
+  rect: { l: number; r: number; t: number; b: number },
+  skip: BlockRect[]
+): boolean {
   if (rect.r - rect.l < 0.5 || rect.b - rect.t < 0.5) return true;
   for (const w of walls) {
     if (skip.includes(w)) continue;
-    const b = wallBox(w);
+    const b = blockBox(w);
     if (axisOverlap(b.l, b.r, rect.l, rect.r) > 0 && axisOverlap(b.t, b.b, rect.t, rect.b) > 0) {
       return true;
     }
@@ -107,11 +113,11 @@ function gapChannelBlocked(walls: WallDef[], rect: { l: number; r: number; t: nu
   return false;
 }
 
-function isHorizontalSlab(w: WallDef): boolean {
+function isHorizontalSlab(w: BlockRect): boolean {
   return w.w > w.h + WALL_EPS;
 }
 
-function isVerticalSlab(w: WallDef): boolean {
+function isVerticalSlab(w: BlockRect): boolean {
   return w.h >= w.w - WALL_EPS;
 }
 
@@ -119,21 +125,21 @@ function isVerticalSlab(w: WallDef): boolean {
  * Štěrbiny mezi tvářemi zdí (vnitřní i obvod), kde by se kulička (⌀ 2r) nevešla,
  * ale štěrbina je úzká — logická chyba, ne záměrná chodba (ty jsou ≥ DOOR/GAP).
  */
-export function narrowWallFaceGapViolations(lvl: LevelDef): string[] {
-  const walls = lvl.walls;
+export function narrowBlockFaceGapViolations(lvl: LevelDef): string[] {
+  const walls = levelColliderBlocks(lvl);
   const viol: string[] = [];
   const maxG = NARROW_FACE_GAP_MAX;
   const hz = walls.filter(isHorizontalSlab);
   const vz = walls.filter(isVerticalSlab);
 
-  const push = (msg: string, rect: { l: number; r: number; t: number; b: number }, skip: WallDef[]) => {
+  const push = (msg: string, rect: { l: number; r: number; t: number; b: number }, skip: BlockRect[]) => {
     if (!gapChannelBlocked(walls, rect, skip)) viol.push(msg);
   };
 
   for (const v of vz) {
-    const vb = wallBox(v);
+    const vb = blockBox(v);
     for (const h of hz) {
-      const hb = wallBox(h);
+      const hb = blockBox(h);
       const xOv = axisOverlap(vb.l, vb.r, hb.l, hb.r);
       if (xOv < 6) continue;
       const gBelow = hb.t - vb.b;
@@ -158,8 +164,8 @@ export function narrowWallFaceGapViolations(lvl: LevelDef): string[] {
   for (let i = 0; i < hz.length; i++) {
     for (let j = i + 1; j < hz.length; j++) {
       if (Math.abs(hz[i].cy - hz[j].cy) > 3) continue;
-      const a = wallBox(hz[i]);
-      const b = wallBox(hz[j]);
+      const a = blockBox(hz[i]);
+      const b = blockBox(hz[j]);
       let g = 0;
       let rect: { l: number; r: number; t: number; b: number };
       if (b.l > a.r) {
@@ -180,9 +186,9 @@ export function narrowWallFaceGapViolations(lvl: LevelDef): string[] {
   }
 
   for (const h of hz) {
-    const hb = wallBox(h);
+    const hb = blockBox(h);
     for (const v of vz) {
-      const vb = wallBox(v);
+      const vb = blockBox(v);
       const yOv = axisOverlap(hb.t, hb.b, vb.t, vb.b);
       if (yOv < 6) continue;
       const gR = vb.l - hb.r;
@@ -208,7 +214,7 @@ export function narrowWallFaceGapViolations(lvl: LevelDef): string[] {
 }
 
 /** Volný bod s rezervou pro kuličku — stejná logika jako levelSolvability (bez importu cyklu). */
-export function pointInWall(px: number, py: number, radius: number, walls: WallDef[]): boolean {
+export function pointInBlock(px: number, py: number, radius: number, walls: BlockRect[]): boolean {
   const MARGIN = 2;
   const rBall = radius + MARGIN;
   if (px < rBall || px > DESIGN_WIDTH - rBall || py < rBall || py > DESIGN_HEIGHT - rBall) {
@@ -227,9 +233,9 @@ export function pointInWall(px: number, py: number, radius: number, walls: WallD
 }
 
 /** Past (kruh) protíná obdélník zdi, pokud vzdálenost středů < r + tolerance. */
-export function trapOverlapsWall(
+export function trapOverlapsBlock(
   trap: { x: number; y: number; r: number },
-  wall: WallDef,
+  wall: BlockRect,
   clearance: number = TRAP_WALL_CLEARANCE
 ): boolean {
   const hw = wall.w / 2;
@@ -241,10 +247,10 @@ export function trapOverlapsWall(
   return Math.hypot(adx, ady) < trap.r + clearance;
 }
 
-export function trapOverlapsAnyWall(lvl: LevelDef, clearance: number = TRAP_WALL_CLEARANCE): boolean {
+export function trapOverlapsAnyBlock(lvl: LevelDef, clearance: number = TRAP_WALL_CLEARANCE): boolean {
   for (const t of lvl.traps) {
-    for (const w of lvl.walls) {
-      if (trapOverlapsWall(t, w, clearance)) return true;
+    for (const w of levelColliderBlocks(lvl)) {
+      if (trapOverlapsBlock(t, w, clearance)) return true;
     }
   }
   return false;
@@ -259,9 +265,10 @@ export function pointInTrap(px: number, py: number, radius: number, lvl: LevelDe
 }
 
 export function isSpawnAndGoalClear(lvl: LevelDef, ballRadius: number = BALL_RADIUS): boolean {
-  if (pointInWall(lvl.start.x, lvl.start.y, ballRadius, lvl.walls)) return false;
+  const blocks = levelColliderBlocks(lvl);
+  if (pointInBlock(lvl.start.x, lvl.start.y, ballRadius, blocks)) return false;
   if (pointInTrap(lvl.start.x, lvl.start.y, ballRadius, lvl)) return false;
-  if (pointInWall(lvl.goal.x, lvl.goal.y, lvl.goal.r + ballRadius, lvl.walls)) return false;
+  if (pointInBlock(lvl.goal.x, lvl.goal.y, lvl.goal.r + ballRadius, blocks)) return false;
   if (pointInTrap(lvl.goal.x, lvl.goal.y, lvl.goal.r + ballRadius, lvl)) return false;
   for (const t of lvl.traps) {
     if (Math.hypot(lvl.goal.x - t.x, lvl.goal.y - t.y) < lvl.goal.r + t.r + 4) return false;
@@ -273,7 +280,7 @@ export function isSpawnAndGoalClear(lvl: LevelDef, ballRadius: number = BALL_RAD
 export function validateLevel1Shape(lvl: LevelDef): string | null {
   if (lvl.id !== 1) return null;
   if (lvl.traps.length > 0) return "úroveň 1 nesmí mít pasti";
-  if (interiorWalls(lvl).length > 0) return "úroveň 1 smí mít jen obvodové zdi";
+  if (interiorBlocks(lvl).length > 0) return "úroveň 1 smí mít jen obvodové bloky";
   const midY = DESIGN_HEIGHT / 2;
   if (!(lvl.start.y > midY && lvl.goal.y < midY)) {
     return "cíl musí být v horní polovině a start v dolní (míření přes desku)";
@@ -303,7 +310,7 @@ export function validateWallsOnlyBand(lvl: LevelDef): string | null {
 /** Úroveň 10: jen pasti uvnitř, žádné vnitřní zdi. */
 export function validateLevel10Slalom(lvl: LevelDef): string | null {
   if (lvl.id !== 10) return null;
-  if (interiorWalls(lvl).length > 0) return "úroveň 10 nesmí mít vnitřní zdi";
+  if (interiorBlocks(lvl).length > 0) return "úroveň 10 nesmí mít vnitřní bloky";
   if (lvl.traps.length < 4) return "úroveň 10 potřebuje více pastí pro slalom";
   return null;
 }
@@ -311,7 +318,7 @@ export function validateLevel10Slalom(lvl: LevelDef): string | null {
 /** Úrovně 11–15: alespoň jeden lokální sklon. */
 export function validateSlopeLevels(lvl: LevelDef): string | null {
   if (lvl.id < 11 || lvl.id > 15) return null;
-  if (lvl.slopes.length < 1) return `úroveň ${lvl.id} potřebuje alespoň jeden sklon region`;
+  if (levelTerrainFeatures(lvl).length < 1) return `úroveň ${lvl.id} potřebuje alespoň jeden sklon region`;
   return null;
 }
 
@@ -332,8 +339,8 @@ export function validateLevelSet(levels: LevelDef[]): void {
     if (!isSpawnAndGoalClear(lvl)) {
       throw new Error(`Úroveň ${lvl.id}: start nebo cíl koliduje se zdí/pastí.`);
     }
-    if (trapOverlapsAnyWall(lvl)) {
-      throw new Error(`Úroveň ${lvl.id}: past protíná zeď.`);
+    if (trapOverlapsAnyBlock(lvl)) {
+      throw new Error(`Úroveň ${lvl.id}: past protíná blok.`);
     }
     if (lvl.id >= 2 && lvl.id <= 10 && hasClearStraightCorridor(lvl)) {
       throw new Error(`Úroveň ${lvl.id}: přímá start–cíl trajektorie není blokovaná.`);

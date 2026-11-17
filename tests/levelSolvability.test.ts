@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  interiorWallOverlapViolations,
-  narrowWallFaceGapViolations,
-  interiorWalls,
+  interiorBlockOverlapViolations,
+  narrowBlockFaceGapViolations,
+  interiorBlocks,
   isSpawnAndGoalClear,
-  trapOverlapsAnyWall,
+  trapOverlapsAnyBlock,
   validateLevel1Shape,
   validateLevel10Slalom,
   validateLevelSet,
@@ -36,33 +36,33 @@ describe("levelSolvability", () => {
       expect(validateLevel1Shape(lvl)).toBeNull();
       expect(validateWallsOnlyBand(lvl)).toBeNull();
       expect(validateLevel10Slalom(lvl)).toBeNull();
-      expect(interiorWallOverlapViolations(lvl)).toEqual([]);
-      expect(narrowWallFaceGapViolations(lvl)).toEqual([]);
+      expect(interiorBlockOverlapViolations(lvl)).toEqual([]);
+      expect(narrowBlockFaceGapViolations(lvl)).toEqual([]);
     }
   });
 
   it("úroveň 1: jen obvod, bez pastí", () => {
     const l = LEVELS[0];
     expect(l.traps).toHaveLength(0);
-    expect(interiorWalls(l)).toHaveLength(0);
+    expect(interiorBlocks(l)).toHaveLength(0);
   });
 
   it("úrovně 2–5: bez pastí, s vnitřními zdmi", () => {
     for (const lvl of LEVELS.filter((x) => x.id >= 2 && x.id <= 5)) {
       expect(lvl.traps).toHaveLength(0);
-      expect(interiorWalls(lvl).length).toBeGreaterThan(0);
+      expect(interiorBlocks(lvl).length).toBeGreaterThan(0);
     }
   });
 
   it("úroveň 10: slalom jen z pastí", () => {
     const l = LEVELS[9];
-    expect(interiorWalls(l)).toHaveLength(0);
+    expect(interiorBlocks(l)).toHaveLength(0);
     expect(l.traps.length).toBeGreaterThanOrEqual(4);
   });
 
   it("žádná past neprotíná zeď", () => {
     for (const lvl of LEVELS) {
-      expect(trapOverlapsAnyWall(lvl), `úroveň ${lvl.id}`).toBe(false);
+      expect(trapOverlapsAnyBlock(lvl), `úroveň ${lvl.id}`).toBe(false);
     }
   });
 
@@ -89,7 +89,7 @@ describe("levelSolvability", () => {
   it("úrovně 11–15: sklonové finále s BFS cestou", () => {
     for (const lvl of LEVELS.filter((l) => l.id >= 11)) {
       expect(validateSlopeLevels(lvl)).toBeNull();
-      expect(lvl.slopes.length).toBeGreaterThan(0);
+      expect(lvl.floor.some((f) => f.shape !== "block")).toBe(true);
       expect(isLevelSolvable(lvl), `úroveň ${lvl.id}`).toBe(true);
     }
   });

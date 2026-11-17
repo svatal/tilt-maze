@@ -1,9 +1,13 @@
 /**
- * Výškové pole podlahy h(x,y): součet primitiv (miska, rampa).
+ * Výškové pole podlahy h(x,y): součet primitiv (blok, miska, rampa, propad díry).
  * Stín = mapování výšky na odstín dřeva; tilt = směr −∇h (stejná jednotka jako deska).
  */
 
-import { composeBoardAndHoleTilts, TILT_SIN_SCALE, type HoleDef } from "./holeSlope";
+import {
+  HOLE_RIM_ANGLE_DEG,
+  HOLE_TRIGGER_FRAC,
+  TILT_SIN_SCALE
+} from "./holeSlope";
 import { DESIGN_HEIGHT, DESIGN_WIDTH } from "./constants";
 import {
   FRAME_BOTTOM,
@@ -58,7 +62,28 @@ export type FloorMesa = {
   rise?: number;
 };
 
-export type FloorHeightFeature = FloorBowlCircle | FloorBowlRect | FloorRamp | FloorMesa;
+export type FloorTerrainFeature = FloorBowlCircle | FloorBowlRect | FloorRamp | FloorMesa;
+
+/** Runtime: profil propadu kolem cíle / pasti (není v LevelDef.floor). */
+export type FloorPit = { shape: "pit"; cx: number; cy: number; r: number };
+
+export type FloorBlockFeature = {
+  shape: "block";
+  cx: number;
+  cy: number;
+  w: number;
+  h: number;
+  /** Výška nástupnice pro stín; kolize = ostrý svislý schod. */
+  height: number;
+};
+
+export type FloorHeightFieldFeature = FloorTerrainFeature | FloorBlockFeature | FloorPit;
+
+/** @deprecated alias — používej FloorTerrainFeature ve fixture úrovní. */
+export type FloorHeightFeature = FloorTerrainFeature;
+
+/** Vizuální výška bloku v poli h (kolize nezávislá přes Matter). */
+export const BLOCK_PLATFORM_HEIGHT = 1.2;
 
 const GRAD_EPS = 1.25;
 /** Převod |∇h| na ekvivalent sklonu (~dřívější misky). */
@@ -69,6 +94,11 @@ const GRAD_TO_TILT = 48;
  * Dřívější data sahala cca k 0,034 (úroveň 13); nové levely drží ≤ této hodnoty.
  */
 export const MAX_FLOOR_HEIGHT_GRAD = 0.011;
+
+/** |∇h| pod touto mezí je „zdvyhatelný“ sklon; vyšší schod ⇒ kolider. */
+export const CLIMBABLE_HEIGHT_GRADIENT = MAX_FLOOR_HEIGHT_GRAD;
+
+const RIM_RAD = (HOLE_RIM_ANGLE_DEG * Math.PI) / 180;
 
 /** Kladná/záporná amplituda kruhové misky: na okraji |∇h| ≤ MAX. */
 export function bowlCircularAmplitude(r: number): number {
@@ -86,8 +116,47 @@ export function rampRiseForBand(band: number): number {
 }
 
 /** Maximální |∇h| uvnitř hracího rámu (pro validaci levelů). */
+function pitDhDd(d: number, visibleR: number): number {
+  return Math.tan(RIM_RAD * (d / visibleR)) / GRAD_TO_TILT;
+}
+
+/** Relativní výška propadu; h=0 na viditelném okraji, ploché dno uvnitř trigger zóny. */
+export function pitHeightAtDistance(d: number, visibleR: number): number {
+  const inner = visibleR * HOLE_TRIGGER_FRAC;
+  if (d > visibleR) return 0;
+  const lo = d <= inner ? inner : d;
+  const steps = 96;
+  const step = (visibleR - lo) / steps;
+  if (step <= 0) return pitHeightAtDistance(inner + 0.001, visibleR);
+  let h = 0;
+  for (let i = 0; i < steps; i++) {
+    const u = lo + (i + 0.5) * step;
+    h -= pitDhDd(u, visibleR) * step;
+  }
+  return h;
+}
+
+export function pitFeaturesFromHoles(
+  goal: { x: number; y: number; r: number },
+  traps: { x: number; y: number; r: number }[]
+): FloorPit[] {
+  const pits: FloorPit[] = [{ shape: "pit", cx: goal.x, cy: goal.y, r: goal.r }];
+  for (const t of traps) pits.push({ shape: "pit", cx: t.x, cy: t.y, r: t.r });
+  return pits;
+}
+
+/** Matter kolider z bloků se svislým schodem vyšším než CLIMBABLE_HEIGHT_GRADIENT. */
+export function colliderBlocksFromFloor(
+  blocks: ReadonlyArray<Pick<FloorBlockFeature, "height" | "cx" | "cy" | "w" | "h">>
+): Pick<FloorBlockFeature, "cx" | "cy" | "w" | "h">[] {
+  const minRise = CLIMBABLE_HEIGHT_GRADIENT * TYPICAL_BLOCK_THIN;
+  return blocks.filter((b) => b.height > minRise).map(({ cx, cy, w, h }) => ({ cx, cy, w, h }));
+}
+
+const TYPICAL_BLOCK_THIN = 14;
+
 export function maxFloorHeightGradientMagnitude(
-  features: FloorHeightFeature[],
+  features: FloorTerrainFeature[],
   step = 4
 ): number {
   let maxG = 0;
@@ -161,7 +230,17 @@ function mesaHeightAt(y: number, f: FloorMesa): number {
   return Math.min(rampBandHeight(y, fromTop), rampBandHeight(y, fromBottom));
 }
 
-export function featureHeightAt(x: number, y: number, f: FloorHeightFeature): number {
+export function featureHeightAt(x: number, y: number, f: FloorHeightFieldFeature): number {
+  if (f.shape === "block") {
+    const hw = f.w / 2;
+    const hh = f.h / 2;
+    if (Math.abs(x - f.cx) <= hw && Math.abs(y - f.cy) <= hh) return f.height;
+    return 0;
+  }
+  if (f.shape === "pit") {
+    const d = Math.hypot(x - f.cx, y - f.cy);
+    return pitHeightAtDistance(d, f.r);
+  }
   if (f.shape === "bowl") {
     const d = Math.hypot(x - f.cx, y - f.cy);
     if (d >= f.r) return 0;
@@ -181,7 +260,7 @@ export function featureHeightAt(x: number, y: number, f: FloorHeightFeature): nu
   return rampBandHeight(coord, f);
 }
 
-export function floorHeightAt(x: number, y: number, features: FloorHeightFeature[]): number {
+export function floorHeightAt(x: number, y: number, features: FloorHeightFieldFeature[]): number {
   let h = 0;
   for (const f of features) h += featureHeightAt(x, y, f);
   return h;
@@ -190,7 +269,7 @@ export function floorHeightAt(x: number, y: number, features: FloorHeightFeature
 export function floorHeightGradient(
   x: number,
   y: number,
-  features: FloorHeightFeature[],
+  features: FloorHeightFieldFeature[],
   eps = GRAD_EPS
 ): { dx: number; dy: number } {
   const hxp = floorHeightAt(x + eps, y, features);
@@ -210,39 +289,68 @@ function gradientToTiltMagnitude(gx: number, gy: number): number {
   return TILT_SIN_SCALE * Math.sin(angleRad);
 }
 
-/** Lokální tilt z výškového pole (−∇h). */
+function terrainFeatureTilt(ballX: number, ballY: number, f: FloorTerrainFeature | FloorBlockFeature): {
+  ax: number;
+  ay: number;
+} {
+  if (f.shape === "block") return { ax: 0, ay: 0 };
+  const g = floorHeightGradient(ballX, ballY, [f]);
+  const mag = gradientToTiltMagnitude(g.dx, g.dy);
+  if (mag <= 0) return { ax: 0, ay: 0 };
+  const len = Math.hypot(g.dx, g.dy) || 1;
+  return { ax: (-g.dx / len) * mag, ay: (-g.dy / len) * mag };
+}
+
+/** Propad díry: analytický radiální profil (ekvivalent holeSlope annulus). */
+function pitFeatureTilt(ballX: number, ballY: number, f: FloorPit): { ax: number; ay: number } {
+  const dx = ballX - f.cx;
+  const dy = ballY - f.cy;
+  const d = Math.hypot(dx, dy);
+  const inner = f.r * HOLE_TRIGGER_FRAC;
+  if (d > f.r || d <= inner) return { ax: 0, ay: 0 };
+  const gMag = pitDhDd(d, f.r);
+  const gx = (gMag * dx) / d;
+  const gy = (gMag * dy) / d;
+  const mag = gradientToTiltMagnitude(gx, gy);
+  const len = Math.hypot(gx, gy) || 1;
+  return { ax: (-gx / len) * mag, ay: (-gy / len) * mag };
+}
+
+function featureTiltAt(ballX: number, ballY: number, f: FloorHeightFieldFeature): { ax: number; ay: number } {
+  if (f.shape === "pit") return pitFeatureTilt(ballX, ballY, f);
+  return terrainFeatureTilt(ballX, ballY, f);
+}
+
+/** Lokální tilt z výškového pole (−∇h); díry používají analytický profil. */
 export function floorHeightTilt(
   ballX: number,
   ballY: number,
-  features: FloorHeightFeature[]
+  features: FloorHeightFieldFeature[]
 ): { ax: number; ay: number } {
-  const g = floorHeightGradient(ballX, ballY, features);
-  const mag = gradientToTiltMagnitude(g.dx, g.dy);
-  if (mag <= 0) return { ax: 0, ay: 0 };
-  const len = Math.hypot(g.dx, g.dy);
-  const ux = g.dx / len;
-  const uy = g.dy / len;
-  return { ax: -ux * mag, ay: -uy * mag };
+  let ax = 0;
+  let ay = 0;
+  for (const f of features) {
+    const t = featureTiltAt(ballX, ballY, f);
+    ax += t.ax;
+    ay += t.ay;
+  }
+  return { ax, ay };
 }
 
-export function composeBoardHoleAndFloorTilts(
+export function composeBoardAndFloorTilts(
   boardAx: number,
   boardAy: number,
   ballX: number,
   ballY: number,
-  goal: HoleDef | null,
-  trapHoles: HoleDef[],
-  floorFeatures: FloorHeightFeature[]
+  floorFeatures: FloorHeightFieldFeature[]
 ): { ax: number; ay: number } {
-  const base = composeBoardAndHoleTilts(boardAx, boardAy, ballX, ballY, goal, trapHoles);
-  if (!floorFeatures.length) return base;
   const local = floorHeightTilt(ballX, ballY, floorFeatures);
-  return { ax: base.ax + local.ax, ay: base.ay + local.ay };
+  return { ax: boardAx + local.ax, ay: boardAy + local.ay };
 }
 
 /** Rozsah výšek pro normalizaci stínu (hrubý průchod mřížkou). */
 export function floorHeightRange(
-  features: FloorHeightFeature[],
+  features: FloorHeightFieldFeature[],
   step = 8
 ): { min: number; max: number } {
   let min = 0;
@@ -288,8 +396,25 @@ function heightToRgb(h: number, hMin: number, hMax: number): { r: number; g: num
 }
 
 /** Jednorázový bake stínování podlahy (volitelný hrubší krok pro mobil). */
+function drawBlockEdges(ctx: CanvasRenderingContext2D, features: FloorHeightFieldFeature[]): void {
+  const blocks = features.filter((f): f is FloorBlockFeature => f.shape === "block");
+  if (!blocks.length) return;
+  ctx.save();
+  ctx.strokeStyle = "rgba(20, 10, 4, 0.45)";
+  ctx.lineWidth = 2;
+  ctx.shadowColor = "rgba(0,0,0,0.35)";
+  ctx.shadowBlur = 3;
+  ctx.shadowOffsetY = 2;
+  for (const b of blocks) {
+    const x = b.cx - b.w / 2;
+    const y = b.cy - b.h / 2;
+    ctx.strokeRect(x + 0.5, y + 0.5, b.w - 1, b.h - 1);
+  }
+  ctx.restore();
+}
+
 export function bakeFloorHeightCanvas(
-  features: FloorHeightFeature[],
+  features: FloorHeightFieldFeature[],
   pixelStep = 3
 ): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
@@ -315,6 +440,7 @@ export function bakeFloorHeightCanvas(
     }
   }
   ctx.putImageData(img, 0, 0);
+  drawBlockEdges(ctx, features);
   const innerW = FRAME_INNER_RIGHT - FRAME_INNER_LEFT;
   const innerH = FRAME_BOTTOM - FRAME_TOP;
   ctx.save();
@@ -326,9 +452,13 @@ export function bakeFloorHeightCanvas(
 }
 
 /** Pro testy: je bod v ovlivněné oblasti kterékoli feature? */
-export function ballOverFloorFeature(ballX: number, ballY: number, features: FloorHeightFeature[]): boolean {
+export function ballOverFloorFeature(ballX: number, ballY: number, features: FloorHeightFieldFeature[]): boolean {
   for (const f of features) {
-    if (f.shape === "ramp" || f.shape === "mesa") return true;
+    if (f.shape === "ramp" || f.shape === "mesa" || f.shape === "block") return true;
+    if (f.shape === "pit") {
+      if (Math.hypot(ballX - f.cx, ballY - f.cy) <= f.r) return true;
+      continue;
+    }
     if (featureHeightAt(ballX, ballY, f) !== 0) return true;
   }
   const eps = 0.5;

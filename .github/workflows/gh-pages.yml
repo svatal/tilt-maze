@@ -43,6 +43,14 @@ jobs:
           npx playwright install chromium
           npm run test:e2e
 
+      - name: Nahraj e2e artefakty při selhání
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results-${{ github.run_id }}
+          path: test-results/
+          retention-days: 7
+
       - name: Nahraj dist
         uses: actions/upload-artifact@v4
         with:

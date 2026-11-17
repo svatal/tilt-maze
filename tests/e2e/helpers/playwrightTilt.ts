@@ -68,7 +68,7 @@ type SceneTilt = {
 };
 
 /** After play starts: HUD running, ball body exists, a few Matter frames elapsed. */
-export async function waitForGamePlayReady(page: Page, timeoutMs = 20_000): Promise<void> {
+async function waitForGamePlayReady(page: Page, timeoutMs = 20_000): Promise<void> {
   await page.waitForFunction(
     () => {
       const scene = (window as unknown as { __tiltMazeScene?: SceneTilt }).__tiltMazeScene;
@@ -82,7 +82,7 @@ export async function waitForGamePlayReady(page: Page, timeoutMs = 20_000): Prom
 }
 
 /** CDP override must produce at least one valid deviceorientation before driving physics. */
-export async function waitForOrientationFeed(page: Page, timeoutMs = 15_000): Promise<void> {
+async function waitForOrientationFeed(page: Page, timeoutMs = 15_000): Promise<void> {
   await page.waitForFunction(
     () => {
       const scene = (window as unknown as { __tiltMazeScene?: SceneTilt }).__tiltMazeScene;

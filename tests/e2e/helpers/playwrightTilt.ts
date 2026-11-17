@@ -3,6 +3,10 @@ import { expect, type CDPSession, type Page } from "@playwright/test";
 /** Game ignores orientation samples older than 550ms (`src/tiltMapping.ts`); one CDP override emits once. */
 const ORIENTATION_REFRESH_MS = 200;
 
+/** E2E physics steps use fixed dt (must match `GameScene.e2eAdvanceSimulation` default). */
+export const E2E_SIM_DT_MS = 1000 / 60;
+const E2E_SIM_STEPS_PER_CD_LOOK = Math.round(300 / E2E_SIM_DT_MS);
+
 type Binding = {
   cdp: CDPSession;
   angles: { alpha: number; beta: number; gamma: number };
@@ -101,50 +105,49 @@ async function readBallXY(page: Page): Promise<{ x: number; y: number }> {
   });
 }
 
-/** Wait until tilt affected the ball or a short ceiling (replaces fixed sleeps in the CDP driver). */
-async function waitForBallMotion(
-  page: Page,
-  from: { x: number; y: number },
-  minDist = 0.45,
-  timeoutMs = 900,
-  soft = false
-): Promise<void> {
-  try {
-    await page.waitForFunction(
-      ([ox, oy, d]: [number, number, number]) => {
-        const b = (window as unknown as { __tiltMazeScene?: SceneTilt }).__tiltMazeScene?.ball;
-        if (!b) return false;
-        return Math.hypot(b.x - ox, b.y - oy) >= d;
-      },
-      [from.x, from.y, minDist] as [number, number, number],
-      { timeout: timeoutMs }
-    );
-  } catch (e) {
-    if (!soft) throw e;
-  }
-}
-
 const LEVEL1_GOAL = { x: 248, y: 118 };
 
-export async function driveCdpTiltToLevel1Goal(page: Page, timeoutMs = 50_000): Promise<void> {
-  await setCdpTilt(page, { beta: 8, gamma: 6 });
-  await waitForOrientationFeed(page);
-  await waitForBallMotion(page, await readBallXY(page), 0.35, 2_500, true);
+async function advanceSimulation(page: Page, steps: number): Promise<void> {
+  await page.evaluate(
+    ([n, dt]) => {
+      const w = window as unknown as { __e2eUnpinBall?: () => void; __e2eAdvanceSimulation?: (s: number, d?: number) => void };
+      w.__e2eUnpinBall?.();
+      w.__e2eAdvanceSimulation?.(n, dt);
+    },
+    [steps, E2E_SIM_DT_MS] as [number, number]
+  );
+}
 
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (await page.locator("#btn-next").isVisible().catch(() => false)) return;
-    const pos = await readBallXY(page);
-    let beta = 0;
-    let gamma = 0;
-    if (pos.y > LEVEL1_GOAL.y + 18) beta = -38;
-    else if (pos.y < LEVEL1_GOAL.y - 12) beta = 12;
-    if (pos.x < LEVEL1_GOAL.x - 14) gamma = 15;
-    else if (pos.x > LEVEL1_GOAL.x + 14) gamma = -14;
-    await setCdpTilt(page, { beta, gamma });
-    await waitForBallMotion(page, pos, 0.3, 750, true);
+export async function driveCdpTiltToLevel1Goal(page: Page, simBudgetMs = 50_000): Promise<void> {
+  const maxSteps = Math.ceil(simBudgetMs / E2E_SIM_DT_MS);
+  await page.evaluate(() => {
+    (window as unknown as { __e2eSetDriveMode?: (on: boolean) => void }).__e2eSetDriveMode?.(true);
+  });
+  try {
+    await setCdpTilt(page, { beta: 8, gamma: 6 });
+    await waitForOrientationFeed(page);
+    await advanceSimulation(page, E2E_SIM_STEPS_PER_CD_LOOK * 3);
+
+    let simSteps = 0;
+    while (simSteps < maxSteps) {
+      if (await page.locator("#btn-next").isVisible().catch(() => false)) return;
+      const pos = await readBallXY(page);
+      let beta = 0;
+      let gamma = 0;
+      if (pos.y > LEVEL1_GOAL.y + 18) beta = -38;
+      else if (pos.y < LEVEL1_GOAL.y - 12) beta = 12;
+      if (pos.x < LEVEL1_GOAL.x - 14) gamma = 15;
+      else if (pos.x > LEVEL1_GOAL.x + 14) gamma = -14;
+      await setCdpTilt(page, { beta, gamma });
+      await advanceSimulation(page, E2E_SIM_STEPS_PER_CD_LOOK);
+      simSteps += E2E_SIM_STEPS_PER_CD_LOOK;
+    }
+    throw new Error("CDP tilt: timeout bez výhry na úrovni 1");
+  } finally {
+    await page.evaluate(() => {
+      (window as unknown as { __e2eSetDriveMode?: (on: boolean) => void }).__e2eSetDriveMode?.(false);
+    });
   }
-  throw new Error("CDP tilt: timeout bez výhry na úrovni 1");
 }
 
 export async function assertMenuHiddenAfterPlay(page: Page): Promise<void> {
@@ -216,16 +219,6 @@ export async function driveMouseTilt(
     undefined,
     { timeout: 5_000 }
   );
-  await page.evaluate(
-    (ms) =>
-      new Promise<void>((resolve) => {
-        const t0 = performance.now();
-        const tick = (): void => {
-          if (performance.now() - t0 >= ms) resolve();
-          else requestAnimationFrame(tick);
-        };
-        requestAnimationFrame(tick);
-      }),
-    holdMs
-  );
+  const steps = Math.max(1, Math.round(holdMs / E2E_SIM_DT_MS));
+  await advanceSimulation(page, steps);
 }

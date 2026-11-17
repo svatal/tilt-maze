@@ -53,24 +53,6 @@ export function interiorWalls(lvl: LevelDef): WallDef[] {
   return lvl.walls.filter((w) => !isPerimeterWall(w));
 }
 
-/** Vnitřní okraj herní desky (stejný inset jako rámeček v GameScene). */
-const DESIGN_BOARD_INSET = 2;
-
-/** Každá zeď leží celá uvnitř design boardu. */
-export function wallsFitDesignBoard(lvl: LevelDef): boolean {
-  const pad = DESIGN_BOARD_INSET;
-  for (const w of lvl.walls) {
-    const left = w.cx - w.w / 2;
-    const right = w.cx + w.w / 2;
-    const top = w.cy - w.h / 2;
-    const bottom = w.cy + w.h / 2;
-    if (left < pad || right > DESIGN_WIDTH - pad || top < pad || bottom > DESIGN_HEIGHT - pad) {
-      return false;
-    }
-  }
-  return true;
-}
-
 const TYPICAL_WALL_THICKNESS = 14;
 
 function wallAabbOverlapDepth(a: WallDef, b: WallDef): { ox: number; oy: number } | null {

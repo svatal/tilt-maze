@@ -69,16 +69,9 @@ test("E2E past: na 0.5r už není trigger (jen mezikruh)", async ({ page }) => {
       };
       w.__e2ePlaceBall?.(px, py);
       w.__e2eTickHoles?.();
+      w.__e2eTickHoles?.();
     },
     { px: TRAP.cx + TRAP.r * 0.5, py: TRAP.cy }
-  );
-  await page.waitForFunction(
-    () => {
-      const w = window as unknown as { __e2eHoleState?: () => { trapSinking: boolean } };
-      return w.__e2eHoleState?.().trapSinking === false;
-    },
-    undefined,
-    { timeout: 5000 }
   );
   const st = await page.evaluate(() => {
     const w = window as unknown as { __e2eHoleState?: () => { trapSinking: boolean } };

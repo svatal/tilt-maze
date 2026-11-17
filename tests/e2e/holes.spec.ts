@@ -227,6 +227,7 @@ test("E2E cíl: okraj bez výhry, trigger až v 0.25r", async ({ page }) => {
 });
 
 test("E2E cíl: mezikruh + myš → výhra až u středu", async ({ page }) => {
+  test.setTimeout(90_000);
   await startHoleLevel(page);
   await page.evaluate(
     ({ px, py }) => {

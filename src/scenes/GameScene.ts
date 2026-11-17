@@ -90,6 +90,10 @@ export class GameScene extends Phaser.Scene {
   private goalHole: HoleDef | null = null;
   /** E2E: vzdálenost středu v okamžiku spuštění trigger animace. */
   private e2eLastTriggerDist: number | null = null;
+  /** E2E: po placeBall drží kuličku statickou a přeskočí fyziku mezi Playwright kroky. */
+  private e2eBallPinned = false;
+  /** E2E: jen `e2eAdvanceSimulation` posouvá fyziku (žádný paralelní Matter autoUpdate). */
+  private e2eDriveMode = false;
   private lastHudBandPx = 0;
   constructor() {
     super({ key: "GameScene" });
@@ -176,8 +180,14 @@ export class GameScene extends Phaser.Scene {
         __e2eHoleLocalMag?: (trapIndex?: number) => number;
         __e2eFloorSlopeMag?: (slopeIndex?: number) => number;
         __e2eRenderDepthOk?: () => boolean;
+        __e2eUnpinBall?: () => void;
+        __e2eAdvanceSimulation?: (steps: number, deltaMs?: number) => void;
+        __e2eSetDriveMode?: (on: boolean) => void;
       };
       w.__e2ePlaceBall = (x: number, y: number) => this.e2ePlaceBall(x, y);
+      w.__e2eUnpinBall = () => this.e2eUnpinBall();
+      w.__e2eAdvanceSimulation = (steps, deltaMs) => this.e2eAdvanceSimulation(steps, deltaMs);
+      w.__e2eSetDriveMode = (on) => this.e2eSetDriveMode(on);
       w.__e2eHoleState = () => ({
         goalSettling: this.goalSettling,
         trapSinking: this.trapSinking,
@@ -260,6 +270,37 @@ export class GameScene extends Phaser.Scene {
     this.matter.body.setPosition(bb, { x, y });
     this.matter.body.setVelocity(bb, { x: 0, y: 0 });
     this.e2eLastTriggerDist = null;
+    this.e2eBallPinned = true;
+    this.matter.body.setStatic(bb, true);
+  }
+
+  e2eUnpinBall(): void {
+    if (!this.ball?.body) return;
+    this.e2eBallPinned = false;
+    const bb = this.ball.body as MatterJS.BodyType;
+    if (!this.goalSettling && !this.trapSinking) {
+      this.matter.body.setStatic(bb, false);
+    }
+  }
+
+  e2eSetDriveMode(on: boolean): void {
+    this.e2eDriveMode = on;
+    this.matter.world.autoUpdate = !on;
+  }
+
+  /** E2E: pevný krok fyziky (nezávislý na wall-clock FPS / trace). */
+  e2eAdvanceSimulation(steps: number, deltaMs = 1000 / 60): void {
+    if (steps <= 0) return;
+    this.e2eUnpinBall();
+    const driveLatch = this.e2eDriveMode;
+    if (!driveLatch) this.e2eSetDriveMode(true);
+    for (let i = 0; i < steps; i++) {
+      this.elapsedMs += deltaMs;
+      this.tickGameplay(deltaMs);
+      this.matter.step(deltaMs);
+      this.timerEl.textContent = this.formatTime(this.elapsedMs);
+    }
+    if (!driveLatch) this.e2eSetDriveMode(false);
   }
 
   /** E2E: vyhodnotí trigger zóny bez čekání na další snímek update smyčky. */
@@ -271,8 +312,13 @@ export class GameScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     if (!this.running || !this.ball?.body) return;
+    if (this.e2eBallPinned || this.e2eDriveMode) return;
     this.elapsedMs += delta;
+    this.tickGameplay(delta);
+    this.timerEl.textContent = this.formatTime(this.elapsedMs);
+  }
 
+  private tickGameplay(delta: number): void {
     const bb = this.ball.body as MatterJS.BodyType;
     const pos = bb.position;
     const lvl = LEVELS[this.levelIndex];
@@ -307,8 +353,6 @@ export class GameScene extends Phaser.Scene {
 
       this.checkHoleTerminals(pos, lvl);
     }
-
-    this.timerEl.textContent = this.formatTime(this.elapsedMs);
   }
 
   private checkHoleTerminals(pos: { x: number; y: number }, lvl: LevelDef): void {

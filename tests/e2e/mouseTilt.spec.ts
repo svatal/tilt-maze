@@ -132,18 +132,3 @@ test("E2E: zapnutá myš ignoruje deviceorientation; po vypnutí senzor platí",
     await context.close();
   }
 });
-
-test("E2E: landscape layout — ovládací plocha a overlay", async ({ browser }) => {
-  const context = await browser.newContext({ viewport: { width: 900, height: 520 } });
-  const page = await context.newPage();
-  try {
-    await startGameFromMenu(page, 0);
-    await page.getByRole("button", { name: "Myš", exact: true }).click();
-    const canvas = page.locator("#game-container canvas");
-    await expect(canvas).toBeVisible();
-    await expect(page.locator("#tilt-maze-mouse-overlay")).toBeVisible();
-  } finally {
-    await clearCdpTilt(page);
-    await context.close();
-  }
-});

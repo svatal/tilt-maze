@@ -20,12 +20,7 @@ async function playLevelFromMenu(page: import("@playwright/test").Page, levelInd
   await page.waitForFunction(
     () => {
       const s = window as unknown as {
-        __tiltMazeScene?: {
-          running: boolean;
-          ball?: { body?: unknown };
-          verifyCanvasFitsViewport: () => boolean;
-          verifyHudAboveBoard: () => boolean;
-        };
+        __tiltMazeScene?: { running: boolean; ball?: { body?: unknown } };
       };
       const scene = s.__tiltMazeScene;
       return scene?.running === true && scene.ball?.body != null;

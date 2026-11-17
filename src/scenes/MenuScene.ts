@@ -241,8 +241,10 @@ export class MenuScene extends Phaser.Scene {
 
     card.innerHTML = `
       <h2 class="${menuStyles.helpCardTitle}">Nápověda</h2>
-      ${sections}
-      <div id="sensor-perm-status" class="${menuStyles.helpPermStatus}" aria-live="polite"></div>
+      <div class="${menuStyles.helpScroll}" data-testid="help-scroll">
+        ${sections}
+        <div id="sensor-perm-status" class="${menuStyles.helpPermStatus}" aria-live="polite"></div>
+      </div>
       <div class="${menuStyles.helpActions}">
         <button type="button" id="help-btn-perms" class="${sharedUi.btnSecondary}">Zkontrolovat oprávnění senzorů</button>
         <button type="button" id="help-btn-ios" class="${sharedUi.btnSecondary}">Požádat o přístup (iOS)</button>
@@ -280,7 +282,7 @@ export class MenuScene extends Phaser.Scene {
     });
 
     const closeBtn = card.querySelector("#help-btn-close") as HTMLButtonElement;
-    closeBtn.focus();
+    closeBtn.focus({ preventScroll: true });
   }
 
   private closeHelp(): void {

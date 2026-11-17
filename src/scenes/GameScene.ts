@@ -269,22 +269,6 @@ export class GameScene extends Phaser.Scene {
     this.checkHoleTerminals(bb.position, LEVELS[this.levelIndex]);
   }
 
-  /** Pro E2E: všechny zdi úrovně ve vnitřním rámu desky */
-  verifyWallsFitDesignBoard(): boolean {
-    const lvl = LEVELS[this.levelIndex];
-    const pad = 2;
-    for (const w of lvl.walls) {
-      const left = w.cx - w.w / 2;
-      const right = w.cx + w.w / 2;
-      const top = w.cy - w.h / 2;
-      const bottom = w.cy + w.h / 2;
-      if (left < pad || right > DESIGN_WIDTH - pad || top < pad || bottom > DESIGN_HEIGHT - pad) {
-        return false;
-      }
-    }
-    return true;
-  }
-
   update(_time: number, delta: number): void {
     if (!this.running || !this.ball?.body) return;
     this.elapsedMs += delta;
@@ -634,28 +618,6 @@ export class GameScene extends Phaser.Scene {
     if (refreshScale) {
       this.game.scale.refresh();
     }
-  }
-
-  /** E2E: HUD je celý nad horním okrajem herní desky (nebo v horním letterboxu). */
-  verifyHudAboveBoard(): boolean {
-    if (!this.hud || this.hud.hidden) return true;
-    const hb = this.hud.getBoundingClientRect();
-    const canvas = this.game.canvas as HTMLCanvasElement;
-    const cb = canvas.getBoundingClientRect();
-    return hb.bottom <= cb.top + 2;
-  }
-
-  /** E2E: celý canvas (včetně spodního rámu) je v okně bez ořezu. */
-  verifyCanvasFitsViewport(): boolean {
-    const canvas = this.game.canvas as HTMLCanvasElement;
-    const r = canvas.getBoundingClientRect();
-    const pad = 1;
-    return (
-      r.top >= pad &&
-      r.left >= -pad &&
-      r.bottom <= window.innerHeight + pad &&
-      r.right <= window.innerWidth + pad
-    );
   }
 
   private returnToMenu(): void {

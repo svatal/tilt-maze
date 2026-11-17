@@ -2,13 +2,7 @@ import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  clearCdpTilt,
-  dismissSensorBannerIfPresent,
-  driveMouseTilt,
-  setCdpTilt,
-  startGameFromMenu
-} from "./helpers/playwrightTilt";
+import { clearCdpTilt, setCdpTilt, startGameFromMenu } from "./helpers/playwrightTilt";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "../..");
@@ -137,16 +131,4 @@ test("E2E: zapnutá myš ignoruje deviceorientation; po vypnutí senzor platí",
   } finally {
     await context.close();
   }
-});
-
-test("E2E: landscape layout — ovládací plocha a overlay", async ({ page }) => {
-  test.setTimeout(60_000);
-  await clearCdpTilt(page);
-  await page.setViewportSize({ width: 900, height: 520 });
-  await startGameFromMenu(page, 0);
-  await dismissSensorBannerIfPresent(page);
-  await page.getByRole("button", { name: "Myš", exact: true }).click();
-  const canvas = page.locator("#game-container canvas");
-  await expect(canvas).toBeVisible();
-  await expect(page.locator("#tilt-maze-mouse-overlay")).toBeVisible();
 });

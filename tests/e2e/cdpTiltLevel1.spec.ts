@@ -43,7 +43,7 @@ async function finishLevel1(page: Page, shotPrefix: string): Promise<void> {
     const midroll = sleep(2500).then(() =>
       page.screenshot({ path: path.join(artifacts, `${shotPrefix}-midroll.png`) })
     );
-    const win = expect(page.locator("#btn-next")).toBeVisible({ timeout: 95_000 });
+    const win = expect(page.locator("#btn-next")).toBeVisible({ timeout: 80_000 });
     await Promise.all([tilt, midroll, win]);
 
     await expect(page.locator("#tilt-maze-sensor-warn")).toBeHidden();

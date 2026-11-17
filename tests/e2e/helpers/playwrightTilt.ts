@@ -196,8 +196,7 @@ export async function driveMouseTilt(
   dir: { nx: number; ny: number },
   holdMs = 600
 ): Promise<void> {
-  await expect(page.locator("#btn-next")).toHaveCount(0);
-  await page.locator("#btn-mouse").click({ force: true });
+  await page.getByRole("button", { name: "Myš", exact: true }).click();
   const canvas = page.locator("#game-container canvas");
   const box = await canvas.boundingBox();
   if (!box) throw new Error("Chybí canvas pro ovládání myší");

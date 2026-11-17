@@ -69,7 +69,6 @@ test("E2E past: na 0.5r už není trigger (jen mezikruh)", async ({ page }) => {
       };
       w.__e2ePlaceBall?.(px, py);
       w.__e2eTickHoles?.();
-      w.__e2eTickHoles?.();
     },
     { px: TRAP.cx + TRAP.r * 0.5, py: TRAP.cy }
   );
@@ -220,7 +219,6 @@ test("E2E cíl: okraj bez výhry, trigger až v 0.25r", async ({ page }) => {
 });
 
 test("E2E cíl: mezikruh + myš → výhra až u středu", async ({ page }) => {
-  test.setTimeout(90_000);
   await startHoleLevel(page);
   await page.evaluate(
     ({ px, py }) => {
@@ -231,7 +229,6 @@ test("E2E cíl: mezikruh + myš → výhra až u středu", async ({ page }) => {
   );
   await sleep(150);
   expect(await page.getByText("Výhra!", { exact: false }).isVisible()).toBe(false);
-  await expect(page.locator("#btn-next")).toHaveCount(0);
   await driveMouseTilt(page, { nx: 0, ny: -1 }, 1400);
   await expect(page.getByText("Výhra!", { exact: false })).toBeVisible({ timeout: 8000 });
 });

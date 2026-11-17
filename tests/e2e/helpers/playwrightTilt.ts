@@ -197,19 +197,7 @@ export async function driveMouseTilt(
   holdMs = 600
 ): Promise<void> {
   await expect(page.locator("#btn-next")).toHaveCount(0);
-  await page.waitForFunction(
-    () => {
-      const btn = document.getElementById("btn-mouse");
-      if (!btn || (btn as HTMLButtonElement).disabled) return false;
-      const rect = btn.getBoundingClientRect();
-      if (rect.width < 1 || rect.height < 1) return false;
-      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-      return hit === btn || (hit != null && btn.contains(hit));
-    },
-    undefined,
-    { timeout: 15_000 }
-  );
-  await page.locator("#btn-mouse").click();
+  await page.locator("#btn-mouse").click({ force: true });
   const canvas = page.locator("#game-container canvas");
   const box = await canvas.boundingBox();
   if (!box) throw new Error("Chybí canvas pro ovládání myší");

@@ -72,6 +72,14 @@ test("E2E past: na 0.5r už není trigger (jen mezikruh)", async ({ page }) => {
     },
     { px: TRAP.cx + TRAP.r * 0.5, py: TRAP.cy }
   );
+  await page.waitForFunction(
+    () => {
+      const w = window as unknown as { __e2eHoleState?: () => { trapSinking: boolean } };
+      return w.__e2eHoleState?.().trapSinking === false;
+    },
+    undefined,
+    { timeout: 5000 }
+  );
   const st = await page.evaluate(() => {
     const w = window as unknown as { __e2eHoleState?: () => { trapSinking: boolean } };
     return w.__e2eHoleState?.();
@@ -229,6 +237,7 @@ test("E2E cíl: mezikruh + myš → výhra až u středu", async ({ page }) => {
   );
   await sleep(150);
   expect(await page.getByText("Výhra!", { exact: false }).isVisible()).toBe(false);
+  await expect(page.locator("#btn-next")).toHaveCount(0);
   await driveMouseTilt(page, { nx: 0, ny: -1 }, 1400);
   await expect(page.getByText("Výhra!", { exact: false })).toBeVisible({ timeout: 8000 });
 });
